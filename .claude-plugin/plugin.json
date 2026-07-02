@@ -1,0 +1,7 @@
+{
+  "name": "iterator",
+  "version": "1.0.0",
+  "description": "Iterate on code with AI in small, reviewable, dependency-ordered chunks. Guided flow: plan → chunk → implement → review → test, with durable state in an OKF memory/ bundle.",
+  "author": "Christoph Maier",
+  "license": "MIT"
+}

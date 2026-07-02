@@ -1,70 +1,122 @@
-# local-review
+# iterator
 
-A Claude Code plugin for feature-grouped local code review. Instead of reviewing changes file-by-file, local-review groups your git changes by **feature** so you see related changes across multiple files together — with blast radius context and a direct feedback loop back to Claude.
+A Claude Code plugin that helps you iterate on code together with AI by forcing
+work into small, reviewable **chunks**. You still lean on AI for planning and
+implementation, but the unit of change stays human-reviewable (~200 lines),
+dependency-ordered, and durable across sessions.
 
 Inspired by [Plannotator](https://github.com/backnotprop/plannotator).
 
-## The problem
+## The idea
 
-Classical diff tools (`git diff`, GitHub PRs) group changes by file. But a feature often touches 3–10 files simultaneously, and forcing reviewers to mentally reconstruct feature boundaries from file-by-file diffs causes cognitive overload and missed connections.
+Classical diff tools group changes by file. A developer's mental model is
+organized around *what changed and why* — a unit of work often touches several
+files at once. iterator makes the **chunk** the primary unit: a meaningful,
+connected slice of implementation of roughly 200 lines, in dependency order.
+Review-effectiveness research shows defect detection degrades past ~200–400
+lines, so ~200 is a conservative, reviewable default.
 
-local-review inverts the default: **features are the primary grouping, files are secondary.**
+Every step has a browser UI built on one shared shell, so all five steps look
+and behave the same, and all persistent state lives in a `memory/` directory
+that is a conformant [Open Knowledge Format (OKF) v0.1](docs/OKF_SPEC.md) bundle.
 
-Human reviewers can only process ~1 feature per sitting. This plugin enforces that discipline — features larger than 200 lines get flagged and should be split before review.
-
-## Skills
-
-### `/plan-features`
-
-Analyzes your current git changes, groups them into small cohesive features, and writes a `## Review Features` section to `PLAN.md`. Opens an interactive browser UI where you can:
-
-- See all features as cards with a size bar chart
-- Drag files between feature cards to adjust groupings
-- Rename features (inline edit)
-- Split oversized features (> 200 lines)
-- Merge small related features
-- Click "Apply adjustments to PLAN.md" — feedback goes directly to Claude, no copy-paste
-
-**Run this first**, before `/review`.
-
-### `/review`
-
-Opens a feature-grouped diff viewer in the browser. For each feature, you see all its changed hunks across files together, with blast radius context. Supports:
-
-- Feature-level status: Approved / Needs Changes / Question
-- Feature notes and line-level comments
-- Click "Send feedback to Claude" — Claude immediately processes your feedback, explains changes, or applies fixes
-
-## How it works
-
-Both skills run a local Node.js HTTP server on **port 8888**. The browser UI POSTs structured feedback directly to the server, which prints it to stdout for Claude to read — no clipboard, no copy-paste.
+## The five-step flow
 
 ```
-/plan-features
-  └─ Claude analyzes git diff
-  └─ Claude writes ## Review Features to PLAN.md
-  └─ node server.mjs ← JSON data piped in
-       └─ Opens http://localhost:8888
-       └─ Blocks waiting for user adjustments
-       └─ User clicks "Apply" → JSON posted to /submit
-       └─ Prints adjustment JSON to stdout → Claude reads it
-       └─ Claude updates PLAN.md, loops back
+/iterator-plan       create/revise the plan            → memory/plan.md
+      │  (accept auto-continues)
+      ▼
+/iterator-chunk      break the plan into chunks        → memory/chunks/<slug>.md
+      │
+      ▼
+/iterator-implement  build the next dependency-ready chunk
+      │  (auto-starts the review at the end)
+      ▼
+/iterator-review     chunk-vs-git-diff review          → outcome written into the chunk file
 
-/review
-  └─ Claude reads PLAN.md features + git diff
-  └─ Maps hunks to features
-  └─ node server.mjs ← JSON data piped in
-       └─ Opens http://localhost:8888
-       └─ Blocks waiting for user review
-       └─ User clicks "Send feedback" → JSON posted to /submit
-       └─ Prints feedback JSON to stdout → Claude reads it
-       └─ Claude explains, fixes, or acknowledges
+/iterator-test       (optional, any time after chunking) write tests for a chunk
 ```
+
+- **`/iterator-plan`** — turn a goal into a plan in a browser plan-review UI
+  (click-to-edit markdown sections, per-section comments, editable dependency
+  chips). On accept it writes the `memory/` bundle and auto-continues into
+  chunking.
+- **`/iterator-chunk`** — split the plan into chunks, one OKF file each, in a UI
+  with a dependency-graph visualization, snippets, drag-to-move files, and
+  LLM-backed **Split**/**Merge**.
+- **`/iterator-implement`** — build the next chunk whose dependencies are all
+  done, auto-open the review UI scoped to it, and on **Accept and commit** commit
+  it (`chunk(<slug>)`) and flip its status to done.
+- **`/iterator-review`** — standalone chunk-grouped diff review; records
+  `reviewed`/notes into the chunk file. Never marks a chunk done.
+- **`/iterator-test`** — propose a per-chunk test plan in the browser, then write
+  and run focused tests.
+
+## The `memory/` bundle
+
+`/iterator-plan` creates a `memory/` directory in your project root. It is a
+self-describing OKF v0.1 bundle — plain markdown with YAML frontmatter that you
+can read and edit without any tooling:
+
+```
+memory/
+├── index.md          # bundle root index (okf_version)
+├── format.md         # the metadata schema, copied into every bundle
+├── plan.md           # the plan (type: Plan)
+├── log.md            # chronological history of what the AI did
+└── chunks/
+    ├── index.md      # chunk listing with status
+    └── <slug>.md     # one document per chunk (type: Chunk)
+```
+
+An example chunk document:
+
+```markdown
+---
+type: Chunk
+title: Auth middleware
+description: JWT-based auth middleware for all protected routes.
+status: pending
+size: small
+lines_estimate: 60
+depends_on: [config-module]
+files: ["src/auth.ts", "src/middleware/*.ts"]
+timestamp: 2026-07-02T10:00:00Z
+---
+
+# Implementation notes
+Verify the token from the config secret; wrap protected routes.
+
+# Depends on
+* [Config module](/chunks/config-module.md) — needs the JWT secret from config.
+
+# Blast radius
+Every route behind the auth guard.
+```
+
+The chunk **slug** (the filename without `.md`) is the chunk's identity: its OKF
+concept ID, its `depends_on` key, and its commit-message name. One file per chunk
+means per-chunk git history and no fragile line-number indexes. The full schema
+is in [`templates/format.md`](templates/format.md) (and in each bundle's
+`memory/format.md`); see [`docs/OKF_SPEC.md`](docs/OKF_SPEC.md) for the format
+itself.
+
+## Chunk sizing
+
+| Est. lines | Label | Color | Guideline |
+|---|---|---|---|
+| ≤ 100 | small | 🟢 green | Ideal — 10-minute review |
+| 101–200 | medium | 🟡 yellow | Acceptable — 30-minute review |
+| > 200 | large | 🔴 red | Should be split |
+
+Size is estimated from the plan before code exists, so it is a soft target.
+`/iterator-chunk` flags oversized chunks and offers Split; `/iterator-review`
+warns on oversized diffs.
 
 ## Installation
 
 ```bash
-claude plugins install /path/to/local-review
+claude plugins install /path/to/iterator
 ```
 
 Or from this repo after cloning:
@@ -73,119 +125,43 @@ Or from this repo after cloning:
 claude plugins install .
 ```
 
+All five `/iterator-*` skills are auto-discovered from `skills/*/SKILL.md`.
+
 ## Requirements
 
-- Node.js ≥ 18 (uses native `node:http` and `node:child_process` — no npm install needed)
+- Node.js ≥ 18 (the servers use only Node built-ins — no `npm install` needed)
 - Claude Code with plugin support
-- A git repository with uncommitted changes
+- A git repository (the `memory/` bundle is resolved relative to the git root)
 
 ## Configuration
 
-Port defaults to **8888**. Override with the `LOCAL_REVIEW_PORT` environment variable:
+Each interactive step runs a tiny local HTTP server bound to `127.0.0.1` that
+opens a browser UI and prints your response back to Claude — no clipboard, no
+temp files. The port defaults to **8888**; override it with `ITERATOR_PORT`:
 
 ```bash
-LOCAL_REVIEW_PORT=9000 # set in your shell or .env
+ITERATOR_PORT=9000   # set in your shell
 ```
 
-## Two-file design
+If the port is busy the server automatically picks the next free port and prints
+the real URL. Set `ITERATOR_MEMORY_DIR` to relocate the bundle (resolved relative
+to the git root).
 
-The plugin uses two files with different scopes, keeping Claude's context small:
+## How it works
 
-**`PLAN.md`** — high-level plan + a `## Features Index` table with line references into FEATURES.md. Claude reads this first to understand intent and find exactly which lines to load — without reading the whole features file.
+1. A skill builds a JSON payload and pipes it to `skills/<step>/server.mjs` via a
+   heredoc — nothing is written to `/tmp`.
+2. The server serves a self-contained page (data embedded inline and safely
+   escaped) and opens `http://127.0.0.1:<port>`.
+3. On submit the browser POSTs structured JSON to `/submit`; the server prints it
+   to stdout and exits. Closing the tab POSTs `/cancel`, emitting
+   `{ "type": "cancel" }`, so a closed tab never leaves the flow hanging. A 2h
+   idle emits `{ "type": "timeout" }`.
+4. Claude reads stdout, updates the `memory/` bundle, and re-runs the server for
+   the next round.
 
-```markdown
-# Plan
-
-Add JWT authentication and REST API routes.
-
-## Features Index
-
-| Feature | Line | Status | Size |
-|---|---|---|---|
-| config-module | 8 | [x] reviewed | small |
-| auth-middleware | 18 | [ ] pending | small |
-| api-routes | 30 | [ ] pending | medium |
-```
-
-**`FEATURES.md`** — full per-feature spec and review history, with checkboxes for persistent progress tracking.
-
-```markdown
-# Features
-
-> **Plan:** Add JWT authentication and REST API routes
-> **Branch:** feature/auth
-> **Created:** 2026-07-01
-> **Progress:** 1/3 reviewed
-
----
-
-## [x] config-module
-- **description**: Centralize all env/config access
-- **files**: `src/config.ts`
-- **blast-radius**: Every file reading env vars directly
-- **depends-on**: none
-- **size**: small (30 lines)
-- **reviewed**: 2026-07-01
-- **notes**: Approved
-
-## [ ] auth-middleware
-- **description**: JWT-based auth middleware
-- **files**: `src/auth.ts`, `src/middleware/auth.ts`
-- **blast-radius**: All routes behind auth guard
-- **depends-on**: config-module
-- **size**: small (50 lines)
-```
-
-`/plan-features` creates and maintains both files. `/review` reads PLAN.md for the index, then loads only the relevant feature lines from FEATURES.md — keeping context efficient.
-
-### Sizing guideline
-
-| Lines changed | Label | Color | Review time |
-|---|---|---|---|
-| ≤ 100 | small | 🟢 green | ~10 min |
-| 101–200 | medium | 🟡 yellow | ~30 min |
-| > 200 | large | 🔴 red | needs splitting |
-
-## Repository structure
-
-```
-local-review/
-├── .claude-plugin/
-│   └── plugin.json          # Plugin manifest
-├── skills/
-│   ├── review/
-│   │   ├── SKILL.md         # /review skill definition
-│   │   ├── server.mjs       # Local HTTP server + browser UI
-│   │   └── templates/
-│   │       └── feature-review.md  # HTML/UI reference spec
-│   └── plan-features/
-│       ├── SKILL.md         # /plan-features skill definition
-│       ├── server.mjs       # Local HTTP server + browser UI
-│       └── templates/
-│           └── feature-planner.md # HTML/UI reference spec
-├── ARCHITECTURE.md          # Technical design decisions
-├── CONTRIBUTING.md
-└── README.md
-```
-
-## Workflow
-
-```
-1. Make some code changes
-2. Run /plan-features
-   → Browser opens with feature cards
-   → Adjust groupings, rename, split large features
-   → Click "Apply adjustments to PLAN.md"
-3. Run /review
-   → Browser opens with feature-grouped diff
-   → Review each feature's changes together
-   → Add notes, mark status, ask questions
-   → Click "Send feedback to Claude"
-4. Claude processes feedback:
-   → Explains flagged changes
-   → Applies fixes (with your approval)
-   → Offers to re-run the review
-```
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design and
+[docs/OKF_SPEC.md](docs/OKF_SPEC.md) for the bundle format.
 
 ## License
 

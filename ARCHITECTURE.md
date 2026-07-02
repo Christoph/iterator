@@ -1,91 +1,205 @@
-# local-review Architecture
+# iterator Architecture
 
-A Claude Code plugin that makes code review and implementation human-sized by organizing work into **chunks** — small, dependency-aware units — rather than by file.
+**iterator** is a Claude Code plugin that helps developers iterate on code
+together with AI by forcing work into small, reviewable **chunks**. Devs still
+lean on AI for planning and implementation, but the unit of change stays
+human-reviewable (~200 lines), dependency-ordered, and durable across sessions.
 
-## Core Problem
+## Core idea
 
-Classical diff tools group changes by file. But a developer's mental model is organized around *what changed and why* — a unit of work often touches several files at once. This plugin inverts the default: chunks are the primary grouping, files are secondary. A chunk is a meaningful, connected unit of implementation of roughly 200 lines.
+Classical diff tools group changes by file. A developer's mental model is
+organized around *what changed and why* — a unit of work often touches several
+files at once. iterator makes the **chunk** the primary unit: a meaningful,
+connected slice of implementation of roughly 200 lines, in dependency order.
 
-## Guided sequential flow
+Review-effectiveness research (Cisco/SmartBear) shows defect detection degrades
+past ~200–400 lines, so ~200 is a conservative, reviewable default.
 
-```
-/lr-plan-features   plan → chunk breakdown (PLAN.md + CHUNKS.md)
-       │
-       ▼
-/lr-implementer     build the next dependency-ready chunk, review, Accept and commit
-       │
-       ├── /lr-review        review a chunk's diff (standalone: asks which chunk)
-       └── /lr-test-features generate tests for a chunk
-```
-
-All skills share the `lr-` prefix so they group together in autocomplete.
-
-## Plugin Structure
+## Guided five-step flow
 
 ```
-local-review/
+/iterator-plan       create/revise the plan            → memory/plan.md
+      │  (accept auto-continues)
+      ▼
+/iterator-chunk      break the plan into chunks        → memory/chunks/<slug>.md
+      │
+      ▼
+/iterator-implement  build the next dependency-ready chunk
+      │  (auto-starts the review at the end)
+      ▼
+/iterator-review     chunk-vs-git-diff review          → outcome written into the chunk file
+
+/iterator-test       (optional, any time after chunking) write tests for a chunk
+```
+
+All five skills share the `iterator-` prefix so they group in autocomplete, and
+every step has a browser UI built on **one shared UI shell** (`lib/`), so all
+five look and behave the same.
+
+## Plugin structure
+
+```
+iterator/
 ├── .claude-plugin/
-│   └── plugin.json              # Plugin manifest (skills auto-discovered from skills/)
+│   └── plugin.json              # Plugin manifest (name: iterator; skills auto-discovered)
+├── lib/
+│   ├── server.mjs               # shared local HTTP server: stdin→JSON, /submit + /cancel, timeout
+│   └── ui.mjs                    # shared page shell: header, theme, CSS vars, esc/mdToHtml, post()
 ├── skills/
-│   ├── lr-plan-features/
-│   │   ├── SKILL.md             # plan-review + chunk-plan UIs, LLM split/merge
-│   │   └── server.mjs
-│   ├── lr-implementer/
-│   │   ├── SKILL.md             # builds chunks in dependency order; Accept and commit
-│   │   └── server.mjs           # implementation-review UI
-│   ├── lr-review/
-│   │   ├── SKILL.md             # chunk-grouped diff viewer
-│   │   └── server.mjs
-│   └── lr-test-features/
-│       └── SKILL.md             # per-chunk test generation (no UI)
-├── PLAN.md                      # plan narrative + Chunks Index (dependency graph + status)
-├── CHUNKS.md                    # per-chunk detail + status
-└── ARCHITECTURE.md
+│   ├── iterator-plan/           # plan-review UI; creates/updates the memory/ bundle
+│   ├── iterator-chunk/          # chunk-plan UI: graph, cards, split/merge → one file per chunk
+│   ├── iterator-implement/      # builds the next ready chunk; auto-review; Accept and commit
+│   ├── iterator-review/         # chunk-grouped diff review; writes outcomes into chunk files
+│   └── iterator-test/           # per-chunk test-plan UI + test generation
+├── templates/
+│   └── format.md                # self-describing bundle schema, copied into every bundle
+├── docs/
+│   └── OKF_SPEC.md              # Open Knowledge Format v0.1 spec
+├── ARCHITECTURE.md
+├── CONTRIBUTING.md
+└── README.md
 ```
 
-Skills are discovered automatically from `skills/*/SKILL.md`; the manifest does not list them.
+Skills are discovered automatically from `skills/*/SKILL.md`; the manifest does
+not list them.
+
+## The `memory/` bundle (OKF v0.1)
+
+All persistent state lives in a `memory/` directory created by `/iterator-plan`
+in the *user's* project root. It is a conformant **OKF v0.1 bundle** — a
+directory of markdown files with YAML frontmatter (see `docs/OKF_SPEC.md`). The
+full schema is documented in `templates/format.md`, which every bundle carries
+as `memory/format.md` so it stays self-describing when copied out of the repo.
+
+```
+memory/
+├── index.md          # bundle root index; okf_version frontmatter (OKF §11)
+├── format.md         # type: Reference — the metadata schema (copied from templates/)
+├── plan.md           # type: Plan — the plan concept
+├── log.md            # OKF §7 update log; skills append entries
+└── chunks/
+    ├── index.md      # chunk listing with status, for progressive disclosure
+    └── <slug>.md     # type: Chunk — one concept per chunk
+```
+
+Key decisions:
+
+- **One file per chunk.** The chunk **slug** (filename without `.md`) is the
+  chunk's OKF concept ID, its `depends_on` key, and its commit-message name.
+  This replaces the old monolithic file + line-number index (whose references
+  broke on any edit above a chunk) and gives per-chunk git history for free.
+- **`timestamp`, not `last_updated`.** OKF §4.1 already defines `timestamp` as
+  "last meaningful change", so iterator uses the spec field rather than
+  inventing a synonym, keeping the bundle interoperable.
+- **`format.md` is a first-class concept** (`type: Reference`) inside the
+  bundle, not schema prose stuffed into `index.md` (OKF §6 defines `index.md`
+  as a *listing*). A bundle handed to any human or agent explains itself.
+- **`log.md` audit trail.** Cheap, OKF-native, and answers "what happened since
+  I last looked" across sessions.
+- **Canonical dependencies live in frontmatter** (`depends_on`); the
+  `# Depends on` body section is a human/graph mirror with optional "why" prose.
+- **Bundle stays OKF-conformant at every step** (OKF §9): parseable
+  frontmatter, non-empty `type`, `index.md`/`log.md` follow §6/§7. Consumers
+  tolerate a stale index; skills regenerate indexes after any change.
+
+The env var `ITERATOR_MEMORY_DIR` overrides the `memory/` location; it is always
+resolved relative to the git root.
+
+## Shared UI shell (`lib/`)
+
+Every step's `server.mjs` shrinks to: parse the stdin payload → provide a body
+renderer + step-specific browser JS → call `serve()`. The shell provides the
+rest:
+
+- **`lib/server.mjs`** — `readPayload()` (stdin→JSON) and `serve({ step, html })`:
+  an HTTP server bound to `127.0.0.1` handling `GET /`, `POST /submit`,
+  `POST /cancel`, plus a 2-hour timeout and the browser opener. Port comes from
+  `ITERATOR_PORT` (default `8888`). Three defects from the old per-skill servers
+  are fixed here:
+  - **F8** — page data is embedded with `<` escaped (`embed()` in `ui.mjs`), so
+    a diff line containing `</script>` can't terminate the script block.
+  - **F9** — a busy port no longer crashes: `serve()` retries the next port a
+    few times, then falls back to an ephemeral port, and always prints the real
+    URL.
+  - **F10** — the timeout prints `{ "type": "timeout" }` to stdout instead of
+    exiting silently, so the SKILL.md output contract is never violated.
+- **`lib/ui.mjs`** — `renderPage()` builds the full page: the
+  `iterator / <step>` header with a branch tag, theme toggle, **Cancel**, and a
+  primary button that flips **Accept ↔ Send review** driven by a step-provided
+  `hasChanges()` hook (the implement review's no-comment primary is **Accept and
+  commit**). It ships the shared CSS variables (dark/light), `esc()`, a
+  dependency-free `mdToHtml()` markdown renderer, the cancel-on-unload beacon,
+  and the `post()` submit helper. `DIFF_CSS` is a shared diff-table style steps
+  can opt into.
+
+This is what makes "each step has its own UI with the same base structure and
+flow" true by construction rather than by copy-paste discipline.
+
+### Browser round-trip (no temp files)
+
+1. A skill builds a JSON payload and pipes it to `server.mjs` via a heredoc —
+   nothing is written to `/tmp`.
+2. `server.mjs` serves the page (data embedded inline, safely escaped) and opens
+   the browser on `127.0.0.1:<port>`.
+3. On submit the browser `POST`s structured JSON to `/submit`; the server prints
+   it to stdout and exits. Closing the tab `POST`s `/cancel` (via `sendBeacon`),
+   emitting `{ "type": "cancel" }`, so a closed tab never leaves the flow
+   hanging.
+4. Claude reads stdout, applies changes to the `memory/` bundle, and re-runs the
+   server for the next round.
+
+**Why a local server?** A browser page can't write to disk and there is no
+skill-drivable in-editor UI channel, so a tiny localhost server closes the loop.
+It is dependency-free, binds only to `127.0.0.1`, writes nothing to `/tmp`, and
+exits on submit or timeout.
+
+**Why LLM-driven split/merge via round-trip?** The browser can't call an LLM, so
+Split/Merge `POST` a request; Claude performs the semantic split/merge, rewrites
+the affected chunk files, and re-opens the UI.
 
 ## Skills
 
-### `/lr-plan-features`
-Turns a goal (or existing `PLAN.md`) into a plan, then breaks it into chunks. The plan-review UI renders sections as markdown (click-to-edit, per-section comments, editable dependency chips). Accepting the plan immediately starts chunk creation; the chunk-plan UI shows a dependency-graph visualization, code snippets, per-chunk comments, and **Split**/**Merge** buttons that round-trip to Claude (the browser has no LLM access) to split/merge chunks meaningfully and rewire dependencies. Writes `PLAN.md` (Chunks Index) + `CHUNKS.md` (detail).
+### `/iterator-plan`
+Turns a goal into a plan and creates the `memory/` bundle (`index.md`,
+`format.md`, `log.md`, `plan.md`). Offers one-time migration if legacy state
+files are present. The plan-review UI renders sections as markdown
+(click-to-edit, per-section comments, editable dependency chips). On acceptance
+it sets `status: approved` and auto-continues into `/iterator-chunk`.
 
-### `/lr-implementer`
-Reads the Chunks Index + `CHUNKS.md`, picks the next chunk whose dependencies are all done (topological order; reports cycles), and implements it using the chunk description, implementation notes, snippets, `ARCHITECTURE.md`, and `GUIDELINES.md` if it exists. Opens an implementation-review UI; on **Accept and commit** it commits with the chunk name (branching off the default branch if needed) and marks the chunk done in `CHUNKS.md` + the index.
+### `/iterator-chunk`
+Splits the approved plan into chunks: one OKF file per chunk, regenerating
+`chunks/index.md` and the plan's `# Chunks` section. The chunk-plan UI shows a
+dependency-graph visualization, code snippets, per-chunk comments, drag-to-move
+files, and **Split**/**Merge** buttons that round-trip to Claude. Split/merge
+create/delete chunk files and rewire `depends_on`; cycle detection lives in both
+the UI and the skill. Re-runnable to re-chunk, preserving `status: done` chunks.
 
-### `/lr-review`
-Chunk-grouped diff viewer. Maps `git diff` hunks to chunks via each chunk's `files` list. Used automatically by `/lr-implementer`, or standalone — in which case it first asks which chunk to review against. Records `reviewed`/notes back into `CHUNKS.md`.
+### `/iterator-implement`
+Picks the next chunk whose `depends_on` are all `done` (topological order;
+reports cycles/stuck states), implements it from the chunk file +
+`ARCHITECTURE.md` (+ `GUIDELINES.md` if present), then auto-opens the
+`/iterator-review` UI scoped to that chunk with **Accept and commit** as the
+primary. On accept: branch safety (never commit to `main`/`master`), one commit
+`chunk(<slug>): <summary>` with a `Chunk: <slug>` trailer that includes the code,
+the chunk-file status flip (`status: done`, `done:` date, `timestamp`), the
+regenerated indexes, and a `log.md` entry — then it offers the next ready chunk.
 
-### `/lr-test-features`
-Generates tests one chunk at a time: detects the project's test runner and conventions, reads the chunk's real code, and writes focused tests (happy path + failure modes). Opt-in per chunk; does not change status.
+### `/iterator-review`
+Standalone chunk review: pick a chunk (pending first, dependency order, plus
+"All pending"), diff from open git changes (`git diff HEAD`, with fallbacks),
+map hunks to chunks via each chunk's `files` globs (first match wins, rest →
+Uncategorized). Outcomes are written into the chunk file: `reviewed:` date
+refreshed, notes appended under `# Review`, indexes and `log.md` regenerated.
+Review never sets `status: done` — that stays owned by implement.
 
-## Two-file layout: PLAN.md + CHUNKS.md
+### `/iterator-test`
+Opt-in per chunk. Detects the project's test runner and conventions, proposes a
+**test plan** (happy path / edge / integration cases, each with a rationale and a
+comment box) in the shared UI, then on accept writes tests following the detected
+convention, runs them, and reports results. Adds a `log.md` entry; never changes
+chunk status.
 
-### PLAN.md — the overview
-Holds the plan narrative plus a `## Chunks Index`: the ordered chunk list with dependencies (the graph) and status. Read first to understand intent, determine implementation order, and find the exact lines to load per chunk.
-
-```markdown
-## Chunks Index
-
-| Chunk | Line | Status | Size | Depends on |
-|---|---|---|---|---|
-| config-module | 8 | [x] done | small | — |
-| auth-middleware | 20 | [ ] pending | small | config-module |
-| api-routes | 34 | [ ] pending | medium | auth-middleware |
-```
-
-### CHUNKS.md — the detail
-One self-contained block per chunk (description, implementation-notes, files, snippets, depends-on, size, status), loaded per-chunk via the index line numbers so context stays small.
-
-### Why two files?
-- **Context efficiency:** read the small `PLAN.md` to orient, then jump to the exact `CHUNKS.md` lines for one chunk.
-- **Persistent progress:** `[x]`/done state in `CHUNKS.md` is mirrored in the index and survives across sessions.
-- **Shared source of truth:** all four skills read `CHUNKS.md` for what a chunk is.
-
-**Glob matching:** the `files` field supports simple globs (`src/handlers/*.ts`); first matching chunk wins.
-**Dependency order:** the `depends-on` fields define the implementation order the implementer follows.
-
-## Chunk Sizing Guidelines
+## Chunk sizing
 
 | Est. lines | Label | Color | Guideline |
 |---|---|---|---|
@@ -93,27 +207,6 @@ One self-contained block per chunk (description, implementation-notes, files, sn
 | 101–200 | medium | yellow | Acceptable — 30-minute review |
 | > 200 | large | red | Should be split |
 
-Size is estimated from the plan before code exists, so it is a soft target. `/lr-plan-features` flags oversized chunks and offers Split; `/lr-review` warns on oversized diffs.
-
-## Browser UI via local server (no temp files)
-
-Every interactive step is driven by a small dependency-free Node server (`skills/*/server.mjs`):
-
-1. Claude builds a JSON payload and pipes it to `server.mjs` via a heredoc — **nothing is written to `/tmp`**.
-2. `server.mjs` reads the JSON from stdin, starts an HTTP server on **port 8888** (or `$LOCAL_REVIEW_PORT`) bound to `127.0.0.1`, and opens the browser.
-3. The page is self-contained: inlined CSS/JS, data embedded as a JSON blob, rendered dynamically (including a dependency-free markdown renderer and an inline-SVG dependency graph).
-4. On submit the browser `POST`s structured JSON to `/submit`; the server prints it to **stdout** and exits. Closing the tab `POST`s `/cancel` (via `sendBeacon`), which emits `{ "type": "cancel" }` so a closed tab never leaves the flow hanging.
-5. Claude reads stdout, applies the changes, and re-runs the server for the next round. A 2-hour timeout closes an abandoned server.
-
-### Shared UI controls
-Top-right on every UI: **Accept** (primary when no comment), **Cancel** (always), **Send review** (primary once any comment is added), plus **Accept and commit** in the implementer UI.
-
-## Design Decisions
-
-**Why a local server instead of static files or an in-editor panel?** A browser page can't write to disk, and there is no skill-drivable in-editor UI channel, so a tiny localhost server closes the loop: the browser POSTs JSON and the server prints it to stdout. It is dependency-free, binds only to `127.0.0.1`, writes nothing to `/tmp`, and exits on submit or timeout.
-
-**Why LLM-driven split/merge via round-trip?** The browser can't call an LLM, so Split/Merge POST a request; Claude performs the semantic split/merge and re-opens the UI.
-
-**Why ~200 lines?** Review-effectiveness research (Cisco/SmartBear) shows defect detection degrades past ~200–400 lines; 200 is a conservative, reviewable default.
-
-**Why a separate `/lr-test-features` skill?** Tests are opt-in per chunk rather than generated up front, written against a chunk's real code once the breakdown exists.
+Size is estimated from the plan before code exists, so it is a soft target.
+`/iterator-chunk` flags oversized chunks and offers Split; `/iterator-review`
+warns on oversized diffs.
