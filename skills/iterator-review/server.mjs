@@ -12,8 +12,8 @@
  *         or (commit mode, no changes) { type:"accept-commit", branch, chunk }
  *         plus the shared { type:"cancel" } / { type:"timeout" }.
  */
-import { readPayload, serve } from '../../lib/server.mjs';
-import { renderPage, DIFF_CSS } from '../../lib/ui.mjs';
+import { readPayload, serve } from './lib/server.mjs';
+import { renderPage, DIFF_CSS } from './lib/ui.mjs';
 
 const CSS = `
 body{height:100vh;overflow:hidden;display:flex;flex-direction:column}

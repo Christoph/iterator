@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * iterator-chunk: chunk-plan UI on the shared shell (../../lib/ui.mjs,
- * ../../lib/server.mjs). Shows the dependency graph, per-chunk cards with
+ * iterator-chunk: chunk-plan UI on the shared shell (./lib/ui.mjs,
+ * ./lib/server.mjs). Shows the dependency graph, per-chunk cards with
  * snippets, drag-to-move files, and Split/Merge round-trips.
  *
  *   input:  { step:"chunk", branch, plan, chunks:[ {name,description,implementationNotes,
@@ -13,8 +13,8 @@
  *     { type:"merge-request", chunks:[a,b] }
  *     plus the shared { type:"cancel" } / { type:"timeout" }.
  */
-import { readPayload, serve } from '../../lib/server.mjs';
-import { renderPage } from '../../lib/ui.mjs';
+import { readPayload, serve } from './lib/server.mjs';
+import { renderPage } from './lib/ui.mjs';
 
 const CHUNK_CSS = `
 .sumbar{padding:14px 20px;display:flex;align-items:center;gap:24px;border-bottom:1px solid var(--border);

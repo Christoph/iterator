@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * iterator-plan: plan-review UI on the shared shell (../../lib/ui.mjs,
- * ../../lib/server.mjs). Reads a JSON payload from stdin, renders the page, and
+ * iterator-plan: plan-review UI on the shared shell (./lib/ui.mjs,
+ * ./lib/server.mjs). Reads a JSON payload from stdin, renders the page, and
  * serves it until the user submits.
  *
  *   input:  { step:"plan", branch, title, plan:{goal,architecture,keyDecisions,productFit}, dependencies:[] }
@@ -9,8 +9,8 @@
  *     { type:"plan-approved"|"plan-feedback", sections, dependencies, comments, comment }
  *     plus the shared { type:"cancel" } / { type:"timeout" }.
  */
-import { readPayload, serve } from '../../lib/server.mjs';
-import { renderPage } from '../../lib/ui.mjs';
+import { readPayload, serve } from './lib/server.mjs';
+import { renderPage } from './lib/ui.mjs';
 
 const PLAN_CSS = `
 .main{max-width:760px;margin:0 auto;padding:28px 20px}

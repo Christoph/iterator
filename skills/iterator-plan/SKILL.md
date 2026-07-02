@@ -11,8 +11,8 @@ bundle** in the project root. Accepting the plan immediately continues into
 `/iterator-chunk` (chunk breakdown) in the same session.
 
 The plan is one OKF concept document (`memory/plan.md`, `type: Plan`). See
-`templates/format.md` (shipped with the plugin, copied into every bundle) for
-the full schema.
+`<skill-dir>/templates/format.md` (shipped with this skill, copied into every
+bundle) for the full schema.
 
 ## When to use this skill
 
@@ -103,7 +103,7 @@ The server prints exactly one JSON line:
 On approval, create the bundle if it doesn't exist and write/update these files.
 Use ISO dates/timestamps (today's date; a full ISO 8601 `timestamp`).
 
-**`memory/format.md`** — copy `<skill-dir>/../../templates/format.md` verbatim
+**`memory/format.md`** — copy `<skill-dir>/templates/format.md` verbatim
 if it does not already exist (it is the self-describing schema).
 
 **`memory/plan.md`**:

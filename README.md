@@ -115,6 +115,8 @@ warns on oversized diffs.
 
 ## Installation
 
+### Claude Code
+
 Load the plugin for a session with `--plugin-dir`:
 
 ```bash
@@ -131,10 +133,29 @@ install from it (inside Claude Code):
 
 All five `/iterator-*` skills are auto-discovered from `skills/*/SKILL.md`.
 
+### Other agents (opencode, Codex CLI, pi, …)
+
+The skills follow the [Agent Skills](https://code.claude.com/docs/en/skills)
+standard, and every `skills/<name>/` folder is standalone — it bundles its own
+copy of the shared UI shell (and `iterator-plan` bundles the OKF schema
+template). Copy or symlink the skill folders into your harness's skills
+directory:
+
+```bash
+# opencode                        # Codex CLI                      # pi
+cp -R skills/* .opencode/skills/  cp -R skills/* .agents/skills/   cp -R skills/* ~/.pi/skills/
+```
+
+(opencode also discovers Claude-compatible paths like `.claude/skills/` and
+`.agents/skills/` directly.) Invocation differs per harness — e.g.
+`/skill:iterator-plan` in pi, a `$`-mention in Codex — and skills also trigger
+implicitly by description. In sandboxed harnesses set `ITERATOR_NO_OPEN=1` to
+print the UI URL instead of launching a browser.
+
 ## Requirements
 
 - Node.js ≥ 18 (the servers use only Node built-ins — no `npm install` needed)
-- Claude Code with plugin support
+- Any agent that supports Agent Skills (Claude Code, opencode, Codex CLI, pi, …)
 - A git repository (the `memory/` bundle is resolved relative to the git root)
 
 ## Configuration

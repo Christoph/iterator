@@ -33,8 +33,8 @@ past ~200–400 lines, so ~200 is a conservative, reviewable default.
 ```
 
 All five skills share the `iterator-` prefix so they group in autocomplete, and
-every step has a browser UI built on **one shared UI shell** (`lib/`), so all
-five look and behave the same.
+every step has a browser UI built on **one shared UI shell** (`lib/`, bundled
+into each skill folder by `npm run sync`), so all five look and behave the same.
 
 ## Plugin structure
 
@@ -46,7 +46,7 @@ iterator/
 ├── lib/
 │   ├── server.mjs               # shared local HTTP server: stdin→JSON, /submit + /cancel, timeout
 │   └── ui.mjs                    # shared page shell: header, theme, CSS vars, esc/mdToHtml, post()
-├── skills/
+├── skills/                      # each folder is standalone (carries its own lib/ copy)
 │   ├── iterator-plan/           # plan-review UI; creates/updates the memory/ bundle
 │   ├── iterator-chunk/          # chunk-plan UI: graph, cards, split/merge → one file per chunk
 │   ├── iterator-implement/      # builds the next ready chunk; auto-review; Accept and commit
@@ -54,6 +54,8 @@ iterator/
 │   └── iterator-test/           # per-chunk test-plan UI + test generation
 ├── templates/
 │   └── format.md                # self-describing bundle schema, copied into every bundle
+├── scripts/
+│   └── sync.mjs                 # copies lib/ + templates/ into the skill folders
 ├── docs/
 │   └── OKF_SPEC.md              # Open Knowledge Format v0.1 spec
 ├── test/                        # node:test suite (npm test, no dependencies)
@@ -65,6 +67,14 @@ iterator/
 
 Skills are discovered automatically from `skills/*/SKILL.md`; the manifest does
 not list them.
+
+Every `skills/<name>/` folder is **standalone**: skills with a UI carry a
+bundled copy of the shared shell (`skills/<name>/lib/`), and `iterator-plan`
+also carries `templates/format.md`. That makes a single skill folder droppable
+into any harness that implements the Agent Skills standard (Claude Code,
+opencode, Codex CLI, pi) without the rest of the repo. The repo-root `lib/` and
+`templates/` remain the source of truth; `npm run sync` refreshes the bundled
+copies and `test/sync.test.mjs` fails if they drift.
 
 ## The `memory/` bundle (OKF v0.1)
 
@@ -111,8 +121,9 @@ resolved relative to the git root.
 ## Shared UI shell (`lib/`)
 
 Every step's `server.mjs` shrinks to: parse the stdin payload → provide a body
-renderer + step-specific browser JS → call `serve()`. The shell provides the
-rest:
+renderer + step-specific browser JS → call `serve()`. Each server imports the
+shell from its own bundled copy (`./lib/`, kept in sync with the repo-root
+source by `npm run sync`). The shell provides the rest:
 
 - **`lib/server.mjs`** — `readPayload()` (stdin→JSON) and `serve({ step, html })`:
   an HTTP server bound to `127.0.0.1` handling `GET /`, `POST /submit`,

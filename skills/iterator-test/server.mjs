@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * iterator-test: test-plan UI on the shared shell (../../lib/ui.mjs,
- * ../../lib/server.mjs). Proposes a set of test cases for a chunk before any
+ * iterator-test: test-plan UI on the shared shell (./lib/ui.mjs,
+ * ./lib/server.mjs). Proposes a set of test cases for a chunk before any
  * test file is written; the user tweaks/comments/accepts.
  *
  *   input:  { step:"test", branch, chunk:{name,description}, runner,
@@ -11,8 +11,8 @@
  *     { type:"test-feedback", branch, chunk, cases:[ {title,kind,rationale,include,comment} ], comment }
  *     plus the shared { type:"cancel" } / { type:"timeout" }.
  */
-import { readPayload, serve } from '../../lib/server.mjs';
-import { renderPage } from '../../lib/ui.mjs';
+import { readPayload, serve } from './lib/server.mjs';
+import { renderPage } from './lib/ui.mjs';
 
 const CSS = `
 .main{max-width:820px;margin:0 auto;padding:24px 20px}
