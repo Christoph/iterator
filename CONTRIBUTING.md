@@ -10,30 +10,45 @@ cd iterator
 
 ## Testing the plugin locally
 
-Install it as a local plugin in Claude Code:
+Load it into a Claude Code session with `--plugin-dir`:
 
 ```bash
-claude plugins install .
+claude --plugin-dir .
 ```
 
 Then, in any git repo, run `/iterator-plan` to start the flow (plan → chunk →
-implement → review), or `/iterator-test` for chunk-level tests.
+implement → review), or `/iterator-test` for chunk-level tests. (For a
+persistent install, use `/plugin marketplace add <path>` + `/plugin install
+iterator` — the repo ships a `.claude-plugin/marketplace.json`.)
 
-## Testing the servers directly
+## Running the tests
+
+```bash
+npm test        # node:test — no dependencies
+```
+
+The suite unit-tests `lib/ui.mjs` (`embed`, `escHtml`, `renderPage`) and
+boots every step server on an ephemeral port to exercise the full round-trip:
+page serve, `/submit` → stdout, token/Host rejection, and the cancel grace
+period. Tests set `ITERATOR_NO_OPEN=1` (no browser) and
+`ITERATOR_CANCEL_GRACE_MS` (short grace) — both work outside tests too.
+
+## Previewing the UIs in a browser
 
 Each step's UI server reads a JSON payload from stdin and opens the browser.
 Sample payloads are wired up as npm scripts:
 
 ```bash
-npm run test:plan-server     # /iterator-plan   plan-review UI
-npm run test:chunk-server    # /iterator-chunk  chunk-plan UI (graph, cards, split/merge)
-npm run test:review-server   # /iterator-review chunk-grouped diff review
-npm run test:test-server     # /iterator-test   test-plan UI
+npm run preview:plan-server     # /iterator-plan   plan-review UI
+npm run preview:chunk-server    # /iterator-chunk  chunk-plan UI (graph, cards, split/merge)
+npm run preview:review-server   # /iterator-review chunk-grouped diff review
+npm run preview:test-server     # /iterator-test   test-plan UI
 ```
 
-Each opens `http://127.0.0.1:8888` (or the next free port; watch stderr for the
-real URL). `/iterator-implement` has no server of its own — it drives the review
-server in `"mode": "commit"`.
+Each opens `http://127.0.0.1:8888/?t=<token>` (or the next free port; watch
+stderr for the real URL — the token is required, so open the printed URL, not
+the bare port). `/iterator-implement` has no server of its own — it drives the
+review server in `"mode": "commit"`.
 
 ## Repository structure
 
@@ -51,6 +66,8 @@ iterator/
 │   └── iterator-test/           # SKILL.md + server.mjs (test-plan UI)
 ├── templates/format.md          # bundle schema, copied into every memory/ bundle
 ├── docs/OKF_SPEC.md             # Open Knowledge Format v0.1 spec
+├── test/                        # node:test suite (npm test, no dependencies)
+├── .github/workflows/ci.yml     # runs the tests on push/PR
 ├── ARCHITECTURE.md
 └── README.md
 ```
@@ -95,4 +112,5 @@ automatically — the server retries the next port and prints the real URL.
 2. If it needs a UI, create `skills/<name>/server.mjs` that imports
    `readPayload`/`serve` from `../../lib/server.mjs` and `renderPage` from
    `../../lib/ui.mjs`, and supplies a step-specific `body` + `clientJs`.
-3. Reinstall the plugin: `claude plugins install .`
+3. Restart the session with `claude --plugin-dir .` (or reinstall via the
+   marketplace) to pick up the new skill.

@@ -115,14 +115,18 @@ warns on oversized diffs.
 
 ## Installation
 
+Load the plugin for a session with `--plugin-dir`:
+
 ```bash
-claude plugins install /path/to/iterator
+claude --plugin-dir /path/to/iterator
 ```
 
-Or from this repo after cloning:
+To install it persistently, add the directory as a local marketplace and
+install from it (inside Claude Code):
 
-```bash
-claude plugins install .
+```
+/plugin marketplace add /path/to/iterator
+/plugin install iterator
 ```
 
 All five `/iterator-*` skills are auto-discovered from `skills/*/SKILL.md`.
@@ -145,18 +149,25 @@ ITERATOR_PORT=9000   # set in your shell
 
 If the port is busy the server automatically picks the next free port and prints
 the real URL. Set `ITERATOR_MEMORY_DIR` to relocate the bundle (resolved relative
-to the git root).
+to the git root). Set `ITERATOR_NO_OPEN=1` to print the URL without opening a
+browser (useful for CI and remote sessions).
+
+Each run's URL carries a one-time token; the server rejects any request without
+it (and any non-localhost `Host` header), so no other page or process can forge
+a submission or cancel your flow. Reloading the tab is safe — only closing it
+cancels.
 
 ## How it works
 
 1. A skill builds a JSON payload and pipes it to `skills/<step>/server.mjs` via a
    heredoc — nothing is written to `/tmp`.
 2. The server serves a self-contained page (data embedded inline and safely
-   escaped) and opens `http://127.0.0.1:<port>`.
+   escaped) and opens `http://127.0.0.1:<port>/?t=<one-time token>`.
 3. On submit the browser POSTs structured JSON to `/submit`; the server prints it
    to stdout and exits. Closing the tab POSTs `/cancel`, emitting
-   `{ "type": "cancel" }`, so a closed tab never leaves the flow hanging. A 2h
-   idle emits `{ "type": "timeout" }`.
+   `{ "type": "cancel" }`, so a closed tab never leaves the flow hanging
+   (reloads are grace-period-protected and don't cancel). A 2h idle emits
+   `{ "type": "timeout" }`.
 4. Claude reads stdout, updates the `memory/` bundle, and re-runs the server for
    the next round.
 

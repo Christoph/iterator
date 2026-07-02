@@ -41,7 +41,8 @@ five look and behave the same.
 ```
 iterator/
 ├── .claude-plugin/
-│   └── plugin.json              # Plugin manifest (name: iterator; skills auto-discovered)
+│   ├── plugin.json              # Plugin manifest (name: iterator; skills auto-discovered)
+│   └── marketplace.json         # Local-marketplace manifest for persistent installs
 ├── lib/
 │   ├── server.mjs               # shared local HTTP server: stdin→JSON, /submit + /cancel, timeout
 │   └── ui.mjs                    # shared page shell: header, theme, CSS vars, esc/mdToHtml, post()
@@ -55,6 +56,8 @@ iterator/
 │   └── format.md                # self-describing bundle schema, copied into every bundle
 ├── docs/
 │   └── OKF_SPEC.md              # Open Knowledge Format v0.1 spec
+├── test/                        # node:test suite (npm test, no dependencies)
+├── .github/workflows/ci.yml     # CI: runs the tests on push/PR
 ├── ARCHITECTURE.md
 ├── CONTRIBUTING.md
 └── README.md
@@ -123,14 +126,32 @@ rest:
     URL.
   - **F10** — the timeout prints `{ "type": "timeout" }` to stdout instead of
     exiting silently, so the SKILL.md output contract is never violated.
+
+  Two protections on top of the `127.0.0.1` bind:
+  - **Per-run token.** The opened URL carries a random token and every request
+    must echo it (plus a localhost `Host` header) or get a 403. Without this,
+    any web page open in the same browser could POST a forged `/submit` —
+    which Claude would read as the user's answer — or `/cancel` the flow, and
+    DNS rebinding could reach the server despite the localhost bind.
+  - **Reload grace.** A `/cancel` from the `pagehide` beacon is held for a
+    short grace period (`ITERATOR_CANCEL_GRACE_MS`, default 2.5s) and dropped
+    if a `GET /` follows — so an accidental reload doesn't kill the flow. The
+    explicit Cancel button sends `/cancel?now=1` and cancels immediately.
+
+  `ITERATOR_NO_OPEN=1` skips the browser opener (CI, remote sessions); the
+  real URL is always printed to stderr.
 - **`lib/ui.mjs`** — `renderPage()` builds the full page: the
   `iterator / <step>` header with a branch tag, theme toggle, **Cancel**, and a
   primary button that flips **Accept ↔ Send review** driven by a step-provided
   `hasChanges()` hook (the implement review's no-comment primary is **Accept and
   commit**). It ships the shared CSS variables (dark/light), `esc()`, a
   dependency-free `mdToHtml()` markdown renderer, the cancel-on-unload beacon,
-  and the `post()` submit helper. `DIFF_CSS` is a shared diff-table style steps
-  can opt into.
+  and the `post()` submit helper. `DIFF_CSS` is the shared diff-table style the
+  review step (and via it, implement's commit mode) builds on.
+
+Step-specific browser handlers are wired with `addEventListener` + closures,
+never inline `on*` attribute strings built from data — so chunk names
+containing quotes or backslashes can't break the markup or inject script.
 
 This is what makes "each step has its own UI with the same base structure and
 flow" true by construction rather than by copy-paste discipline.

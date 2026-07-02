@@ -166,27 +166,41 @@ function makeCard(c){
   card.addEventListener('drop', e=>{ e.preventDefault(); card.classList.remove('drag-over');
     const {file,from}=JSON.parse(e.dataTransfer.getData('text/plain')); if(from!==c.name) moveFile(file,from,c.name); });
   const snippets = (c.snippets||[]).map(s=>'<pre class="snip">'+esc(typeof s==='string'?s:s.code||'')+'</pre>').join('');
-  const files = (c.files||[]).map(f=>'<div class="fchip" draggable="true" ondragstart="dragStart(event,'+JSON.stringify(f).replace(/"/g,'&quot;')+','+JSON.stringify(c.name).replace(/"/g,'&quot;')+')">'+esc(f)+'</div>').join('');
+  const files = (c.files||[]).map(f=>'<div class="fchip" draggable="true">'+esc(f)+'</div>').join('');
   const deps = (c.dependsOn||[]).length ? '<div class="deps">'+c.dependsOn.map(d=>'<span class="dep">'+esc(d)+'</span>').join('')+'</div>' : '<div class="notes">none</div>';
   card.innerHTML =
     '<div class="fch"><div class="fchl">'+
-      '<input class="fctitle" value="'+esc(c.name)+'" data-orig="'+esc(c.name)+'" '+
-        'onblur="renameChunk(this.dataset.orig,this.value.trim())" onkeydown="if(event.key===\\'Enter\\')this.blur()"'+(done?' disabled':'')+'>'+
+      '<input class="fctitle" value="'+esc(c.name)+'"'+(done?' disabled':'')+'>'+
       '<span class="chip '+sizeClass(c)+'">'+sizeLabel(c)+' · ~'+t+' lines</span>'+
       (done?'<span class="donechip">✓ done</span>':'')+
     '</div><div class="card-btns">'+
-      (done?'':'<button class="cb split" onclick="splitChunk(\\''+esc(c.name)+'\\')">Split</button>'+
-      '<button class="cb '+(isSel?'merge-sel':'')+'" onclick="toggleMerge(\\''+esc(c.name)+'\\')">'+(isSel?'Cancel':'Merge with…')+'</button>')+
+      (done?'':'<button class="cb split">Split</button>'+
+      '<button class="cb merge'+(isSel?' merge-sel':'')+'">'+(isSel?'Cancel':'Merge with…')+'</button>')+
     '</div></div>'+
     '<div class="fcb">'+
       (t>200?'<div class="owarn">⚠️ ~'+t+' lines — exceeds the ~200-line guideline. Consider Split.</div>':'')+
-      '<div class="fcdesc" contenteditable="'+(!done)+'" onblur="updateDesc(\\''+esc(c.name)+'\\',this.textContent.trim())">'+esc(c.description||'')+'</div>'+
+      '<div class="fcdesc" contenteditable="'+(!done)+'">'+esc(c.description||'')+'</div>'+
       (c.implementationNotes?'<div class="lbl">Implementation notes</div><div class="notes">'+esc(c.implementationNotes)+'</div>':'')+
       '<div class="lbl">Depends on</div>'+deps+
       (snippets?'<div class="lbl">Relevant snippets</div>'+snippets:'')+
       (files?'<div class="lbl">Files</div><div class="files">'+files+'</div>':'')+
-      (done?'':'<div class="lbl">Comment</div><textarea class="cmt" placeholder="Comment on this chunk for Claude…" oninput="setComment(\\''+esc(c.name)+'\\',this.value)">'+esc(S.comments[c.name]||'')+'</textarea>')+
+      (done?'':'<div class="lbl">Comment</div><textarea class="cmt" placeholder="Comment on this chunk for Claude…">'+esc(S.comments[c.name]||'')+'</textarea>')+
     '</div>';
+  // Handlers are wired with closures (never inline attribute strings), so
+  // chunk names containing quotes/backslashes can't break or inject markup.
+  const title = card.querySelector('.fctitle');
+  title.addEventListener('blur', () => renameChunk(c.name, title.value.trim()));
+  title.addEventListener('keydown', e => { if(e.key==='Enter') title.blur(); });
+  const splitBtn = card.querySelector('.cb.split');
+  if(splitBtn) splitBtn.addEventListener('click', () => splitChunk(c.name));
+  const mergeBtn = card.querySelector('.cb.merge');
+  if(mergeBtn) mergeBtn.addEventListener('click', () => toggleMerge(c.name));
+  const desc = card.querySelector('.fcdesc');
+  if(!done) desc.addEventListener('blur', () => updateDesc(c.name, desc.textContent.trim()));
+  card.querySelectorAll('.fchip').forEach((chip, i) =>
+    chip.addEventListener('dragstart', e => dragStart(e, (c.files||[])[i], c.name)));
+  const cmt = card.querySelector('textarea.cmt');
+  if(cmt) cmt.addEventListener('input', () => setComment(c.name, cmt.value));
   return card;
 }
 function dragStart(e,file,from){ e.dataTransfer.setData('text/plain', JSON.stringify({file,from})); }
@@ -198,6 +212,7 @@ function moveFile(file,from,to){
 }
 function renameChunk(oldName,newName){
   if(!newName||newName===oldName) return;
+  if(S.chunks.some(x=>x.name===newName)){ alert('A chunk named "'+newName+'" already exists.'); renderAll(); return; }
   const c=S.chunks.find(c=>c.name===oldName); if(!c) return;
   c.name=newName;
   S.chunks.forEach(x=>{ if(x.dependsOn) x.dependsOn=x.dependsOn.map(d=>d===oldName?newName:d); });
