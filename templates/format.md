@@ -60,6 +60,12 @@ files: ["src/auth.ts", "src/middleware/*.ts"]   # paths/globs this chunk owns
 timestamp: 2026-07-02T10:00:00Z         # OKF "timestamp": last meaningful change
 done: 2026-07-02                        # present only once implemented & committed
 reviewed: 2026-07-02                    # present only after a review pass
+tests: ["test/auth.test.mjs"]           # test files owned by this chunk (written by /iterator-test)
+tests_status: red                       # none | red | green (absent means none)
+commits:                                # commits recorded for this chunk (kind: test | implement)
+  - sha: a1b2c3d
+    kind: test
+    date: 2026-07-02
 tags: []                                # optional
 ---
 
@@ -104,6 +110,9 @@ What breaks if this chunk is wrong; which other chunks/files feel it.
 | `files` | yes | Paths or simple globs the chunk owns. `/iterator-review` maps diff hunks to a chunk through these; first matching chunk wins. |
 | `timestamp` | yes | ISO 8601 "last meaningful change" (OKF's field — iterator uses it instead of inventing `last_updated`). Every skill that edits the file updates it. |
 | `done`, `reviewed` | when applicable | ISO dates. `reviewed` is set/refreshed by `/iterator-review`; review notes are appended to the `# Review` body section (newest first). |
+| `tests` | no | Test file paths owned by this chunk. Written by `/iterator-test`; consumed by `/iterator-implement` as the implementation goal. |
+| `tests_status` | no | `none` \| `red` \| `green` (absent = `none`). `red` = tests exist and fail — the *expected* state before implementation (red/green flow). `/iterator-test` sets `red` or `green`; `/iterator-implement` flips `red → green` on Accept-and-commit. Independent of `status`: an implemented-but-red chunk is `status: done`, `tests_status: red`. |
+| `commits` | no | List of `{ sha, kind, date }`, `kind: test \| implement`. Recorded shas are an **optimization** — they go stale when the branch is rebased or amended. The resilient lookup is the `Chunk: <slug>` commit trailer: consumers must fall back to `git log --grep '^Chunk: <slug>'`. A commit cannot contain its own sha, so each sha is recorded in the *next* bundle write after committing. |
 
 Body sections `# Implementation notes`, `# Snippets`, `# Depends on`,
 `# Blast radius` are written at chunk-creation time; `# Review` is appended by
@@ -176,10 +185,14 @@ description text (which OKF permits). Ordering is dependency order
 ```markdown
 # Chunks
 
-* [Config module](config-module.md) - ✅ done · small · Centralize env/config access
-* [Auth middleware](auth-middleware.md) - ⬜ pending · small · depends: config-module · JWT middleware
+* [Config module](config-module.md) - ✅ done · 🟢 tests green · small · Centralize env/config access
+* [Auth middleware](auth-middleware.md) - ⬜ pending · 🔴 tests red · small · depends: config-module · JWT middleware
 * [API routes](api-routes.md) - ⬜ pending · medium · depends: auth-middleware · REST routes
 ```
+
+The test badge (`🔴 tests red` / `🟢 tests green`) sits between the status and
+the size and is **omitted** when `tests_status` is `none`/absent (see
+`api-routes` above).
 
 Every skill that changes chunk status or metadata regenerates
 `chunks/index.md`. Skills stay context-efficient by reading `chunks/index.md`
@@ -220,6 +233,15 @@ files: ["src/config.ts"]
 timestamp: 2026-07-02T09:40:00Z
 done: 2026-07-02
 reviewed: 2026-07-02
+tests: ["test/config.test.ts"]
+tests_status: green
+commits:
+  - sha: 9f8e7d6
+    kind: test
+    date: 2026-07-02
+  - sha: 5c4b3a2
+    kind: implement
+    date: 2026-07-02
 tags: [foundation]
 ---
 
