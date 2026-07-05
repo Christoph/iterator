@@ -3,7 +3,10 @@
  * iterator-review: chunk-grouped diff review UI on the shared shell.
  *
  * Input:  { branch, commit, plan, progress, hasChunksFile, mode, chunks:[{name,description,
- *           blastRadius,dependsOn,stats,files:[{path,hunks}]}], uncategorized:[] }
+ *           blastRadius,dependsOn,stats,files:[{path,hunks}],
+ *           tests:{status,total,passing}}], uncategorized:[] }
+ *   tests (optional): status "red"|"green"|"none"; rendered as a badge so the
+ *   reviewer sees the chunk's test state where the commit decision happens.
  *   mode:"review" (default) — standalone review; primary Accept / Send review.
  *   mode:"commit"           — driven by /iterator-implement to review the just-built
  *                             chunk; primary Accept and commit / Send review.
@@ -150,8 +153,9 @@ function makeFI(f){
   const cx = (f.stats&&f.stats.complexity)||'green';
   const st = S.statuses[f.name];
   const label = f.name==='__unc__' ? 'uncategorized' : f.name;
+  const tb = testBadge(f);
   el.innerHTML = '<div class="dot d'+cx[0]+'"></div><div class="fm"><div class="fn">'+esc(label)+'</div>'+
-    (f.stats ? '<div class="fs"><span class="sa">+'+f.stats.added+'</span> <span class="sd">-'+f.stats.removed+'</span> · '+f.stats.files+' file'+(f.stats.files!==1?'s':'')+'</div>' : '')+
+    (f.stats ? '<div class="fs"><span class="sa">+'+f.stats.added+'</span> <span class="sd">-'+f.stats.removed+'</span> · '+f.stats.files+' file'+(f.stats.files!==1?'s':'')+(tb?' · '+tb:'')+'</div>' : '')+
     (st ? '<div class="sbadge s-'+(st==='approved'?'app':st==='changes'?'chg':'qst')+'">'+(st==='approved'?'Approved':st==='changes'?'Needs Changes':'Question')+'</div>' : '')+
     '</div>';
   return el;
@@ -179,6 +183,7 @@ function selectFeature(name){
       ((feat.dependsOn&&feat.dependsOn.length)?'<div class="mi"><div class="ml">Depends on</div><div class="mv">'+esc(feat.dependsOn.join(', '))+'</div></div>':'')+
       (feat.stats?'<div class="mi"><div class="ml">Changed</div><div class="mv"><span class="sa">+'+feat.stats.added+'</span> <span class="sd">-'+feat.stats.removed+'</span></div></div>':'')+
       (feat.stats?'<div class="mi"><div class="ml">Files</div><div class="mv">'+feat.stats.files+'</div></div>':'')+
+      (testBadge(feat)?'<div class="mi"><div class="ml">Tests</div><div class="mv">'+testBadge(feat)+'</div></div>':'')+
     '</div>'+
     (feat.blastRadius?'<div class="blast"><div class="bl">⚡ Blast Radius</div>'+esc(feat.blastRadius)+'</div>':'')+
     '<div class="sbtns">'+
@@ -230,6 +235,13 @@ function renderHunks(feat){
     card.appendChild(tbl);
     container.appendChild(card);
   });
+}
+// tests badge text, or '' when the chunk has no tests (old payloads render unchanged)
+function testBadge(f){
+  const t = f && f.tests;
+  if(!t || !t.status || t.status==='none') return '';
+  const dot = t.status==='green' ? '🟢' : '🔴';
+  return dot + ' ' + (t.passing!=null && t.total!=null ? t.passing+'/'+t.total+' passing' : 'tests '+t.status);
 }
 function toggleNote(){ const el=document.getElementById('note-area'); if(el) el.classList.toggle('open'); }
 function saveNote(name){ S.notes[name] = (document.getElementById('note-ta')||{}).value||''; updateFb(); renderSidebar(); selectFeature(name); }
