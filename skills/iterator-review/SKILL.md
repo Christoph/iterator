@@ -45,7 +45,8 @@ notes.
   chunk.
 - **Standalone with no chunk specified:** use `AskUserQuestion` (header `Chunk`)
   to ask which chunk to review — list **pending chunks first, in dependency
-  order**, plus an **"All pending"** option.
+  order**, then done chunks (reviewable from their commits — see step 3), plus
+  an **"All pending"** option.
 
 Report the current state before opening the browser: total chunks, how many
 done, how many remain, and which chunk(s) are being reviewed.
@@ -60,8 +61,24 @@ git log -1 --format="%H %s"
 ```
 
 If the working tree is clean vs. HEAD, fall back to `git diff --stat` / `git
-diff`. If still empty, show the `chunks/index.md` progress summary instead of
-opening the browser.
+diff`.
+
+**Committed chunk (red/green history):** if the diff is still empty and the
+selected chunk is `status: done`, build the diff from the chunk's commits
+instead:
+
+1. Prefer the shas recorded in the chunk's `commits` frontmatter — validate
+   each with `git cat-file -e <sha>^{commit}` first (recorded shas go stale
+   after a rebase/amend).
+2. Fall back to the trailer: `git log --format=%H --grep='^Chunk: <slug>$'`.
+3. Produce the diff with `git show <sha>` per commit (oldest first), or
+   `git diff <oldest>^ <newest>` when they are consecutive. Exclude the
+   bundle's own `memory/` paths so the review shows code, not bookkeeping.
+   Set the payload's `commit` field to the reviewed range so the UI header
+   says what is being shown.
+
+Only if there is no working-tree diff **and** no resolvable commits, show the
+`chunks/index.md` progress summary instead of opening the browser.
 
 ### 4. Map hunks to the selected chunk(s)
 
@@ -102,7 +119,7 @@ node <skill-dir>/server.mjs << 'REVIEW_DATA'
 REVIEW_DATA
 ```
 
-The server starts on **port 8888** (or `$ITERATOR_PORT`; it retries if busy),
+The server starts on **port 7777** (or `$ITERATOR_PORT`; it retries if busy),
 opens the browser, and blocks. The UI shows a chunk sidebar (colored by
 complexity), the selected chunk's diff grouped by file, per-chunk status buttons
 (Approved / Needs Changes / Question), chunk notes, and line-level comments.
