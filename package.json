@@ -14,6 +14,9 @@
     "preview:review-server": "echo '{\"step\":\"review\",\"branch\":\"test\",\"commit\":\"abc123 add auth\",\"plan\":\"Add JWT authentication\",\"progress\":{\"done\":1,\"total\":3},\"hasChunksFile\":true,\"chunks\":[{\"name\":\"auth-middleware\",\"description\":\"JWT middleware for protected routes\",\"blastRadius\":\"All routes behind the auth guard\",\"dependsOn\":[\"config-module\"],\"stats\":{\"added\":42,\"removed\":8,\"files\":1,\"complexity\":\"yellow\"},\"files\":[{\"path\":\"src/auth.ts\",\"hunks\":[{\"header\":\"@@ -41,5 +41,12 @@\",\"oldStart\":41,\"newStart\":41,\"lines\":[{\"type\":\"context\",\"content\":\"function login(user) {\"},{\"type\":\"addition\",\"content\":\"  const jwt = sign(payload, SECRET);\"}]}]}]}],\"uncategorized\":[]}' | node skills/iterator-review/server.mjs",
     "preview:test-server": "echo '{\"step\":\"test\",\"branch\":\"test\",\"chunk\":{\"name\":\"auth-middleware\",\"description\":\"JWT middleware for protected routes\"},\"runner\":\"vitest\",\"cases\":[{\"title\":\"requireAuth passes a valid token\",\"kind\":\"happy\",\"rationale\":\"Core behavior of the middleware.\"},{\"title\":\"requireAuth rejects a missing token\",\"kind\":\"edge\",\"rationale\":\"Unauthenticated requests must 401.\"}]}' | node skills/iterator-test/server.mjs"
   },
-  "keywords": ["claude-code", "plugin", "code-review", "planning", "chunks", "okf", "developer-tools"],
+  "keywords": ["claude-code", "plugin", "pi-package", "code-review", "planning", "chunks", "okf", "developer-tools"],
+  "pi": {
+    "skills": ["./skills"]
+  },
   "license": "MIT"
 }

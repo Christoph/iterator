@@ -172,9 +172,18 @@ cp -R skills/* .opencode/skills/  cp -R skills/* .agents/skills/   cp -R skills/
 
 (opencode also discovers Claude-compatible paths like `.claude/skills/` and
 `.agents/skills/` directly.) Invocation differs per harness — e.g.
-`/skill:iterator-plan` in pi, a `$`-mention in Codex — and skills also trigger
-implicitly by description. In sandboxed harnesses set `ITERATOR_NO_OPEN=1` to
-print the UI URL instead of launching a browser.
+`/skill:iterator` or `/skill:iterator-plan` in pi, a `$`-mention in Codex —
+and skills also trigger implicitly by description. In sandboxed harnesses set
+`ITERATOR_NO_OPEN=1` to print the UI URL instead of launching a browser (add
+`ITERATOR_HOST=0.0.0.0` + a published port when the browser lives outside the
+sandbox — see Configuration).
+
+**pi** can also install the repo directly as a package (the `pi` manifest in
+`package.json` points at `skills/`):
+
+```bash
+pi install git:github.com/<user>/iterator@<tag>   # or: pi -e … for one session
+```
 
 ## Requirements
 
