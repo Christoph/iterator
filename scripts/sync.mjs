@@ -15,7 +15,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 export const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** Skills with a server.mjs; each gets a private copy of the shared shell. */
-const SERVER_SKILLS = ['iterator-chunk', 'iterator-plan', 'iterator-review', 'iterator-test'];
+const SERVER_SKILLS = ['iterator', 'iterator-chunk', 'iterator-plan', 'iterator-review', 'iterator-test'];
 
 /** [source, destination] pairs, relative to the repo root. */
 export const COPIES = [
