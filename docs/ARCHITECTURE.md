@@ -15,26 +15,54 @@ connected slice of implementation of roughly 200 lines, in dependency order.
 Review-effectiveness research (Cisco/SmartBear) shows defect detection degrades
 past ~200–400 lines, so ~200 is a conservative, reviewable default.
 
-## Guided five-step flow
+## Guided flow
 
 ```
+/iterator            dashboard hub — dispatches the actions below, reopens after each
+      ▼
 /iterator-plan       create/revise the plan            → memory/plan.md
       │  (accept auto-continues)
       ▼
 /iterator-chunk      break the plan into chunks        → memory/chunks/<slug>.md
       │
+      ├─ (optional) /iterator-test   RED: failing tests from the chunk contract
       ▼
 /iterator-implement  build the next dependency-ready chunk
-      │  (auto-starts the review at the end)
+      │  (green gate: drives the chunk's tests green; auto-starts the review)
       ▼
 /iterator-review     chunk-vs-git-diff review          → outcome written into the chunk file
 
-/iterator-test       (optional, any time after chunking) write tests for a chunk
+/iterator-test       GREEN: tests for an already-done chunk
 ```
 
-All five skills share the `iterator-` prefix so they group in autocomplete, and
+All step skills share the `iterator-` prefix so they group in autocomplete, and
 every step has a browser UI built on **one shared UI shell** (`lib/`, bundled
-into each skill folder by `npm run sync`), so all five look and behave the same.
+into each skill folder by `npm run sync`), so all six UIs look and behave the
+same.
+
+**The hub is a router, not a replacement.** `/iterator` gathers bundle + git
+state, renders the dashboard (cards, badges, dependency graph, per-chunk
+Test/Implement/Review buttons with enablement rules), and exits with one
+`{ type: "action" }` payload; the skill dispatches into the chosen step flow
+and reopens the dashboard when it finishes. The one-shot round-trip model is
+kept deliberately — the dashboard closes while an action runs and reopens
+after, rather than a long-running server with a progress channel (rejected:
+it would break the "server exits on submit" contract every skill relies on).
+
+**Red/green testing.** `tests_status` (`none | red | green`) is independent of
+`status` (`pending | done`): `/iterator-test` on a pending chunk writes
+contract-derived failing tests (red is the *success* condition — failing on
+assertions/missing exports, not test-file bugs); `/iterator-implement` treats
+those tests as the definition of done and only normally commits green.
+`status` stays binary; an implemented-but-red chunk is representable as
+`status: done, tests_status: red` when the user explicitly accepts red.
+
+**Commit tracking.** Test and implement commits carry a `Chunk: <slug>`
+trailer and are recorded as `{ sha, kind, date }` in the chunk's `commits`.
+Recorded shas are an optimization (they go stale on rebase/amend); the trailer
+grep is the resilient lookup. A commit cannot contain its own sha, so shas are
+recorded in the next bundle write. This is what lets `/iterator-review`
+rebuild the diff of an already-committed chunk.
 
 ## Plugin structure
 
@@ -47,11 +75,12 @@ iterator/
 │   ├── server.mjs               # shared local HTTP server: stdin→JSON, /submit + /cancel, timeout
 │   └── ui.mjs                    # shared page shell: header, theme, CSS vars, esc/mdToHtml, post()
 ├── skills/                      # each folder is standalone (carries its own lib/ copy)
+│   ├── iterator/                # hub dashboard: cards, badges, graph → dispatches actions
 │   ├── iterator-plan/           # plan-review UI; creates/updates the memory/ bundle
 │   ├── iterator-chunk/          # chunk-plan UI: graph, cards, split/merge → one file per chunk
-│   ├── iterator-implement/      # builds the next ready chunk; auto-review; Accept and commit
+│   ├── iterator-implement/      # builds the next ready chunk; green gate; auto-review; Accept and commit
 │   ├── iterator-review/         # chunk-grouped diff review; writes outcomes into chunk files
-│   └── iterator-test/           # per-chunk test-plan UI + test generation
+│   └── iterator-test/           # per-chunk test-plan UI; red mode (pending) / green mode (done)
 ├── templates/
 │   └── format.md                # self-describing bundle schema, copied into every bundle
 ├── scripts/
@@ -128,7 +157,7 @@ source by `npm run sync`). The shell provides the rest:
 - **`lib/server.mjs`** — `readPayload()` (stdin→JSON) and `serve({ step, html })`:
   an HTTP server bound to `127.0.0.1` handling `GET /`, `POST /submit`,
   `POST /cancel`, plus a 2-hour timeout and the browser opener. Port comes from
-  `ITERATOR_PORT` (default `8888`). Three defects from the old per-skill servers
+  `ITERATOR_PORT` (default `7777`). Three defects from the old per-skill servers
   are fixed here:
   - **F8** — page data is embedded with `<` escaped (`embed()` in `ui.mjs`), so
     a diff line containing `</script>` can't terminate the script block.
@@ -150,7 +179,9 @@ source by `npm run sync`). The shell provides the rest:
     explicit Cancel button sends `/cancel?now=1` and cancels immediately.
 
   `ITERATOR_NO_OPEN=1` skips the browser opener (CI, remote sessions); the
-  real URL is always printed to stderr.
+  real URL is always printed to stderr. `ITERATOR_HOST` (dev only) rebinds the
+  server, e.g. `0.0.0.0` for a Docker sandbox whose browser is on the host —
+  the token stays mandatory; only the localhost Host-header check is relaxed.
 - **`lib/ui.mjs`** — `renderPage()` builds the full page: the
   `iterator / <step>` header with a branch tag, theme toggle, **Cancel**, and a
   primary button that flips **Accept ↔ Send review** driven by a step-provided
@@ -206,30 +237,50 @@ files, and **Split**/**Merge** buttons that round-trip to Claude. Split/merge
 create/delete chunk files and rewire `depends_on`; cycle detection lives in both
 the UI and the skill. Re-runnable to re-chunk, preserving `status: done` chunks.
 
+### `/iterator` (hub)
+Reads the bundle + git state, opens the dashboard (plan bar, dependency graph,
+chunk cards with status/size/🔴🟢 badges, per-chunk **Test** / **Implement** /
+**Review** buttons plus **Revise plan** / **Re-chunk**), and dispatches the
+single action payload into the matching step flow, reopening the dashboard
+when it finishes. Button enablement encodes the process rules (Implement only
+when dependencies are done; Review only when a diff or recorded commits
+exist); the step flows still re-validate, since a dashboard can be stale.
+
 ### `/iterator-implement`
 Picks the next chunk whose `depends_on` are all `done` (topological order;
 reports cycles/stuck states), implements it from the chunk file +
-`ARCHITECTURE.md` (+ `GUIDELINES.md` if present), then auto-opens the
-`/iterator-review` UI scoped to that chunk with **Accept and commit** as the
-primary. On accept: branch safety (never commit to `main`/`master`), one commit
-`chunk(<slug>): <summary>` with a `Chunk: <slug>` trailer that includes the code,
-the chunk-file status flip (`status: done`, `done:` date, `timestamp`), the
-regenerated indexes, and a `log.md` entry — then it offers the next ready chunk.
+`ARCHITECTURE.md` (+ `GUIDELINES.md` if present). **Green gate:** if the chunk
+has tests, they define done — implement → run → fix until green before the
+review opens (red results are surfaced honestly, never papered over). If the
+`impeccable` skill is installed, UI-surface chunks get an audit/polish pass.
+Then it auto-opens the `/iterator-review` UI scoped to that chunk — test badge
+visible — with **Accept and commit** as the primary. On accept: branch safety
+(never commit to `main`/`master`), one commit `chunk(<slug>): <summary>` with
+a `Chunk: <slug>` trailer that includes the code, the chunk-file flip
+(`status: done`, `done:` date, `tests_status`, `timestamp`), the regenerated
+indexes, and a `log.md` entry; the sha is recorded in the chunk's `commits` on
+the next bundle write — then it offers the next ready chunk.
 
 ### `/iterator-review`
-Standalone chunk review: pick a chunk (pending first, dependency order, plus
-"All pending"), diff from open git changes (`git diff HEAD`, with fallbacks),
-map hunks to chunks via each chunk's `files` globs (first match wins, rest →
-Uncategorized). Outcomes are written into the chunk file: `reviewed:` date
-refreshed, notes appended under `# Review`, indexes and `log.md` regenerated.
-Review never sets `status: done` — that stays owned by implement.
+Standalone chunk review: pick a chunk (pending first, dependency order, then
+done chunks, plus "All pending"), diff from open git changes (`git diff HEAD`,
+with fallbacks) — or, for a done chunk with a clean tree, from the chunk's
+recorded `commits` / `Chunk: <slug>` trailer — map hunks to chunks via each
+chunk's `files` globs (first match wins, rest → Uncategorized). Outcomes are
+written into the chunk file: `reviewed:` date refreshed, notes appended under
+`# Review`, indexes and `log.md` regenerated. Review never sets
+`status: done` — that stays owned by implement.
 
 ### `/iterator-test`
-Opt-in per chunk. Detects the project's test runner and conventions, proposes a
-**test plan** (happy path / edge / integration cases, each with a rationale and a
-comment box) in the shared UI, then on accept writes tests following the detected
-convention, runs them, and reports results. Adds a `log.md` entry; never changes
-chunk status.
+Opt-in per chunk, mode picked from the chunk's `status`: **red** on a pending
+chunk (contract-derived failing tests — red is the success condition),
+**green** on a done chunk (tests against the real code must pass). Detects the
+project's test runner and conventions, proposes a **test plan** (happy path /
+edge / integration cases, each with a rationale and a comment box) in the
+shared UI — which shows the mode banner — then on accept writes the tests,
+runs them, verifies the expected color, commits them (`test(<slug>)` +
+trailer), and records `tests`/`tests_status` in the chunk file plus a `log.md`
+entry. Never changes chunk `status`.
 
 ## Chunk sizing
 

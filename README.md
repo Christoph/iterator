@@ -16,27 +16,38 @@ connected slice of implementation of roughly 200 lines, in dependency order.
 Review-effectiveness research shows defect detection degrades past ~200–400
 lines, so ~200 is a conservative, reviewable default.
 
-Every step has a browser UI built on one shared shell, so all five steps look
-and behave the same, and all persistent state lives in a `memory/` directory
-that is a conformant [Open Knowledge Format (OKF) v0.1](docs/OKF_SPEC.md) bundle.
+Every step has a browser UI built on one shared shell, so all six UIs (the
+dashboard and the five steps) look and behave the same, and all persistent
+state lives in a `memory/` directory that is a conformant
+[Open Knowledge Format (OKF) v0.1](docs/OKF_SPEC.md) bundle.
 
-## The five-step flow
+## The flow
 
 ```
+/iterator            dashboard hub — plan, chunks, badges, dependency graph;
+      │              pick a chunk, press Test / Implement / Review
+      ▼
 /iterator-plan       create/revise the plan            → memory/plan.md
       │  (accept auto-continues)
       ▼
 /iterator-chunk      break the plan into chunks        → memory/chunks/<slug>.md
       │
+      ├─ (optional) /iterator-test   write RED tests from the chunk's contract
       ▼
 /iterator-implement  build the next dependency-ready chunk
-      │  (auto-starts the review at the end)
+      │              (drives the chunk's tests GREEN if they exist,
+      │               auto-starts the review at the end)
       ▼
 /iterator-review     chunk-vs-git-diff review          → outcome written into the chunk file
 
-/iterator-test       (optional, any time after chunking) write tests for a chunk
+/iterator-test       after implementation: write green tests for a done chunk
 ```
 
+- **`/iterator`** — the hub: a dashboard showing the plan, every chunk with
+  status/size/🔴🟢-test badges, and the dependency graph. Per-chunk buttons
+  (**Implement** only when dependencies are done, **Test** always, **Review**
+  when there's a diff or recorded commits) dispatch into the flows below and
+  the dashboard reopens when the action finishes.
 - **`/iterator-plan`** — turn a goal into a plan in a browser plan-review UI
   (click-to-edit markdown sections, per-section comments, editable dependency
   chips). On accept it writes the `memory/` bundle and auto-continues into
@@ -44,13 +55,23 @@ that is a conformant [Open Knowledge Format (OKF) v0.1](docs/OKF_SPEC.md) bundle
 - **`/iterator-chunk`** — split the plan into chunks, one OKF file each, in a UI
   with a dependency-graph visualization, snippets, drag-to-move files, and
   LLM-backed **Split**/**Merge**.
+- **`/iterator-test`** — red/green, decided by the chunk's status: on a
+  **pending** chunk it writes intentionally-failing tests from the chunk's
+  contract (red — the goal implement drives to green); on a **done** chunk it
+  writes passing tests against the real code. Either way it commits the tests
+  (`test(<slug>)`) and records `tests`/`tests_status` in the chunk file.
 - **`/iterator-implement`** — build the next chunk whose dependencies are all
-  done, auto-open the review UI scoped to it, and on **Accept and commit** commit
-  it (`chunk(<slug>)`) and flip its status to done.
+  done; if the chunk has tests they are the definition of done (implement →
+  run → fix until green, never weakening a test). Auto-opens the review UI
+  scoped to the chunk — with the test badge visible — and on **Accept and
+  commit** commits it (`chunk(<slug>)`), flips its status to done, and records
+  the commit sha. If the [impeccable](https://github.com/pbakaus/impeccable)
+  skill is installed, UI chunks get an `/impeccable audit` + `polish` pass
+  before review.
 - **`/iterator-review`** — standalone chunk-grouped diff review; records
-  `reviewed`/notes into the chunk file. Never marks a chunk done.
-- **`/iterator-test`** — propose a per-chunk test plan in the browser, then write
-  and run focused tests.
+  `reviewed`/notes into the chunk file. Done chunks are reviewable too — the
+  diff is rebuilt from the chunk's recorded commits (or the `Chunk: <slug>`
+  trailer). Never marks a chunk done.
 
 ## The `memory/` bundle
 
@@ -82,6 +103,8 @@ lines_estimate: 60
 depends_on: [config-module]
 files: ["src/auth.ts", "src/middleware/*.ts"]
 timestamp: 2026-07-02T10:00:00Z
+tests: ["test/auth.test.ts"]
+tests_status: red
 ---
 
 # Implementation notes
@@ -131,7 +154,8 @@ install from it (inside Claude Code):
 /plugin install iterator
 ```
 
-All five `/iterator-*` skills are auto-discovered from `skills/*/SKILL.md`.
+All six skills (`/iterator` + the five `/iterator-*` steps) are auto-discovered
+from `skills/*/SKILL.md`.
 
 ### Other agents (opencode, Codex CLI, pi, …)
 
@@ -148,9 +172,18 @@ cp -R skills/* .opencode/skills/  cp -R skills/* .agents/skills/   cp -R skills/
 
 (opencode also discovers Claude-compatible paths like `.claude/skills/` and
 `.agents/skills/` directly.) Invocation differs per harness — e.g.
-`/skill:iterator-plan` in pi, a `$`-mention in Codex — and skills also trigger
-implicitly by description. In sandboxed harnesses set `ITERATOR_NO_OPEN=1` to
-print the UI URL instead of launching a browser.
+`/skill:iterator` or `/skill:iterator-plan` in pi, a `$`-mention in Codex —
+and skills also trigger implicitly by description. In sandboxed harnesses set
+`ITERATOR_NO_OPEN=1` to print the UI URL instead of launching a browser (add
+`ITERATOR_HOST=0.0.0.0` + a published port when the browser lives outside the
+sandbox — see Configuration).
+
+**pi** can also install the repo directly as a package (the `pi` manifest in
+`package.json` points at `skills/`):
+
+```bash
+pi install git:github.com/<user>/iterator@<tag>   # or: pi -e … for one session
+```
 
 ## Requirements
 
@@ -162,7 +195,7 @@ print the UI URL instead of launching a browser.
 
 Each interactive step runs a tiny local HTTP server bound to `127.0.0.1` that
 opens a browser UI and prints your response back to Claude — no clipboard, no
-temp files. The port defaults to **8888**; override it with `ITERATOR_PORT`:
+temp files. The port defaults to **7777**; override it with `ITERATOR_PORT`:
 
 ```bash
 ITERATOR_PORT=9000   # set in your shell
@@ -177,6 +210,26 @@ Each run's URL carries a one-time token; the server rejects any request without
 it (and any non-localhost `Host` header), so no other page or process can forge
 a submission or cancel your flow. Reloading the tab is safe — only closing it
 cancels.
+
+### Docker / sandboxed agents (`ITERATOR_HOST`)
+
+When the agent runs inside a container but your browser is on the host, the
+default `127.0.0.1` bind is unreachable. Set `ITERATOR_HOST=0.0.0.0` (dev
+only!) inside the container and publish the port:
+
+```bash
+# inside the container / sandbox config
+ITERATOR_HOST=0.0.0.0 ITERATOR_NO_OPEN=1 ITERATOR_PORT=7777
+
+# on the host
+docker run -p 7777:7777 …   # then open the printed http://127.0.0.1:7777/?t=… URL
+```
+
+Pin `ITERATOR_PORT` explicitly: if the port were busy the server's retry would
+move to 7778, which your `-p 7777:7777` mapping would not reach. In exposed
+mode the localhost `Host`-header check is relaxed (the host browser may arrive
+via a container IP), but the one-time token stays mandatory — treat the URL
+like a secret and use this only on trusted dev machines.
 
 ## How it works
 

@@ -185,7 +185,7 @@ it into chunks."
 - Closing the browser tab sends `{ "type": "cancel" }`, so a closed tab never
   leaves the flow hanging. After 2h with no answer the server emits
   `{ "type": "timeout" }`.
-- Port is `8888` by default (or `$ITERATOR_PORT`); if busy the server picks the
+- Port is `7777` by default (or `$ITERATOR_PORT`); if busy the server picks the
   next free port and prints the real URL to stderr.
 
 ## Lifecycle

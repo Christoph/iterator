@@ -57,6 +57,14 @@ const CANCEL_GRACE_MS = parseInt(process.env.ITERATOR_CANCEL_GRACE_MS || '2500',
 
 const LOCAL_HOST_RE = /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/;
 
+// Dev-only: ITERATOR_HOST=0.0.0.0 exposes the server beyond localhost (e.g. a
+// Docker sandbox whose browser lives on the host). The per-run token stays
+// mandatory in every mode — it is the real defense once the port is reachable
+// from outside. Only the localhost Host-header check is relaxed, because the
+// host browser may reach us via a container IP or hostname.
+const BIND_HOST = process.env.ITERATOR_HOST || '127.0.0.1';
+const EXPOSED = BIND_HOST !== '127.0.0.1';
+
 /**
  * Serve a prebuilt HTML page and resolve the flow.
  *
@@ -65,7 +73,7 @@ const LOCAL_HOST_RE = /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/;
  * @param {string} o.html  the full HTML document to serve at GET /
  */
 export function serve({ step = 'iterator', html }) {
-  const startPort = parseInt(process.env.ITERATOR_PORT || '8888', 10);
+  const startPort = parseInt(process.env.ITERATOR_PORT || '7777', 10);
   const MAX_PORT_RETRIES = 20;
   const token = randomBytes(16).toString('hex');
   let done = false;
@@ -81,7 +89,7 @@ export function serve({ step = 'iterator', html }) {
 
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://127.0.0.1');
-    if (!LOCAL_HOST_RE.test(String(req.headers.host || '')) ||
+    if ((!EXPOSED && !LOCAL_HOST_RE.test(String(req.headers.host || ''))) ||
         url.searchParams.get('t') !== token) {
       res.writeHead(403, { 'Content-Type': 'text/plain' });
       res.end('Forbidden');
@@ -129,6 +137,13 @@ export function serve({ step = 'iterator', html }) {
       exec(`${opener} "${url}"`);
     }
     process.stderr.write(`iterator: ${step} listening on ${url}\n`);
+    if (EXPOSED) {
+      process.stderr.write(
+        `iterator: WARNING — bound to ${BIND_HOST} (ITERATOR_HOST): anyone who can ` +
+        `reach this port and obtain the token can answer as the user. Dev use only.\n` +
+        `iterator: from the host, open http://127.0.0.1:${port}/?t=${token} ` +
+        `(with a published port, e.g. docker run -p ${port}:${port}).\n`);
+    }
   };
 
   const tryListen = (port, attemptsLeft) => {
@@ -142,14 +157,14 @@ export function serve({ step = 'iterator', html }) {
           process.stderr.write(`iterator: server error: ${e.message}\n`);
           finish(null, 1);
         });
-        server.listen(0, '127.0.0.1', onListen);
+        server.listen(0, BIND_HOST, onListen);
       } else {
         process.stderr.write(`iterator: server error: ${err.message}\n`);
         finish(null, 1);
       }
     };
     server.once('error', onError);
-    server.listen(port, '127.0.0.1', () => {
+    server.listen(port, BIND_HOST, () => {
       server.removeListener('error', onError);
       onListen();
     });

@@ -1,6 +1,6 @@
 ---
 name: iterator-implement
-description: Implement chunks one at a time in dependency order from the memory/ bundle. Picks the next chunk whose dependencies are all done, builds it, auto-opens the review UI scoped to that chunk, and on Accept and commit commits it (chunk(<slug>) with a Chunk trailer) and flips its status to done. Use when the user types /iterator-implement, wants to build the next chunk, or wants to work through the chunk plan sequentially.
+description: Implement chunks one at a time in dependency order from the memory/ bundle. Picks the next chunk whose dependencies are all done, builds it — using the chunk's tests as the goal when they exist (red/green flow, drive them green before review) — auto-opens the review UI scoped to that chunk, and on Accept and commit commits it (chunk(<slug>) with a Chunk trailer), flips its status to done, and records the commit. Use when the user types /iterator-implement, wants to build the next chunk, or wants to work through the chunk plan sequentially.
 ---
 
 # iterator-implement
@@ -28,8 +28,8 @@ before continuing.
 
 Read `memory/chunks/index.md` for the ordered chunk list with status. Load the
 candidate chunk's file `memory/chunks/<slug>.md` for its `depends_on`, `status`,
-`files`, `# Implementation notes`, and `# Snippets`. (Read only the files you
-need — the index is enough to choose.)
+`files`, `tests`/`tests_status`, `# Implementation notes`, and `# Snippets`.
+(Read only the files you need — the index is enough to choose.)
 
 ### 2. Pick the next dependency-ready chunk
 
@@ -44,12 +44,28 @@ need — the index is enough to choose.)
 If the user named a specific chunk, verify its `depends_on` are all done before
 implementing; if not, name the missing dependency and stop.
 
-### 3. Implement the chunk
+### 3. Implement the chunk — tests are the goal when they exist
 
 Implement the selected chunk using its `# Implementation notes`, `# Snippets`,
 `ARCHITECTURE.md` (read if present), and `GUIDELINES.md` **only if it exists**
 (read and follow it; skip silently if absent). Make the actual code changes in
 the working tree, scoped to the chunk's `files` where possible.
+
+**Design quality (`impeccable`):** if the `impeccable` skill is available in
+this harness **and** the chunk touches frontend/UI surface (markup, styles,
+client-side components), use it while building: `/impeccable audit` the
+changed UI after implementing and apply its findings, `/impeccable polish`
+for final refinement — before opening the review UI. Skip silently if the
+skill is not installed or the chunk has no UI surface.
+
+**Green gate:** if the chunk has `tests` (written red by `/iterator-test`),
+they define done. After implementing, run exactly the chunk's test files and
+loop *implement → run → fix* until they pass — **before** opening the review
+UI. Never weaken or delete a test to get green; if a test looks wrong, say so.
+If the tests are still red after a few honest attempts, stop and show the user
+the real failing output, then let them choose: keep fixing, open the review
+anyway (the red badge will be visible), or pause. If the chunk has no tests,
+skip this gate — it is not an error.
 
 ### 4. Auto-open the review UI (commit mode)
 
@@ -70,6 +86,7 @@ node <plugin-root>/skills/iterator-review/server.mjs << 'REVIEW_DATA'
       "description": "JWT-based auth middleware for protected routes.",
       "dependsOn": ["config-module"],
       "stats": { "added": 42, "removed": 8, "files": 2, "complexity": "yellow" },
+      "tests": { "status": "green", "total": 3, "passing": 3 },
       "files": [
         { "path": "src/auth.ts", "hunks": [
           { "header": "@@ -1,0 +1,12 @@", "oldStart": 1, "newStart": 1,
@@ -81,6 +98,11 @@ node <plugin-root>/skills/iterator-review/server.mjs << 'REVIEW_DATA'
 }
 REVIEW_DATA
 ```
+
+Include `"tests"` (from the green-gate run: `status` red/green, counts) when
+the chunk has tests, and omit it otherwise — the UI shows a 🔴/🟢 badge next to
+the chunk so the test state is visible exactly where the commit decision
+happens.
 
 The UI shows the chunk, its diff grouped by file, per-line comments, and the
 **Accept and commit** / **Send review** primary. Closing the tab sends
@@ -94,9 +116,12 @@ The UI shows the chunk, its diff grouped by file, per-line comments, and the
      create and switch to a working branch first — never commit to the default
      branch.
   2. **Flip the chunk file** `memory/chunks/<slug>.md`: `status: done`, add
-     `done: <YYYY-MM-DD>`, update `timestamp`.
-  3. **Regenerate** `memory/chunks/index.md` (✅ done marker) and prepend a
-     `memory/log.md` entry:
+     `done: <YYYY-MM-DD>`, update `timestamp` — and if the chunk has tests,
+     set `tests_status` to the color of the last real run (normally
+     `red → green`; keep `red` if the user accepted with red tests —
+     `status` and `tests_status` are independent by design).
+  3. **Regenerate** `memory/chunks/index.md` (✅ done marker, 🔴/🟢 badge) and
+     prepend a `memory/log.md` entry:
      `* **Implementation**: Committed chunk(<slug>) on branch <branch>.`
   4. **Commit** the code changes **together with** the chunk-file flip, index,
      and log updates in one commit:
@@ -108,12 +133,18 @@ The UI shows the chunk, its diff grouped by file, per-line comments, and the
      ```
 
      (The `Chunk: <slug>` trailer lets tooling find every commit for a chunk.)
-  5. Report what was committed, then offer to continue with the next
+  5. **Record the commit**: append `{ sha, kind: implement, date }` to the
+     chunk's `commits` list in the next bundle write (a commit cannot contain
+     its own sha; the trailer keeps the chunk findable meanwhile — see
+     `memory/format.md`).
+  6. Report what was committed, then offer to continue with the next
      dependency-ready chunk (loop to step 2).
 
 - `{ "type": "review-feedback", "features": [...], "lineComments": [...] }` →
   revise the implementation per the feedback (per-chunk notes/status and line
-  comments), then re-run from step 4. **Do not commit yet.**
+  comments), **re-run the chunk's tests** (the green gate applies to every
+  round, not just the first), then re-run from step 4 with the fresh test
+  state. **Do not commit yet.**
 
 - `{ "type": "cancel" }` or `{ "type": "timeout" }` → stop without committing; the
   working-tree changes remain for the user to inspect. Report that
@@ -133,4 +164,5 @@ notes; this skill owns the `done` state.
 - `/iterator-implement` builds chunks in dependency order and owns `done` (this
   skill).
 - `/iterator-review` reviews a chunk's diff (this skill reuses its UI in commit
-  mode); `/iterator-test` generates a chunk's tests.
+  mode); `/iterator-test` generates a chunk's tests — written red before
+  implementation, they are this skill's definition of done.

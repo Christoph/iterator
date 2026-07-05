@@ -9,7 +9,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CANCEL_GRACE_MS = 250;
 
 /** Spawn a skill server with a payload on stdin; resolve once it prints its URL. */
-function startServer(skill, payload) {
+function startServer(skill, payload, extraEnv = {}) {
   const script = join(root, 'skills', skill, 'server.mjs');
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [script], {
@@ -18,6 +18,7 @@ function startServer(skill, payload) {
         ITERATOR_NO_OPEN: '1',
         ITERATOR_PORT: '0', // ephemeral port, no collisions between tests
         ITERATOR_CANCEL_GRACE_MS: String(CANCEL_GRACE_MS),
+        ...extraEnv,
       },
     });
     let stderr = '', stdout = '';
@@ -128,8 +129,34 @@ test('explicit Cancel (/cancel?now=1) cancels immediately', async () => {
   assert.deepEqual(JSON.parse(io.stdout()), { type: 'cancel' });
 });
 
+test('ITERATOR_HOST=0.0.0.0 accepts non-local Host headers but still requires the token', async () => {
+  const io = await startServer('iterator-plan', PLAN_PAYLOAD, { ITERATOR_HOST: '0.0.0.0' });
+  const reqStatus = (path, host) => new Promise((resolve, reject) => {
+    const req = http.request({
+      host: '127.0.0.1', port: io.url.port, path,
+      headers: { Host: host },
+    }, res => { res.resume(); resolve(res.statusCode); });
+    req.on('error', reject);
+    req.end();
+  });
+  // Host browser reaching a container by IP/hostname: allowed with the token.
+  assert.equal(await reqStatus(`/?t=${io.url.searchParams.get('t')}`, '172.17.0.2:7777'), 200);
+  // The token stays mandatory in exposed mode.
+  assert.equal(await reqStatus('/?t=wrong', '172.17.0.2:7777'), 403);
+  io.child.kill();
+  await waitExit(io.child);
+});
+
 // Smoke-test the remaining step servers with their sample payloads.
 const SMOKE = {
+  'iterator': {
+    step: 'hub', branch: 'test', plan: { title: 'Add JWT auth', status: 'approved' },
+    progress: { done: 1, total: 2 },
+    chunks: [
+      { name: 'config-module', title: 'Config module', description: 'Config', status: 'done', size: 'small', linesEstimate: 30, testsStatus: 'green', dependsOn: [], hasDiff: false, hasCommits: true },
+      { name: 'auth-middleware', title: 'Auth middleware', description: 'JWT middleware', status: 'pending', size: 'small', linesEstimate: 60, testsStatus: 'red', dependsOn: ['config-module'], hasDiff: true, hasCommits: false },
+    ],
+  },
   'iterator-chunk': {
     step: 'chunk', branch: 'test', plan: 'Add JWT auth',
     chunks: [

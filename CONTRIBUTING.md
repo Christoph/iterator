@@ -45,7 +45,7 @@ npm run preview:review-server   # /iterator-review chunk-grouped diff review
 npm run preview:test-server     # /iterator-test   test-plan UI
 ```
 
-Each opens `http://127.0.0.1:8888/?t=<token>` (or the next free port; watch
+Each opens `http://127.0.0.1:7777/?t=<token>` (or the next free port; watch
 stderr for the real URL — the token is required, so open the printed URL, not
 the bare port). `/iterator-implement` has no server of its own — it drives the
 review server in `"mode": "commit"`.
@@ -104,7 +104,7 @@ break the page.
 
 ## Changing the port
 
-The port defaults to `8888`; override it with the `ITERATOR_PORT` environment
+The port defaults to `7777`; override it with the `ITERATOR_PORT` environment
 variable (the default lives once in `lib/server.mjs`). A busy port is handled
 automatically — the server retries the next port and prints the real URL.
 
