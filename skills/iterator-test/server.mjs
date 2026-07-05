@@ -5,6 +5,7 @@
  * test file is written; the user tweaks/comments/accepts.
  *
  *   input:  { step:"test", branch, chunk:{name,description}, runner,
+ *             mode,                                // "red" (chunk pending) | "green" (chunk done)
  *             cases:[ {title,kind,rationale} ] }   // kind: happy | edge | integration
  *   output: one JSON line to stdout —
  *     { type:"test-approved", branch, chunk, cases:[ {title,kind,rationale,include} ] }
@@ -18,7 +19,10 @@ const CSS = `
 .main{max-width:820px;margin:0 auto;padding:24px 20px}
 h1{font-size:20px;font-weight:600;margin-bottom:6px}
 .desc{font-size:14px;color:var(--text-muted);margin-bottom:8px;line-height:1.5}
-.runner{font-size:12px;color:var(--text-muted);margin-bottom:20px}
+.runner{font-size:12px;color:var(--text-muted);margin-bottom:8px}
+.mode{font-size:12.5px;line-height:1.5;border-radius:6px;padding:8px 12px;margin-bottom:20px;display:none}
+.mode.red{display:block;background:var(--bg-red);color:var(--dot-red)}
+.mode.green{display:block;background:var(--bg-green);color:var(--dot-green)}
 .runner code{background:var(--code-bg);border-radius:4px;padding:1px 6px;font-family:ui-monospace,Menlo,monospace}
 .hint{font-size:13px;color:var(--text-muted);margin-bottom:20px;line-height:1.5}
 .case{background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:12px;padding:12px 14px}
@@ -48,6 +52,7 @@ const BODY = `
   <h1 id="title"></h1>
   <div class="desc" id="desc"></div>
   <div class="runner" id="runner"></div>
+  <div class="mode" id="mode"></div>
   <p class="hint">These are the test cases Claude proposes for this chunk. Untick any you don't want, edit a title, or leave a comment. Click <strong>Accept</strong> to have Claude write and run them; add a comment and it becomes <strong>Send review</strong> to revise the plan first.</p>
   <div id="cases"></div>
   <div class="comment-section">
@@ -65,6 +70,14 @@ const state = (D.cases || []).map(c => ({ title:c.title||'', kind:c.kind||'happy
 document.getElementById('title').textContent = 'Test plan — ' + (chunk.name || 'chunk');
 document.getElementById('desc').textContent = chunk.description || '';
 if(D.runner) document.getElementById('runner').innerHTML = 'Runner: <code>'+esc(D.runner)+'</code>';
+const modeEl = document.getElementById('mode');
+if(D.mode==='red'){
+  modeEl.className='mode red';
+  modeEl.innerHTML='🔴 <strong>Red mode</strong> — this chunk is not implemented yet. Accepted tests are written against the chunk\\'s contract and are <em>expected to fail</em> until /iterator-implement turns them green.';
+}else if(D.mode==='green'){
+  modeEl.className='mode green';
+  modeEl.innerHTML='🟢 <strong>Green mode</strong> — this chunk is implemented; accepted tests must pass against the current code.';
+}
 renderCases();
 refresh();
 
