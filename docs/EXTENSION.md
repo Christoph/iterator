@@ -476,6 +476,36 @@ endpoint answers without auth; SIGTERM → `{"type":"cancel"}` + exit 0; a
 second server evicts the first AND lands on the same port; `<APP>_NO_TAKEOVER`
 walks instead.
 
+### Session dashboard (pi): one server for the whole session
+
+In pi the extension owns the session lifecycle, so iterator replaces the
+one-shot round trips with a **session-scoped server**
+(`lib/session-server.mjs`), started in `session_start` (when a bundle
+exists; lazily otherwise) and stopped in `session_shutdown`. It runs
+**in-process** — its pid is the pi process — which changes the takeover
+rules:
+
+- Its status endpoint reports `{ app, mode: "session", step, pid }`. A
+  legacy one-shot server's `takeoverStale()` sees `mode: "session"` and
+  **skips the kill** (SIGTERMing that pid would kill the agent), walking to
+  the next port instead. The session server itself still evicts lingering
+  one-shots on start.
+- The browser tab never reloads: `GET /` is a thin shell (an `<iframe>` +
+  `EventSource('/events')`); each round rotates the run id, renders the
+  step view, and pushes an SSE `view` event that swaps the iframe src. The
+  outgoing view's pagehide `/cancel` beacon carries the old run id and is
+  ignored — the same stale-tab guard as one-shot mode.
+- At most one round is pending. A `/submit` with **no** pending round is an
+  *unsolicited* user action (the agent was idle when the user clicked the
+  dashboard); the extension maps it to a `/skill:iterator-*` command via
+  `pi.sendUserMessage`. After every `agent_end` the extension re-gathers
+  the hub and pushes it, so the idle dashboard always reflects reality.
+
+The tools the extension registers (`iterator_gather`, `iterator_write`,
+`iterator_ui`) spawn the same `gather.mjs`/`write.mjs` CLIs the skills use.
+`iterator_ui` takes only `{ step, chunk?, extra? }` and gathers the payload
+itself — the model never pipes gathered payloads or chunk bodies around.
+
 ### Remote sessions: reaching the UI from the host
 
 When pi runs inside a Docker sandbox, devcontainer, or SSH session, the

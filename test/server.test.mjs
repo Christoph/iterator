@@ -183,6 +183,35 @@ test('a new server takes over the fixed port from a lingering one', async () => 
   await waitExit(b.child);
 });
 
+test('a session-mode dashboard is never killed — the one-shot walks ports instead', async () => {
+  // Fake the in-process session server (lib/session-server.mjs): it answers
+  // the status probe with mode:'session' and its pid is the agent process.
+  const fake = http.createServer((req, res) => {
+    if (req.url === '/__iterator/status') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ app: 'iterator', mode: 'session', step: 'hub', pid: process.pid }));
+    } else { res.writeHead(200); res.end('session dashboard'); }
+  });
+  await new Promise(r => fake.listen(0, '127.0.0.1', r));
+  const port = fake.address().port;
+  const registry = join(tmpdir(), `iterator-session-guard-${randomUUID()}.json`);
+  const { writeFileSync } = await import('node:fs');
+  writeFileSync(registry, JSON.stringify({ pid: process.pid, port, mode: 'session' }) + '\n');
+
+  const io = await startServer(PLAN_PAYLOAD, {
+    ITERATOR_REGISTRY: registry,
+    ITERATOR_PORT: String(port),
+  });
+  assert.match(io.stderr(), /session dashboard owns port/);
+  assert.notEqual(Number(io.url.port), port, 'one-shot must walk to another port');
+  // The session server is still alive and still owns its port.
+  const probe = await fetch(`http://127.0.0.1:${port}/__iterator/status`);
+  assert.equal((await probe.json()).mode, 'session');
+  io.child.kill();
+  await waitExit(io.child);
+  await new Promise(r => fake.close(r));
+});
+
 test('ITERATOR_NO_TAKEOVER leaves a running server alone (port walk instead)', async () => {
   const shared = {
     ITERATOR_REGISTRY: join(tmpdir(), `iterator-walk-${randomUUID()}.json`),

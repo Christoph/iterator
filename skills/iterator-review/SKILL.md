@@ -30,6 +30,17 @@ If `memory/chunks/` has no chunk files, tell the user: "No chunks found. Run
 If the user's message contains feedback JSON (`"type": "review-feedback"`) from a
 previous session, process it (step 4) before re-running.
 
+**pi mode:** if the tools `iterator_gather` / `iterator_write` / `iterator_ui`
+are available, use them instead of the shell pipelines below.
+`iterator_ui { step: "review", chunk: "<slug>" }` gathers the diff payload
+itself (pass no diff data); `iterator_write` replaces the write.mjs heredocs.
+Steps, payloads, and rules are unchanged.
+
+The review view shows each chunk's `lines_estimate` next to the actual diff
+size and flags large deviations — when you see one, note it and calibrate
+future `lines_estimate` values at chunking time from the chunk's `files`
+instead of gut feel.
+
 ## Steps
 
 ### 1. Load the chunk state

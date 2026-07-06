@@ -52,7 +52,7 @@ rewriting every `depends_on` reference to it.
 type: Chunk                             # REQUIRED (OKF type)
 title: Auth middleware                  # display name
 description: JWT-based auth middleware for all protected routes.  # one line
-status: pending                         # pending | done
+status: pending                         # draft | pending | done
 size: small                             # small (≤100 est. lines) | medium (≤200) | large (>200)
 lines_estimate: 60                      # integer, estimated from the plan
 depends_on: [config-module]             # chunk slugs; [] if none
@@ -104,8 +104,8 @@ What breaks if this chunk is wrong; which other chunks/files feel it.
 | `type` | yes | Always `Chunk`. OKF consumers route on this. |
 | `title` | yes | Human display name. |
 | `description` | yes | One sentence; copied into `chunks/index.md` entries. |
-| `status` | yes | `pending` or `done`. Only `/iterator-implement` sets `done` (on Accept-and-commit). |
-| `size` / `lines_estimate` | yes | Soft ~200-line guideline. `large` chunks get a ⚠️ in the UIs and should be split. |
+| `status` | yes | `draft`, `pending`, or `done`. `/iterator-chunk` writes proposals as `draft`; accepting the chunk set in the UI promotes every draft to `pending`. Drafts are never implementable/testable. Only `/iterator-implement` sets `done` (on Accept-and-commit). |
+| `size` / `lines_estimate` | yes | Estimate the *expected diff* (changed lines) from `files` + the implementation notes, not gut feel. Target ~50–200 lines: below ~30 the flow overhead outweighs the chunk (merge it), above ~300 it cannot be reviewed (split it) — the writer warns outside that window. `large` chunks get a ⚠️ in the UIs. |
 | `depends_on` | yes (may be `[]`) | Chunk slugs that must be `done` before this chunk is implemented. Must be acyclic and reference existing files. This is the **canonical** dependency data; the `# Depends on` body section mirrors it with optional "why" prose. |
 | `files` | yes | Paths or simple globs the chunk owns. `/iterator-review` maps diff hunks to a chunk through these; first matching chunk wins. |
 | `timestamp` | yes | ISO 8601 "last meaningful change" (OKF's field — iterator uses it instead of inventing `last_updated`). Every skill that edits the file updates it. |
@@ -192,7 +192,8 @@ description text (which OKF permits). Ordering is dependency order
 
 The test badge (`🔴 tests red` / `🟢 tests green`) sits between the status and
 the size and is **omitted** when `tests_status` is `none`/absent (see
-`api-routes` above).
+`api-routes` above). Unaccepted chunk proposals show `📝 draft` in place of
+`⬜ pending`.
 
 Every skill that changes chunk status or metadata regenerates
 `chunks/index.md`. Skills stay context-efficient by reading `chunks/index.md`

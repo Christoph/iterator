@@ -22,6 +22,16 @@ If the user's message contains a result payload from a previous session
 (`accept-commit`, `review-feedback`, `cancel`, `timeout`), process it (step 4)
 before continuing.
 
+**pi mode:** if the tools `iterator_gather` / `iterator_write` / `iterator_ui`
+are available, use them instead of the shell pipelines below.
+`iterator_gather { step: "implement" }` replaces the gather pipe;
+`iterator_ui { step: "review", chunk: "<slug>", extra: { mode: "commit", tests: {...} } }`
+opens the commit-review — it gathers the diff itself, your `extra` carries
+only the test summary; `iterator_write` replaces the write.mjs heredocs.
+Steps, payloads, and rules are unchanged. In pi, `/iterator-next` implements
+the next ready chunk directly, and a bare `/iterator-implement` offers a
+terminal chunk picker.
+
 ## Steps
 
 ### 1. Pick the next dependency-ready chunk
@@ -32,10 +42,13 @@ Selection is scripted — do **not** read bundle files yourself:
 node <skill-dir>/../iterator/gather.mjs --step implement
 ```
 
-It prints `{ next, ready, blocked, stuck, progress }`: `next` is the first
-dependency-ready pending chunk **with its full contract** (implementation
-notes, snippets, files, blast radius, tests + test status); `blocked` lists
-what each remaining chunk is waiting on.
+It prints `{ next, ready, drafts, blocked, stuck, progress }`: `next` is the
+first dependency-ready **pending** chunk **with its full contract**
+(implementation notes, snippets, files, blast radius, tests + test status);
+`blocked` lists what each remaining chunk is waiting on. Chunks with
+`status: draft` are an unaccepted proposal — they never appear in
+`ready`/`next`; if only drafts exist, tell the user to accept the chunk set
+first (`/iterator-chunk`) and stop.
 
 - Implement `next`. **Never implement a chunk before its dependencies are
   done.**

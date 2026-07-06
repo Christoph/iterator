@@ -14,15 +14,18 @@
  *   plan          write memory/plan.md (+ format.md/index.md/log.md on first
  *                 run) from approved sections + dependencies; preserves an
  *                 existing `# Chunks` section on re-plan
- *   chunks        write the full chunk set (one OKF file per chunk), delete
- *                 removed slugs, validate acyclic deps + references BEFORE
- *                 writing, regenerate all indexes; never rewrites a done chunk
+ *   chunks        write the full chunk set (one OKF file per chunk, status
+ *                 draft|pending — the chunker writes drafts), delete removed
+ *                 slugs, validate acyclic deps + references BEFORE writing,
+ *                 regenerate all indexes; never rewrites a done chunk; returns
+ *                 sizing warnings for chunks outside the reviewable window
  *   update-chunk  targeted frontmatter update on one chunk (status flips,
  *                 tests, reviewed, done) + optional `# Review` note and
  *                 commits-list entry; regenerates indexes
  *   adjustments   apply the chunk UI's mechanical edits verbatim (moves,
  *                 renames incl. depends_on rewiring, description updates) —
- *                 the server's `plan-adjustments` output pipes in unchanged
+ *                 the server's `plan-adjustments` output pipes in unchanged;
+ *                 `accept: true` additionally promotes every draft to pending
  *
  * Every op updates timestamps (override with $ITERATOR_NOW for tests),
  * regenerates memory/chunks/index.md + the plan `# Chunks` section +
@@ -168,7 +171,8 @@ export function topoSort(items) {
 // Generated files (chunks/index.md, plan # Chunks, memory/index.md, log.md)
 
 function chunkIndexLine(c) {
-  const status = c.fm.status === 'done' ? '✅ done' : '⬜ pending';
+  const status = c.fm.status === 'done' ? '✅ done'
+    : c.fm.status === 'draft' ? '📝 draft' : '⬜ pending';
   const badge = c.fm.tests_status === 'red' ? ' · 🔴 tests red'
     : c.fm.tests_status === 'green' ? ' · 🟢 tests green' : '';
   const deps = listy(c.fm.depends_on).length
@@ -300,6 +304,12 @@ ${chunksSection}
 // ---------------------------------------------------------------------------
 // op: chunks
 
+// Reviewable-chunk size window (estimated changed lines). Outside it the
+// chunks op still writes but returns warnings: below the floor the flow
+// overhead outweighs the chunk, above the ceiling a review stops being real.
+const SIZE_MIN_LINES = 30;
+const SIZE_MAX_LINES = 300;
+
 function chunkDoc(c, titles, existingReview) {
   const fm = [
     'type: Chunk',
@@ -340,6 +350,9 @@ function writeChunks(payload, root) {
 
   for (const c of incoming) {
     if (!c.name || !/^[a-z0-9][a-z0-9-]*$/.test(c.name)) fail(`invalid chunk slug '${c.name || ''}' (kebab-case required)`);
+    if (c.status && !['draft', 'pending'].includes(c.status)) {
+      fail(`invalid chunk status '${c.status}' (chunks op writes draft|pending; done is owned by update-chunk)`);
+    }
   }
   for (const d of deletes) {
     if (existing.get(d)?.fm.status === 'done') fail(`refusing to delete done chunk '${d}'`);
@@ -381,10 +394,21 @@ function writeChunks(payload, root) {
     if (existing.has(d)) rmSync(join(chunksDir, `${d}.md`));
   }
 
+  // Sizing sanity: a tiny chunk is pure flow overhead, a huge one cannot be
+  // reviewed. Warn (never fail) so the chunker can merge/split before accept.
+  const warnings = [];
+  for (const c of incoming) {
+    if (doneProtected.includes(c.name)) continue;
+    const est = Number(c.linesEstimate) || 0;
+    if (!est) warnings.push(`${c.name}: no lines_estimate — estimate the expected diff size from its files`);
+    else if (est < SIZE_MIN_LINES) warnings.push(`${c.name}: ~${est} lines — too small to be worth a chunk; merge it into a neighbor unless it is genuinely isolated`);
+    else if (est > SIZE_MAX_LINES) warnings.push(`${c.name}: ~${est} lines — too big to review; split it`);
+  }
+
   regenerate(root);
   prependLog(b.memDir, payload.log ||
     `**${b.chunks.length ? 'Update' : 'Creation'}**: ${written.length} chunk(s) written${deletes.length ? `, ${deletes.length} removed` : ''}.`);
-  return { op: 'chunks', written, skipped: doneProtected, deleted: deletes, memoryDir: b.memDir };
+  return { op: 'chunks', written, skipped: doneProtected, deleted: deletes, warnings, memoryDir: b.memDir };
 }
 
 // ---------------------------------------------------------------------------
@@ -401,7 +425,7 @@ function updateChunk(payload, root) {
   const set = payload.set || {};
   const bad = Object.keys(set).filter(k => !allowed.includes(k));
   if (bad.length) fail(`update-chunk cannot set: ${bad.join(', ')} (allowed: ${allowed.join(', ')})`);
-  if (set.status && !['pending', 'done'].includes(set.status)) fail(`invalid status '${set.status}'`);
+  if (set.status && !['draft', 'pending', 'done'].includes(set.status)) fail(`invalid status '${set.status}'`);
   if (set.status === 'done' && !set.done) set.done = today();
 
   fm = setFmKeys(fm, { ...set, timestamp: nowIso() });
@@ -468,6 +492,19 @@ function applyAdjustments(payload, root) {
     applied.push(`describe ${du.chunk}`);
   }
 
+  // accept: the user approved the chunk set — promote every draft to pending
+  // (the mechanical half of the chunk UI's Accept; comments stay semantic).
+  // The chunk UI's { type:"plan-approved" } line pipes in verbatim as accept.
+  if (payload.accept || payload.type === 'plan-approved') {
+    for (const c of reload().chunks) {
+      if (c.fm.status !== 'draft') continue;
+      const doc = splitDoc(c.raw);
+      writeFileSync(join(chunksDir, `${c.slug}.md`),
+        joinDoc(setFmKeys(doc.fm, { status: 'pending', timestamp: nowIso() }), doc.body));
+      applied.push(`accept ${c.slug}`);
+    }
+  }
+
   if (applied.length) {
     regenerate(root);
     prependLog(b.memDir, payload.log || `**Update**: Applied ${applied.length} chunk adjustment(s).`);
@@ -479,7 +516,8 @@ function applyAdjustments(payload, root) {
 // dispatch + CLI
 
 export function applyOp(payload, root) {
-  const op = payload.op || (payload.type === 'plan-adjustments' ? 'adjustments' : null);
+  const op = payload.op
+    || (['plan-adjustments', 'plan-approved'].includes(payload.type) ? 'adjustments' : null);
   const ops = { plan: writePlan, chunks: writeChunks, 'update-chunk': updateChunk, adjustments: applyAdjustments };
   if (!ops[op]) fail(`unknown op '${payload.op || payload.type || ''}' (plan|chunks|update-chunk|adjustments)`);
   return ops[op](payload, root);

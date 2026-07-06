@@ -16,6 +16,10 @@
     "preview:test": "echo '{\"step\":\"test\",\"branch\":\"test\",\"chunk\":{\"name\":\"auth-middleware\",\"description\":\"JWT middleware for protected routes\"},\"runner\":\"vitest\",\"cases\":[{\"title\":\"requireAuth passes a valid token\",\"kind\":\"happy\",\"rationale\":\"Core behavior of the middleware.\"},{\"title\":\"requireAuth rejects a missing token\",\"kind\":\"edge\",\"rationale\":\"Unauthenticated requests must 401.\"}]}' | node skills/iterator/server.mjs"
   },
   "keywords": ["claude-code", "plugin", "pi-package", "code-review", "planning", "chunks", "okf", "developer-tools"],
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
   "pi": {
     "extensions": ["./extensions"],
     "skills": ["./skills"]

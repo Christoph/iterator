@@ -143,9 +143,12 @@ function makeCard(c){
   const card = document.createElement('div');
   card.className = 'card' + (c.status==='done'?' done':'');
   const ready = depsDone(c);
+  const draft = c.status==='draft';
+  const icon = c.status==='done' ? '✅ ' : draft ? '📝 ' : '⬜ ';
   card.innerHTML =
-    '<div class="ch"><span class="cn">'+(c.status==='done'?'✅ ':'⬜ ')+esc(c.title||c.name)+'</span>'+
-      '<span class="chip cmut">'+esc(c.name)+'</span>'+sizeChip(c)+testBadge(c)+'</div>'+
+    '<div class="ch"><span class="cn">'+icon+esc(c.title||c.name)+'</span>'+
+      '<span class="chip cmut">'+esc(c.name)+'</span>'+
+      (draft?'<span class="chip cy">draft</span>':'')+sizeChip(c)+testBadge(c)+'</div>'+
     '<div class="cdesc">'+esc(c.description||'')+'</div>'+
     ((c.dependsOn&&c.dependsOn.length)?'<div class="deps">depends on '+c.dependsOn.map(d=>'<code>'+esc(d)+'</code>').join(' ')+'</div>':'');
 
@@ -156,6 +159,7 @@ function makeCard(c){
   impl.className = 'act primary-act';
   impl.textContent = 'Implement';
   if(c.status==='done'){ impl.disabled = true; impl.title = 'Already done'; }
+  else if(draft){ impl.disabled = true; impl.title = 'Draft — accept the chunk set first (Re-chunk)'; }
   else if(!ready){
     impl.disabled = true;
     impl.title = 'Waiting on: '+(c.dependsOn||[]).filter(d=>!byName[d]||byName[d].status!=='done').join(', ');
@@ -168,6 +172,7 @@ function makeCard(c){
   test.title = c.status==='pending'
     ? 'Write failing tests from the chunk contract before implementing'
     : 'Write passing tests against the implemented chunk';
+  if(draft){ test.disabled = true; test.title = 'Draft — accept the chunk set first'; }
   test.addEventListener('click', () => action('test', c.name, 'Starting /iterator-test'));
 
   const rev = document.createElement('button');

@@ -37,6 +37,14 @@ If `memory/chunks/` has no chunk files, tell the user: "No chunks found. Run
 If the user's message contains a test-plan result payload (`test-approved`,
 `test-feedback`, `cancel`, `timeout`), process it (steps 4–6).
 
+**pi mode:** if the tools `iterator_gather` / `iterator_write` / `iterator_ui`
+are available, use them instead of the shell pipelines below.
+`iterator_ui { step: "test", chunk: "<slug>", extra: { cases: [...] } }`
+gathers the chunk contract/runner itself — your drafted `cases` are the only
+thing you pass; `iterator_write` replaces the write.mjs heredocs. Steps,
+payloads, and rules are unchanged. Draft chunks are not testable — they must
+be accepted (pending) first.
+
 ## Steps
 
 ### 1. Choose which chunk to test

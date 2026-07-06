@@ -23,6 +23,13 @@ If the user's message contains a plan-review result payload from a previous
 session (`plan-approved` / `plan-feedback` / `cancel` / `timeout`), process it
 per step 4 before doing anything else.
 
+**pi mode:** if the tools `iterator_gather` / `iterator_write` / `iterator_ui`
+are available, use them instead of the shell pipelines below.
+`iterator_ui { step: "plan", extra: { title, plan: {...}, dependencies } }`
+gathers the existing plan itself and merges only your drafted sections on top
+(the `extra` is the one place your semantic draft travels); `iterator_write`
+replaces the write.mjs heredoc. Steps, payloads, and rules are unchanged.
+
 ## Steps
 
 ### 1. Resolve the bundle location and check existing state

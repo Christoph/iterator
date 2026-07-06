@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { gather, frontmatter, globToRegExp } from '../skills/iterator/gather.mjs';
+import { gather, gatherImplement, gatherReview, frontmatter, globToRegExp } from '../skills/iterator/gather.mjs';
 
 const git = (dir, ...args) => execFileSync('git', args, {
   cwd: dir, encoding: 'utf8',
@@ -122,6 +122,43 @@ body`);
   assert.deepEqual(fm.depends_on, ['a', 'b']);
   assert.equal(fm.commits.length, 1);
   assert.equal(fm.files, null);
+});
+
+test('implement excludes drafts from ready/next and lists them separately', () => {
+  const root = makeFixture();
+  try {
+    // A dependency-free draft: would be "next" if drafts were implementable.
+    writeFileSync(join(root, 'memory', 'chunks', 'a-draft.md'), `---
+type: Chunk
+title: A draft
+description: Unaccepted proposal
+status: draft
+size: small
+lines_estimate: 50
+depends_on: []
+files: ["src/draft.ts"]
+---
+`);
+    const p = gatherImplement(root);
+    assert.equal(p.next.name, 'auth-middleware', 'draft must not become next');
+    assert.deepEqual(p.ready, ['auth-middleware']);
+    assert.deepEqual(p.drafts, ['a-draft']);
+    assert.equal(p.stuck, false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('review payload carries lines_estimate next to the actual stats', () => {
+  const root = makeFixture();
+  try {
+    const p = gatherReview(root, { chunk: 'auth-middleware' });
+    assert.equal(p.chunks.length, 1);
+    assert.equal(p.chunks[0].linesEstimate, 160);
+    assert.ok(p.chunks[0].stats, 'actual stats still present');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('globToRegExp handles exact paths, * and **', () => {

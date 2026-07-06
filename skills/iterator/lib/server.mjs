@@ -74,12 +74,12 @@ export async function readPayload() {
   catch { return {}; }
 }
 
-const TIMEOUT_MS = 7_200_000; // 2 hours
+export const TIMEOUT_MS = 7_200_000; // 2 hours
 // How long a beacon /cancel is held before it counts, so a page reload
 // (pagehide fires, then GET / arrives again) doesn't cancel the flow.
-const CANCEL_GRACE_MS = parseInt(process.env.ITERATOR_CANCEL_GRACE_MS || '2500', 10);
+export const CANCEL_GRACE_MS = parseInt(process.env.ITERATOR_CANCEL_GRACE_MS || '2500', 10);
 
-const LOCAL_HOST_RE = /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/;
+export const LOCAL_HOST_RE = /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/;
 
 /**
  * Detect a remote session (SSH, Docker/devcontainer sandbox) where the browser
@@ -102,10 +102,10 @@ export function isRemoteSession(env = process.env) {
 // (ITERATOR_HOST is the deprecated alias). The localhost Host-header check is
 // relaxed when exposed, because the host browser may reach us via a container
 // IP or hostname; keep the host-side publish on loopback.
-const REMOTE = isRemoteSession();
-const BIND_HOST = process.env.ITERATOR_BIND_HOST || process.env.ITERATOR_HOST
+export const REMOTE = isRemoteSession();
+export const BIND_HOST = process.env.ITERATOR_BIND_HOST || process.env.ITERATOR_HOST
   || (REMOTE ? '0.0.0.0' : '127.0.0.1');
-const EXPOSED = BIND_HOST !== '127.0.0.1';
+export const EXPOSED = BIND_HOST !== '127.0.0.1';
 
 // Single-instance takeover. There is one iterator UI per user — the browser
 // control plane — and it must sit on a *stable* port (a sandbox forwards
@@ -113,12 +113,20 @@ const EXPOSED = BIND_HOST !== '127.0.0.1';
 // per-user registry file; the next server verifies the recorded process is
 // really a lingering iterator UI (tokenless read-only status endpoint, so a
 // reused pid is never killed by mistake), SIGTERMs it, and takes the port.
-const STATUS_PATH = '/__iterator/status';
+export const STATUS_PATH = '/__iterator/status';
 
 // Per-run id, embedded into the page (lib/ui.mjs) and echoed on /submit and
 // /cancel so a stale tab from a previous round can't act on this run. Not an
-// auth secret — purely round-matching.
-export const RUN_ID = randomBytes(8).toString('hex');
+// auth secret — purely round-matching. The session server (see
+// lib/session-server.mjs) rotates it per round via newRunId(); the one-shot
+// server keeps the initial value for its whole life.
+export let RUN_ID = randomBytes(8).toString('hex');
+
+/** Rotate the per-run id (session server: one id per UI round). */
+export function newRunId() {
+  RUN_ID = randomBytes(8).toString('hex');
+  return RUN_ID;
+}
 
 /** Registry file recording the currently-listening UI server for this user. */
 export function registryPath() {
@@ -130,8 +138,17 @@ export function registryPath() {
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+/** Open the user's browser at url unless remote/suppressed. */
+export function openBrowser(url) {
+  if (REMOTE || process.env.ITERATOR_NO_OPEN) return;
+  const opener = process.env.BROWSER
+    || (process.platform === 'win32' ? 'start ""'
+      : process.platform === 'darwin' ? 'open' : 'xdg-open');
+  exec(`${opener} "${url}"`);
+}
+
 /** Shut down a lingering iterator UI recorded in the registry, if any. */
-async function takeoverStale(regPath) {
+export async function takeoverStale(regPath) {
   let reg;
   try { reg = JSON.parse(readFileSync(regPath, 'utf8')); } catch { return; }
   if (!reg || !Number.isInteger(reg.pid) || !Number.isInteger(reg.port)
@@ -142,6 +159,14 @@ async function takeoverStale(regPath) {
       { signal: AbortSignal.timeout(500) });
     if (res.ok) status = await res.json().catch(() => null);
   } catch {}
+  if (status && status.app === 'iterator' && status.mode === 'session') {
+    // A session dashboard (in-process in the pi extension) owns the port for
+    // the whole session — never SIGTERM it (that pid is the agent itself).
+    // The one-shot caller simply walks up to the next free port.
+    process.stderr.write(
+      `iterator: session dashboard owns port ${reg.port} — using another port\n`);
+    return;
+  }
   if (status && status.app === 'iterator' && status.pid === reg.pid) {
     process.stderr.write(
       `iterator: closing previous UI server (pid ${reg.pid}, port ${reg.port})\n`);
@@ -262,12 +287,7 @@ export async function serve({ step = 'iterator', html }) {
     // clickable URL, and through a forward the host reaches us on its own
     // loopback anyway.
     const url = `http://127.0.0.1:${port}/`;
-    if (!REMOTE && !process.env.ITERATOR_NO_OPEN) {
-      const opener = process.env.BROWSER
-        || (process.platform === 'win32' ? 'start ""'
-          : process.platform === 'darwin' ? 'open' : 'xdg-open');
-      exec(`${opener} "${url}"`);
-    }
+    openBrowser(url);
     process.stderr.write(`iterator: ${step} listening on ${url}\n`);
     if (REMOTE) {
       process.stderr.write(

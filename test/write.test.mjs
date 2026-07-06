@@ -244,3 +244,79 @@ test('setFmKeys replaces existing keys and appends new ones', () => {
   assert.match(fm, /\ndone: 2026-07-06$/);
   assert.doesNotMatch(fm, /pending/);
 });
+
+test('chunks op writes drafts, badges them, and returns sizing warnings', () => {
+  const root = makeRepo();
+  try {
+    applyOp(PLAN_OP, root);
+    const res = applyOp({
+      op: 'chunks',
+      chunks: [
+        { ...CHUNKS_OP.chunks[1], status: 'draft' },                        // 30 lines → merge warning
+        { ...CHUNKS_OP.chunks[0], status: 'draft', linesEstimate: 9 },      // way too small
+        { name: 'big-refactor', title: 'Big refactor', description: 'x', status: 'draft', linesEstimate: 450, dependsOn: [] },
+        { name: 'no-estimate', title: 'No estimate', description: 'x', status: 'draft', dependsOn: [] },
+      ],
+    }, root);
+    assert.equal(frontmatter(read(root, 'chunks', 'auth-middleware.md')).status, 'draft');
+    assert.match(read(root, 'chunks', 'index.md'), /📝 draft/);
+    assert.ok(res.warnings.some(w => /auth-middleware: ~9 lines.*too small/.test(w)), res.warnings.join('|'));
+    assert.ok(res.warnings.some(w => /big-refactor: ~450 lines.*too big/.test(w)));
+    assert.ok(res.warnings.some(w => /no-estimate: no lines_estimate/.test(w)));
+    assert.ok(!res.warnings.some(w => /config-module: ~30/.test(w)), '30 lines sits on the floor, no warning');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('chunks op rejects a status other than draft|pending', () => {
+  const root = makeRepo();
+  try {
+    applyOp(PLAN_OP, root);
+    assert.throws(
+      () => applyOp({ op: 'chunks', chunks: [{ name: 'x', status: 'done' }] }, root),
+      /invalid chunk status 'done'/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('accepting the chunk set promotes drafts to pending (accept flag and plan-approved verbatim)', () => {
+  const root = makeRepo();
+  try {
+    applyOp(PLAN_OP, root);
+    applyOp({ op: 'chunks', chunks: CHUNKS_OP.chunks.map(c => ({ ...c, status: 'draft' })) }, root);
+
+    // The chunk UI's Accept line pipes in verbatim.
+    const res = applyOp({ type: 'plan-approved', branch: 'test' }, root);
+    assert.equal(res.op, 'adjustments');
+    assert.equal(res.applied.filter(a => a.startsWith('accept ')).length, 2);
+    assert.equal(frontmatter(read(root, 'chunks', 'auth-middleware.md')).status, 'pending');
+    assert.equal(frontmatter(read(root, 'chunks', 'config-module.md')).status, 'pending');
+    assert.doesNotMatch(read(root, 'chunks', 'index.md'), /📝 draft/);
+
+    // accept:true on a normal adjustments payload does the same.
+    applyOp({ op: 'chunks', chunks: [{ name: 'late-extra', title: 'Late', description: 'x', status: 'draft', linesEstimate: 50, dependsOn: [] }] }, root);
+    applyOp({ op: 'adjustments', accept: true }, root);
+    assert.equal(frontmatter(read(root, 'chunks', 'late-extra.md')).status, 'pending');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('update-chunk accepts draft and pending status values', () => {
+  const root = makeRepo();
+  try {
+    applyOp(PLAN_OP, root);
+    applyOp(CHUNKS_OP, root);
+    applyOp({ op: 'update-chunk', chunk: 'config-module', set: { status: 'draft' } }, root);
+    assert.equal(frontmatter(read(root, 'chunks', 'config-module.md')).status, 'draft');
+    applyOp({ op: 'update-chunk', chunk: 'config-module', set: { status: 'pending' } }, root);
+    assert.equal(frontmatter(read(root, 'chunks', 'config-module.md')).status, 'pending');
+    assert.throws(
+      () => applyOp({ op: 'update-chunk', chunk: 'config-module', set: { status: 'wip' } }, root),
+      /invalid status 'wip'/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

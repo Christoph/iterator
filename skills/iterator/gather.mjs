@@ -293,7 +293,9 @@ export function gatherChunk(startDir) {
 export function gatherImplement(startDir) {
   const b = loadBundle(startDir);
   const done = new Set(b.chunks.filter(c => c.fm.status === 'done').map(c => c.slug));
-  const pending = b.chunks.filter(c => (c.fm.status || 'pending') !== 'done');
+  // Drafts are not implementable — they are an unaccepted chunk proposal.
+  const pending = b.chunks.filter(c => (c.fm.status || 'pending') === 'pending');
+  const drafts = b.chunks.filter(c => c.fm.status === 'draft').map(c => c.slug);
   const ready = pending.filter(c => listy(c.fm.depends_on).every(d => done.has(d)));
   const nextChunk = ready[0] || null;
   return {
@@ -308,6 +310,7 @@ export function gatherImplement(startDir) {
       testsStatus: nextChunk.fm.tests_status || 'none',
     },
     ready: ready.map(c => c.slug),
+    drafts,
     blocked: pending.filter(c => !ready.includes(c)).map(c => ({
       name: c.slug,
       waitingOn: listy(c.fm.depends_on).filter(d => !done.has(d)),
@@ -462,6 +465,9 @@ export function gatherReview(startDir, opts = {}) {
       description: c.fm.description || '',
       blastRadius: c.sections['Blast radius'] || '',
       dependsOn: listy(c.fm.depends_on),
+      // Estimate next to the actual stats so the review surfaces chunking
+      // that misjudged its size (feeds better estimates next time).
+      linesEstimate: c.fm.lines_estimate ? Number(c.fm.lines_estimate) || 0 : 0,
       stats: {
         added, removed, files: files.length,
         complexity: total <= 100 ? 'green' : total <= 200 ? 'yellow' : 'red',

@@ -31,6 +31,15 @@ wants to drive the flow from one place.
 If the user's message contains a hub result payload (`action`, `cancel`,
 `timeout`), process it per step 2.
 
+**pi mode:** if the tools `iterator_gather` / `iterator_write` / `iterator_ui`
+are available, use them instead of the shell pipelines below:
+`iterator_ui { step: "hub" }` gathers the payload itself, shows the view in
+the session dashboard (one persistent browser tab — no per-round server), and
+returns the user's answer. The steps, result payloads, and dispatch rules are
+unchanged. The dashboard also stays clickable while you are idle — a user
+click arrives as a new `/skill:iterator-*` turn, which you handle per the
+target skill.
+
 ## Steps
 
 ### 1. Gather state and open the dashboard

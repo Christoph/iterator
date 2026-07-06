@@ -10,7 +10,7 @@ so the model only supplies semantic text. Everything below builds on that
 split: **mechanical logic in scripts, semantic logic in the model** — and in
 pi, the extension is the natural home for the mechanical side.
 
-## 1. Register the scripts as real tools (`pi.registerTool`)
+## 1. Register the scripts as real tools (`pi.registerTool`) — ✅ shipped
 
 Today the skills shell out (`node <skill-dir>/../iterator/gather.mjs ...`).
 An extension can register them as first-class tools instead:
@@ -39,7 +39,7 @@ diff stats) via the tool's `details`.
 - Keep it cheap: read `chunks/index.md` only; skip silently when there is no
   `memory/` bundle.
 
-## 3. Session-scoped UI server instead of one-shot round trips
+## 3. Session-scoped UI server instead of one-shot round trips — ✅ shipped
 
 The single-instance-takeover machinery exists because each skill invocation
 spawns its own short-lived server. In pi the extension owns the session
@@ -53,7 +53,7 @@ lifecycle, so it can do better:
 - Skill invocations talk to it via `iterator_ui` (§1) or a tiny HTTP client —
   no takeover dance, no orphaned ports, no 2h-timeout processes.
 
-## 4. Guardrails via `pi.on("tool_call")`
+## 4. Guardrails via `pi.on("tool_call")` — ✅ shipped
 
 The bundle has invariants the writer enforces — protect them against direct
 edits too:
@@ -76,7 +76,9 @@ Like pi-powerline-footer: a segment showing `⛭ 3/7 · next: auth-middleware`
 Refresh it from the `tool_call` hook whenever a write op ran, so it is always
 current without polling.
 
-## 6. TUI quick flows (`ctx.ui` selectors) — browser optional
+## 6. TUI quick flows (`ctx.ui` selectors) — browser optional — 🟡 partial
+(shipped: bare `/iterator-implement` opens a TUI picker over the ready
+chunks; `/iterator-next` implements the next ready chunk directly)
 
 The browser is the control plane, but some decisions are one keypress:
 
