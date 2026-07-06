@@ -48,7 +48,6 @@ const CHUNKS_OP = {
       implementationNotes: 'Verify token from config secret.',
       files: ['src/auth/*.ts'],
       dependsOn: ['config-module'],
-      linesEstimate: 60,
       size: 'small',
       snippets: [{ lang: 'ts', code: 'export function requireAuth(){}' }],
       blastRadius: 'All protected routes.',
@@ -60,7 +59,6 @@ const CHUNKS_OP = {
       implementationNotes: 'Read env once.',
       files: ['src/config.ts'],
       dependsOn: [],
-      linesEstimate: 30,
       size: 'small',
     },
   ],
@@ -245,25 +243,23 @@ test('setFmKeys replaces existing keys and appends new ones', () => {
   assert.doesNotMatch(fm, /pending/);
 });
 
-test('chunks op writes drafts, badges them, and returns sizing warnings', () => {
+test('chunks op writes drafts, badges them, and validates size', () => {
   const root = makeRepo();
   try {
     applyOp(PLAN_OP, root);
-    const res = applyOp({
+    applyOp({
       op: 'chunks',
       chunks: [
-        { ...CHUNKS_OP.chunks[1], status: 'draft', linesEstimate: 120 },    // healthy size, no warning
-        { ...CHUNKS_OP.chunks[0], status: 'draft', linesEstimate: 9 },      // way too small
-        { name: 'big-refactor', title: 'Big refactor', description: 'x', status: 'draft', linesEstimate: 450, dependsOn: [] },
-        { name: 'no-estimate', title: 'No estimate', description: 'x', status: 'draft', dependsOn: [] },
+        { ...CHUNKS_OP.chunks[1], status: 'draft', size: 'medium' },
+        { ...CHUNKS_OP.chunks[0], status: 'draft', size: 'large' },
       ],
     }, root);
     assert.equal(frontmatter(read(root, 'chunks', 'auth-middleware.md')).status, 'draft');
+    assert.equal(frontmatter(read(root, 'chunks', 'auth-middleware.md')).size, 'large');
     assert.match(read(root, 'chunks', 'index.md'), /📝 draft/);
-    assert.ok(res.warnings.some(w => /auth-middleware: ~9 lines.*too small/.test(w)), res.warnings.join('|'));
-    assert.ok(res.warnings.some(w => /big-refactor: ~450 lines.*too big/.test(w)));
-    assert.ok(res.warnings.some(w => /no-estimate: no lines_estimate/.test(w)));
-    assert.ok(!res.warnings.some(w => /config-module/.test(w)), '120 lines is healthy, no warning');
+    assert.throws(
+      () => applyOp({ op: 'chunks', chunks: [{ name: 'x', size: 'huge' }] }, root),
+      /invalid chunk size 'huge'/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -296,7 +292,7 @@ test('accepting the chunk set promotes drafts to pending (accept flag and plan-a
     assert.doesNotMatch(read(root, 'chunks', 'index.md'), /📝 draft/);
 
     // accept:true on a normal adjustments payload does the same.
-    applyOp({ op: 'chunks', chunks: [{ name: 'late-extra', title: 'Late', description: 'x', status: 'draft', linesEstimate: 50, dependsOn: [] }] }, root);
+    applyOp({ op: 'chunks', chunks: [{ name: 'late-extra', title: 'Late', description: 'x', status: 'draft', dependsOn: [] }] }, root);
     applyOp({ op: 'adjustments', accept: true }, root);
     assert.equal(frontmatter(read(root, 'chunks', 'late-extra.md')).status, 'pending');
   } finally {
@@ -316,6 +312,85 @@ test('update-chunk accepts draft and pending status values', () => {
     assert.throws(
       () => applyOp({ op: 'update-chunk', chunk: 'config-module', set: { status: 'wip' } }, root),
       /invalid status 'wip'/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+const DESIGN_OP = {
+  op: 'design',
+  title: 'Design parameters',
+  description: 'Quiet editorial tool.',
+  register: 'product',
+  sections: {
+    direction: 'Editorial, calm; signature: hairline-ruled tables.',
+    typography: 'Display: Fraunces; body: Source Sans 3; scale 1.25.',
+    color: 'Accent oklch(0.55 0.15 250); neutrals tinted toward it.',
+    spacing: '4pt scale: 4/8/12/16/24/32/48.',
+    responsive: 'Breakpoints 640/1024; clamp() display type.',
+  },
+};
+
+test('design op writes design.md, links it in the index, and logs', () => {
+  const root = makeRepo();
+  try {
+    applyOp(PLAN_OP, root);
+    const res = applyOp(DESIGN_OP, root);
+    assert.deepEqual(res.written, ['design.md', 'index.md', 'log.md']);
+
+    const raw = read(root, 'design.md');
+    const fm = frontmatter(raw);
+    assert.equal(fm.type, 'Design');
+    assert.equal(fm.register, 'product');
+    assert.equal(fm.created, '2026-07-06');
+    assert.equal(fm.timestamp, '2026-07-06T12:00:00Z');
+    assert.match(raw, /# Direction\n\nEditorial, calm/);
+    assert.match(raw, /# Responsive\n\nBreakpoints 640\/1024/);
+    assert.ok(!raw.includes('# Signature'), 'omitted optional section not written');
+
+    assert.match(read(root, 'index.md'), /\* \[Design\]\(design\.md\) - Quiet editorial tool\./);
+    assert.match(read(root, 'log.md'), /\*\*Design\*\*: Captured project design parameters\./);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('design op validates plan, required sections, and register', () => {
+  const root = makeRepo();
+  try {
+    assert.throws(() => applyOp(DESIGN_OP, root), /no memory\/plan\.md/);
+    applyOp(PLAN_OP, root);
+    assert.throws(
+      () => applyOp({ ...DESIGN_OP, sections: { direction: 'd' } }, root),
+      /design op needs sections\.typography/);
+    assert.throws(
+      () => applyOp({ ...DESIGN_OP, register: 'marketing' }, root),
+      /invalid register 'marketing'/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('design op re-run preserves created and logs an update; chunk writes keep the index line', () => {
+  const root = makeRepo();
+  try {
+    applyOp(PLAN_OP, root);
+    applyOp(DESIGN_OP, root);
+
+    process.env.ITERATOR_NOW = '2026-07-08T09:00:00Z';
+    try {
+      applyOp({ ...DESIGN_OP, description: 'Bolder second pass.' }, root);
+    } finally {
+      process.env.ITERATOR_NOW = '2026-07-06T12:00:00Z';
+    }
+    const fm = frontmatter(read(root, 'design.md'));
+    assert.equal(fm.created, '2026-07-06', 'created preserved on re-run');
+    assert.equal(fm.timestamp, '2026-07-08T09:00:00Z');
+    assert.match(read(root, 'log.md'), /\*\*Design\*\*: Updated project design parameters\./);
+
+    // Regression: regenerate() runs on every op and must keep the Design line.
+    applyOp(CHUNKS_OP, root);
+    assert.match(read(root, 'index.md'), /\* \[Design\]\(design\.md\) - Bolder second pass\./);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

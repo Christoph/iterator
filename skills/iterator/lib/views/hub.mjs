@@ -10,7 +10,7 @@
  *             plan: { title, status } | null,      // null = no bundle yet
  *             progress: { done, total },
  *             chunks: [ { name, title, description, status, size,
- *                         linesEstimate, testsStatus,   // none | red | green
+ *                         testsStatus,                  // none | red | green
  *                         dependsOn, hasDiff, hasCommits } ] }
  *   output: one JSON line to stdout —
  *     { type:"action", action:"plan"|"chunk"|"test"|"implement"|"review", chunk:"<slug>"|null }
@@ -79,7 +79,7 @@ function testBadge(c){
 }
 function sizeChip(c){
   const cls = c.size==='large'?'cr':c.size==='medium'?'cy':'cg';
-  return '<span class="chip '+cls+'">'+esc(c.size||'small')+(c.linesEstimate?' · ~'+c.linesEstimate:'')+'</span>';
+  return '<span class="chip '+cls+'">'+esc(c.size||'small')+'</span>';
 }
 
 render();

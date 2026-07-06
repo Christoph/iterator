@@ -86,7 +86,6 @@ test('gather builds the hub payload from bundle + git state', () => {
 
     assert.equal(auth.status, 'pending');
     assert.deepEqual(auth.dependsOn, ['config-module']);
-    assert.equal(auth.linesEstimate, 160);
     assert.equal(auth.hasDiff, true, 'staged src/auth/index.ts matches src/auth/*.ts');
     assert.equal(auth.hasCommits, false);
   } finally {
@@ -149,13 +148,35 @@ files: ["src/draft.ts"]
   }
 });
 
-test('review payload carries lines_estimate next to the actual stats', () => {
+test('implement payload surfaces designFile when memory/design.md exists', () => {
+  const root = makeFixture();
+  try {
+    assert.equal(gatherImplement(root).designFile, null, 'no design.md yet');
+
+    writeFileSync(join(root, 'memory', 'design.md'), `---
+type: Design
+title: Design parameters
+description: Quiet editorial tool.
+register: product
+---
+
+# Direction
+d
+`);
+    const p = gatherImplement(root);
+    assert.ok(p.designFile.endsWith(join('memory', 'design.md')));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('review payload carries actual diff stats per chunk', () => {
   const root = makeFixture();
   try {
     const p = gatherReview(root, { chunk: 'auth-middleware' });
     assert.equal(p.chunks.length, 1);
-    assert.equal(p.chunks[0].linesEstimate, 160);
-    assert.ok(p.chunks[0].stats, 'actual stats still present');
+    assert.equal(p.chunks[0].linesEstimate, undefined, 'estimates are gone');
+    assert.ok(p.chunks[0].stats, 'actual stats present');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

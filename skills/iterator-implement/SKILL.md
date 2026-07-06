@@ -42,10 +42,12 @@ Selection is scripted — do **not** read bundle files yourself:
 node <skill-dir>/../iterator/gather.mjs --step implement
 ```
 
-It prints `{ next, ready, drafts, blocked, stuck, progress }`: `next` is the
-first dependency-ready **pending** chunk **with its full contract**
-(implementation notes, snippets, files, blast radius, tests + test status);
-`blocked` lists what each remaining chunk is waiting on. Chunks with
+It prints `{ next, ready, drafts, blocked, stuck, designFile, progress }`:
+`next` is the first dependency-ready **pending** chunk **with its full
+contract** (implementation notes, snippets, files, blast radius, tests + test
+status); `blocked` lists what each remaining chunk is waiting on; `designFile`
+is the path of `memory/design.md` when the project's design params have been
+captured (`null` before the first UI chunk). Chunks with
 `status: draft` are an unaccepted proposal — they never appear in
 `ready`/`next`; if only drafts exist, tell the user to accept the chunk set
 first (`/iterator-chunk`) and stop.
@@ -65,12 +67,15 @@ Implement the selected chunk using `next`'s implementation notes, snippets,
 (read and follow it; skip silently if absent). Make the actual code changes in
 the working tree, scoped to the chunk's `files` where possible.
 
-**Design quality (`impeccable`):** if the `impeccable` skill is available in
-this harness **and** the chunk touches frontend/UI surface (markup, styles,
-client-side components), use it while building: `/impeccable audit` the
-changed UI after implementing and apply its findings, `/impeccable polish`
-for final refinement — before opening the review UI. Skip silently if the
-skill is not installed or the chunk has no UI surface.
+**Design quality:** if the chunk touches frontend/UI surface (markup, styles,
+client-side components), follow the `/iterator-design` skill while building.
+The gather payload's `designFile` tells you the state: non-null → read
+`memory/design.md` and follow its params (they win over generic taste);
+null → run `/iterator-design`'s first-time capture (derive → one confirm →
+persist) **before** styling, so this and every later UI chunk share the same
+direction, typography, color, spacing, and responsive rules. Run its
+self-check before opening the review UI. Skip silently if the chunk has no
+UI surface.
 
 **Green gate:** if the chunk has `tests` (written red by `/iterator-test`),
 they define done. After implementing, run exactly the chunk's test files and
@@ -171,3 +176,5 @@ notes; this skill owns the `done` state.
 - `/iterator-review` reviews a chunk's diff (this skill reuses its UI in commit
   mode); `/iterator-test` generates a chunk's tests — written red before
   implementation, they are this skill's definition of done.
+- `/iterator-design` owns the project's design params (`memory/design.md`);
+  this skill applies them on every chunk with UI surface.

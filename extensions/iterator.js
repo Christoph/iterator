@@ -1,7 +1,7 @@
 /**
  * iterator: pi extension — session dashboard, first-class tools, guardrails.
  *
- * What this registers on top of the six friendly commands:
+ * What this registers on top of the seven friendly commands:
  *
  * Tools (mechanical scripts as real tools; typebox-validated, structured
  * results, writer validation errors surface as tool errors):
@@ -82,6 +82,11 @@ const COMMANDS = [
 		name: "iterator-implement",
 		description:
 			"Implement the next dependency-ready chunk and drive its tests green.",
+	},
+	{
+		name: "iterator-design",
+		description:
+			"Capture or revise the project's design params (memory/design.md) applied to every UI chunk.",
 	},
 	{
 		name: "iterator-review",

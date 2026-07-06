@@ -17,8 +17,10 @@
  *   chunks        write the full chunk set (one OKF file per chunk, status
  *                 draft|pending — the chunker writes drafts), delete removed
  *                 slugs, validate acyclic deps + references BEFORE writing,
- *                 regenerate all indexes; never rewrites a done chunk; returns
- *                 sizing warnings for chunks outside the reviewable window
+ *                 regenerate all indexes; never rewrites a done chunk
+ *   design        write memory/design.md (type: Design) — the project's design
+ *                 parameters captured by /iterator-design; preserves `created`
+ *                 on re-run so revisions keep the original capture date
  *   update-chunk  targeted frontmatter update on one chunk (status flips,
  *                 tests, reviewed, done) + optional `# Review` note and
  *                 commits-list entry; regenerates indexes
@@ -199,6 +201,9 @@ export function regenerate(root) {
     writeFileSync(join(b.memDir, 'plan.md'), replaceSection(b.plan.raw, 'Chunks', links));
   }
 
+  const designLine = b.design
+    ? `\n* [Design](design.md) - ${b.design.fm.description || 'Project design parameters.'}`
+    : '';
   writeFileSync(join(b.memDir, 'index.md'), `---
 okf_version: "0.1"
 ---
@@ -206,7 +211,7 @@ okf_version: "0.1"
 # iterator memory
 
 * [Plan](plan.md) - ${b.plan?.fm.description || 'The plan concept.'}
-* [Format](format.md) - Metadata schema for this bundle.
+* [Format](format.md) - Metadata schema for this bundle.${designLine}
 * [Chunks](chunks/) - One document per implementation chunk.
 * [Log](log.md) - Chronological history of plan/chunk/implement/review events.
 `);
@@ -304,14 +309,6 @@ ${chunksSection}
 // ---------------------------------------------------------------------------
 // op: chunks
 
-// Reviewable-chunk size window (estimated changed lines of logic + tests —
-// a chunk always contains its own tests; comment/doc-only lines don't
-// count). Outside it the chunks op still writes but returns warnings: below
-// the floor the flow overhead outweighs the chunk, above the ceiling a
-// review stops being real.
-const SIZE_MIN_LINES = 50;
-const SIZE_MAX_LINES = 300;
-
 function chunkDoc(c, titles, existingReview) {
   const fm = [
     'type: Chunk',
@@ -319,7 +316,6 @@ function chunkDoc(c, titles, existingReview) {
     `description: ${fmScalar(c.description || '')}`,
     `status: ${c.status || 'pending'}`,
     `size: ${c.size || 'small'}`,
-    `lines_estimate: ${Number(c.linesEstimate) || 0}`,
     `depends_on: [${listy(c.dependsOn).join(', ')}]`,
     `files: [${listy(c.files).map(f => JSON.stringify(String(f))).join(', ')}]`,
     `timestamp: ${nowIso()}`,
@@ -354,6 +350,9 @@ function writeChunks(payload, root) {
     if (!c.name || !/^[a-z0-9][a-z0-9-]*$/.test(c.name)) fail(`invalid chunk slug '${c.name || ''}' (kebab-case required)`);
     if (c.status && !['draft', 'pending'].includes(c.status)) {
       fail(`invalid chunk status '${c.status}' (chunks op writes draft|pending; done is owned by update-chunk)`);
+    }
+    if (c.size && !['small', 'medium', 'large'].includes(c.size)) {
+      fail(`invalid chunk size '${c.size}' (small|medium|large)`);
     }
   }
   for (const d of deletes) {
@@ -396,21 +395,52 @@ function writeChunks(payload, root) {
     if (existing.has(d)) rmSync(join(chunksDir, `${d}.md`));
   }
 
-  // Sizing sanity: a tiny chunk is pure flow overhead, a huge one cannot be
-  // reviewed. Warn (never fail) so the chunker can merge/split before accept.
-  const warnings = [];
-  for (const c of incoming) {
-    if (doneProtected.includes(c.name)) continue;
-    const est = Number(c.linesEstimate) || 0;
-    if (!est) warnings.push(`${c.name}: no lines_estimate — estimate the expected logic+test diff from its files`);
-    else if (est < SIZE_MIN_LINES) warnings.push(`${c.name}: ~${est} lines (incl. its tests) — too small to be worth a chunk; merge it into a neighbor unless it is genuinely isolated`);
-    else if (est > SIZE_MAX_LINES) warnings.push(`${c.name}: ~${est} lines — too big to review; split it (comment/doc lines don't count toward this)`);
-  }
-
   regenerate(root);
   prependLog(b.memDir, payload.log ||
     `**${b.chunks.length ? 'Update' : 'Creation'}**: ${written.length} chunk(s) written${deletes.length ? `, ${deletes.length} removed` : ''}.`);
-  return { op: 'chunks', written, skipped: doneProtected, deleted: deletes, warnings, memoryDir: b.memDir };
+  return { op: 'chunks', written, skipped: doneProtected, deleted: deletes, memoryDir: b.memDir };
+}
+
+// ---------------------------------------------------------------------------
+// op: design
+
+const DESIGN_SECTIONS = [
+  ['direction', 'Direction', true],
+  ['typography', 'Typography', true],
+  ['color', 'Color', true],
+  ['spacing', 'Spacing', true],
+  ['responsive', 'Responsive', false],
+  ['signature', 'Signature', false],
+];
+
+function writeDesign(payload, root) {
+  const b = loadBundle(root);
+  if (!b.plan) fail('no memory/plan.md — run the plan op first');
+  const s = payload.sections || {};
+  for (const [key, , required] of DESIGN_SECTIONS) {
+    if (required && !s[key]) fail(`design op needs sections.${key}`);
+  }
+  const register = payload.register || 'product';
+  if (!['brand', 'product'].includes(register)) fail(`invalid register '${register}' (brand|product)`);
+
+  const fm = [
+    'type: Design',
+    `title: ${fmScalar(payload.title || 'Design parameters')}`,
+    `description: ${fmScalar((payload.description || s.direction.split('\n')[0]).replace(/\s+/g, ' ').trim())}`,
+    `register: ${register}`,
+    `created: ${b.design?.fm.created || today()}`,
+    `timestamp: ${nowIso()}`,
+  ].join('\n');
+  const bodyText = `\n${DESIGN_SECTIONS
+    .filter(([key]) => s[key])
+    .map(([key, heading]) => `# ${heading}\n\n${s[key]}\n`)
+    .join('\n')}`.replace(/\n{3,}/g, '\n\n');
+
+  writeFileSync(join(b.memDir, 'design.md'), joinDoc(fm, bodyText));
+  regenerate(root);
+  prependLog(b.memDir, payload.log ||
+    `**Design**: ${b.design ? 'Updated' : 'Captured'} project design parameters.`);
+  return { op: 'design', written: ['design.md', 'index.md', 'log.md'], memoryDir: b.memDir };
 }
 
 // ---------------------------------------------------------------------------
@@ -423,7 +453,7 @@ function updateChunk(payload, root) {
   let { fm, body: bodyText } = splitDoc(c.raw);
   if (fm === null) fail(`chunk '${c.slug}' has no frontmatter`);
 
-  const allowed = ['status', 'done', 'reviewed', 'tests', 'tests_status', 'size', 'lines_estimate', 'description', 'title'];
+  const allowed = ['status', 'done', 'reviewed', 'tests', 'tests_status', 'size', 'description', 'title'];
   const set = payload.set || {};
   const bad = Object.keys(set).filter(k => !allowed.includes(k));
   if (bad.length) fail(`update-chunk cannot set: ${bad.join(', ')} (allowed: ${allowed.join(', ')})`);
@@ -520,8 +550,8 @@ function applyAdjustments(payload, root) {
 export function applyOp(payload, root) {
   const op = payload.op
     || (['plan-adjustments', 'plan-approved'].includes(payload.type) ? 'adjustments' : null);
-  const ops = { plan: writePlan, chunks: writeChunks, 'update-chunk': updateChunk, adjustments: applyAdjustments };
-  if (!ops[op]) fail(`unknown op '${payload.op || payload.type || ''}' (plan|chunks|update-chunk|adjustments)`);
+  const ops = { plan: writePlan, chunks: writeChunks, design: writeDesign, 'update-chunk': updateChunk, adjustments: applyAdjustments };
+  if (!ops[op]) fail(`unknown op '${payload.op || payload.type || ''}' (plan|chunks|design|update-chunk|adjustments)`);
   return ops[op](payload, root);
 }
 

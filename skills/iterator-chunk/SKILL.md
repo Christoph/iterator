@@ -59,27 +59,27 @@ so build your breakdown around them.
 Split the whole plan (using `ARCHITECTURE.md` for context) into meaningful,
 connected chunks:
 
-- Each chunk is a logical unit of work with a clear, descriptive **slug**.
+- **Chunk by feature.** Each chunk is **one user-visible capability or
+  behavior** — a vertical slice that can be implemented, tested, and reviewed
+  on its own ("auth middleware", "CSV export", "retry on failure"). The test
+  of a good boundary: you can describe it in one sentence without "and", and
+  the plan still makes sense if this chunk ships and the rest doesn't yet.
+  Never chunk by layer ("all the models", "all the routes") and never make a
+  task-fragment chunk that only means something combined with another.
 - **A chunk contains its own tests.** The reviewer must see the tests next to
   the logic they cover — include the chunk's (expected) test file paths in
-  its `files`, and count the test code in `linesEstimate`. Never make a
-  separate "write tests for X" chunk.
-- **Size for review, not for neatness.** Target **~100–300 estimated changed
-  lines** per chunk (logic + tests). Below ~50 lines the flow overhead
-  outweighs the chunk — merge it into a neighbor unless it is genuinely
-  isolated; above ~300 lines it cannot be meaningfully reviewed — split it.
-  When in doubt, go bigger: too many tiny chunks is the common failure mode,
-  and each one costs a full test/implement/review round.
-- **Comment and doc changes ride along, but don't count.** Doc updates and
-  comments belong in the same chunk as the code they describe, and they are
-  excluded from the size ceiling (review counts only code lines) — never
-  split a chunk because of comments/docs, and never exclude them to stay
-  under the limit.
-- **Estimate `linesEstimate` from the expected diff** — walk the chunk's
-  `files` and implementation notes and count what will actually change
-  (logic + tests, ignoring comment/doc-only lines); do not gut-feel it. The
-  review UI shows estimate-vs-actual code lines, so systematic misestimates
-  are visible.
+  its `files`. Never make a separate "write tests for X" chunk.
+- **Size is a judgment call, not a count.** Set `size` to how big the feature
+  feels: `small` (one focused change), `medium` (a feature touching a few
+  files), `large` (a feature you already suspect is really two). `large` gets
+  a ⚠️ in the UIs — prefer splitting it into two real features first. When in
+  doubt between two small chunks and one medium, go bigger: too many tiny
+  chunks is the common failure mode, and each one costs a full
+  test/implement/review round. The reviewability backstop is the review UI
+  itself, which warns on the **actual** diff size.
+- **Comment and doc changes ride along.** Doc updates and comments belong in
+  the same chunk as the code they describe (review counts only code lines) —
+  never split a chunk because of comments/docs.
 - Record **dependencies** (`depends_on`, chunk slugs). Order dependency-first;
   the graph MUST be acyclic and every `depends_on` entry must reference an
   existing chunk.
@@ -108,7 +108,6 @@ node <skill-dir>/../iterator/write.mjs << 'CHUNKS_WRITE'
       "implementationNotes": "Verify token from the config secret.",
       "files": ["src/auth.ts"],
       "dependsOn": ["config-module"],
-      "linesEstimate": 60,
       "size": "small",
       "snippets": [{ "lang": "ts", "code": "export function requireAuth(){ /* ... */ }" }],
       "blastRadius": "All routes behind the auth guard."
@@ -119,8 +118,7 @@ node <skill-dir>/../iterator/write.mjs << 'CHUNKS_WRITE'
 CHUNKS_WRITE
 ```
 
-Surface any `warnings` from the result (sizing) to the user. Then open the UI
-**from disk** — no hand-authored chunk payload, ever:
+Then open the UI **from disk** — no hand-authored chunk payload, ever:
 
 ```sh
 node <skill-dir>/../iterator/gather.mjs --step chunk | node <skill-dir>/../iterator/server.mjs
@@ -168,8 +166,8 @@ controls follow the shared pattern (**Accept** / **Cancel** / **Send review**).
 The writer owns frontmatter, timestamps, dependency-order (topological)
 indexes, the plan `# Chunks` section, the log entry, and OKF conformance, and
 it **validates before writing**: an acyclic graph, every `depends_on`
-referencing an existing chunk, and done chunks left untouched. It returns
-sizing `warnings` for chunks outside the ~30–300 estimated-line window.
+referencing an existing chunk, a valid `size` (`small|medium|large`), and
+done chunks left untouched.
 
 On a validation failure it prints `{ "ok": false, "error": ... }` and writes
 **nothing** — fix the breakdown (or reopen the UI so the user can fix the

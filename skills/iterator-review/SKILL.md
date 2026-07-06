@@ -36,14 +36,13 @@ are available, use them instead of the shell pipelines below.
 itself (pass no diff data); `iterator_write` replaces the write.mjs heredocs.
 Steps, payloads, and rules are unchanged.
 
-The review view shows each chunk's `lines_estimate` next to the actual diff
-size and flags large deviations — when you see one, note it and calibrate
-future `lines_estimate` values at chunking time from the chunk's `files`
-instead of gut feel. Size verdicts (complexity dot, over-limit warning,
-est-vs-actual) count **code lines only**: comment and doc changes are shown
-with the chunk but excluded. A chunk's test files are grouped with it (via
-its `files` globs or `tests` entries), so tests are always reviewed next to
-the logic they cover.
+Size verdicts (complexity dot, over-limit warning) are computed from the
+**actual** diff and count **code lines only**: comment and doc changes are
+shown with the chunk but excluded. When a chunk's real diff blows past the
+warning, that's a sign its feature boundary was too broad — worth noting for
+the next chunking pass. A chunk's test files are grouped with it (via its
+`files` globs or `tests` entries), so tests are always reviewed next to the
+logic they cover.
 
 ## Steps
 

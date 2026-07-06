@@ -72,6 +72,7 @@ iterator/
 │   ├── iterator-plan/           # SKILL.md (logic only) + templates/format.md
 │   ├── iterator-chunk/          # SKILL.md (logic only)
 │   ├── iterator-implement/      # SKILL.md (logic only; uses the review view in commit mode)
+│   ├── iterator-design/         # SKILL.md (logic only; design params + UI quality rules)
 │   ├── iterator-review/         # SKILL.md (logic only)
 │   └── iterator-test/           # SKILL.md (logic only)
 ├── templates/format.md          # SOURCE OF TRUTH — bundle schema, copied into every memory/ bundle

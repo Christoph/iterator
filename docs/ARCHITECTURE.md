@@ -96,6 +96,7 @@ iterator/
 │   ├── iterator-plan/           # logic-only; carries templates/format.md
 │   ├── iterator-chunk/          # logic-only
 │   ├── iterator-implement/     # logic-only; green gate; auto-review; Accept and commit
+│   ├── iterator-design/         # logic-only; design params + UI quality rules
 │   ├── iterator-review/         # logic-only
 │   └── iterator-test/           # logic-only
 ├── templates/
@@ -138,6 +139,7 @@ memory/
 ├── index.md          # bundle root index; okf_version frontmatter (OKF §11)
 ├── format.md         # type: Reference — the metadata schema (copied from templates/)
 ├── plan.md           # type: Plan — the plan concept
+├── design.md         # optional — type: Design — project design params (/iterator-design)
 ├── log.md            # OKF §7 update log; skills append entries
 └── chunks/
     ├── index.md      # chunk listing with status, for progressive disclosure
@@ -291,15 +293,34 @@ Picks the next chunk whose `depends_on` are all `done` (topological order;
 reports cycles/stuck states), implements it from the chunk file +
 `ARCHITECTURE.md` (+ `GUIDELINES.md` if present). **Green gate:** if the chunk
 has tests, they define done — implement → run → fix until green before the
-review opens (red results are surfaced honestly, never papered over). If the
-`impeccable` skill is installed, UI-surface chunks get an audit/polish pass.
-Then it auto-opens the `/iterator-review` UI scoped to that chunk — test badge
+review opens (red results are surfaced honestly, never papered over).
+UI-surface chunks go through `/iterator-design`: the gather payload's
+`designFile` says whether `memory/design.md` exists, and its params + rules
+apply while building. Then it auto-opens the `/iterator-review` UI scoped to
+that chunk — test badge
 visible — with **Accept and commit** as the primary. On accept: branch safety
 (never commit to `main`/`master`), one commit `chunk(<slug>): <summary>` with
 a `Chunk: <slug>` trailer that includes the code, the chunk-file flip
 (`status: done`, `done:` date, `tests_status`, `timestamp`), the regenerated
 indexes, and a `log.md` entry; the sha is recorded in the chunk's `commits` on
 the next bundle write — then it offers the next ready chunk.
+
+### `/iterator-design`
+The project's design parameters, captured once and reused. On the first chunk
+with UI surface (or a manual `/iterator-design`) it derives a proposal from
+the plan (`# Goal` / `# Product fit`) and the codebase (existing Tailwind
+config, CSS custom properties, fonts), confirms it with the user in one round,
+and persists it via the writer's `design` op → `memory/design.md`
+(`type: Design`: direction, typography, color, spacing, responsive,
+signature). Every later UI chunk reads the same file, so the project's UIs
+stay consistent across chunks and sessions. The skill also carries the
+condensed built-in design rules (typography scale, 60-30-10 color + WCAG
+contrast, 4pt spatial rhythm, mobile-first responsive) that fill whatever the
+params don't pin down. Invoked manually it also runs an audit → fix pass over
+existing UI (off-scale values, stray accents, contrast, nested cards) against
+the saved params. Logic-only, no browser UI — confirmation happens in chat.
+Re-running it revises the params (`created` is preserved, `timestamp`
+refreshed, `log.md` gets an entry).
 
 ### `/iterator-review`
 Standalone chunk review: pick a chunk (pending first, dependency order, then
@@ -322,14 +343,13 @@ runs them, verifies the expected color, commits them (`test(<slug>)` +
 trailer), and records `tests`/`tests_status` in the chunk file plus a `log.md`
 entry. Never changes chunk `status`.
 
-## Chunk sizing
+## Chunking
 
-| Est. lines | Label | Color | Guideline |
-|---|---|---|---|
-| ≤ 100 | small | green | Ideal — 10-minute review |
-| 101–200 | medium | yellow | Acceptable — 30-minute review |
-| > 200 | large | red | Should be split |
-
-Size is estimated from the plan before code exists, so it is a soft target.
-`/iterator-chunk` flags oversized chunks and offers Split; `/iterator-review`
-warns on oversized diffs.
+Chunks are cut **by feature**: one user-visible capability per chunk — a
+vertical slice including its own tests — implementable, testable, and
+reviewable on its own. `size` (`small | medium | large`) is a judgment call
+on how big the feature feels, not a line estimate; `large` means "probably
+two features" and is flagged in the UIs with Split on offer. Predicted line
+counts proved unreliable, so reviewability is enforced against the **actual**
+diff instead: `/iterator-review` computes real code-line stats per chunk and
+warns above ~200 changed code lines (comments/docs excluded).

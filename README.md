@@ -75,9 +75,15 @@ for where this goes next as a pi extension.
   run → fix until green, never weakening a test). Auto-opens the review UI
   scoped to the chunk — with the test badge visible — and on **Accept and
   commit** commits it (`chunk(<slug>)`), flips its status to done, and records
-  the commit sha. If the [impeccable](https://github.com/pbakaus/impeccable)
-  skill is installed, UI chunks get an `/impeccable audit` + `polish` pass
-  before review.
+  the commit sha. Chunks with UI surface go through `/iterator-design` so they
+  follow the project's saved design params.
+- **`/iterator-design`** — the project's look, captured once and reused: on
+  the first UI chunk it derives design params (direction, typography, color,
+  spacing, responsive) from the plan and codebase, confirms them with you in
+  one round, and saves them to `memory/design.md`; every later UI chunk —
+  and every later session — applies the same params so the project's UIs
+  stay consistent. Run it directly to revise the look or to audit and fix
+  existing UI against the saved params.
 - **`/iterator-review`** — standalone chunk-grouped diff review; records
   `reviewed`/notes into the chunk file. Done chunks are reviewable too — the
   diff is rebuilt from the chunk's recorded commits (or the `Chunk: <slug>`
@@ -94,6 +100,7 @@ memory/
 ├── index.md          # bundle root index (okf_version)
 ├── format.md         # the metadata schema, copied into every bundle
 ├── plan.md           # the plan (type: Plan)
+├── design.md         # optional — the project's design params (type: Design)
 ├── log.md            # chronological history of what the AI did
 └── chunks/
     ├── index.md      # chunk listing with status
@@ -109,7 +116,6 @@ title: Auth middleware
 description: JWT-based auth middleware for all protected routes.
 status: pending
 size: small
-lines_estimate: 60
 depends_on: [config-module]
 files: ["src/auth.ts", "src/middleware/*.ts"]
 timestamp: 2026-07-02T10:00:00Z
@@ -134,17 +140,21 @@ is in [`templates/format.md`](templates/format.md) (and in each bundle's
 `memory/format.md`); see [`docs/OKF_SPEC.md`](docs/OKF_SPEC.md) for the format
 itself.
 
-## Chunk sizing
+## Chunking
 
-| Est. lines | Label | Color | Guideline |
-|---|---|---|---|
-| ≤ 100 | small | 🟢 green | Ideal — 10-minute review |
-| 101–200 | medium | 🟡 yellow | Acceptable — 30-minute review |
-| > 200 | large | 🔴 red | Should be split |
+Chunks are cut **by feature**: one user-visible capability per chunk — a
+vertical slice including its own tests — that can be implemented, tested, and
+reviewed on its own. `size` is a judgment call, not a line count:
 
-Size is estimated from the plan before code exists, so it is a soft target.
-`/iterator-chunk` flags oversized chunks and offers Split; `/iterator-review`
-warns on oversized diffs.
+| Size | Color | Meaning |
+|---|---|---|
+| small | 🟢 green | One focused change |
+| medium | 🟡 yellow | A feature touching a few files |
+| large | 🔴 red | Probably two features — should be split |
+
+Reviewability is enforced where it can actually be measured:
+`/iterator-review` warns when a chunk's **actual** diff exceeds ~200 changed
+code lines.
 
 ## Installation
 
@@ -164,7 +174,7 @@ install from it (inside Claude Code):
 /plugin install iterator
 ```
 
-All six skills (`/iterator` + the five `/iterator-*` steps) are auto-discovered
+All seven skills (`/iterator` + the six `/iterator-*` steps) are auto-discovered
 from `skills/*/SKILL.md`.
 
 ### Other agents (opencode, Codex CLI, pi, …)

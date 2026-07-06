@@ -20,7 +20,8 @@
  *   test       test-plan skeleton: chunk contract, red/green mode from
  *              status, detected runner + existing test-file conventions
  *   implement  not a server payload — the next dependency-ready chunk with
- *              its full contract, plus what is blocked on what
+ *              its full contract, plus what is blocked on what and the
+ *              designFile path when memory/design.md exists
  *
  * Resolves the bundle at <git-root>/memory (or $ITERATOR_MEMORY_DIR relative
  * to the git root). No bundle → hub prints `"plan": null` (Create-plan hero).
@@ -154,6 +155,13 @@ export function loadBundle(startDir) {
     plan = { raw, fm: frontmatter(raw), sections: sections(raw) };
   }
 
+  let design = null;
+  const designFile = join(memDir, 'design.md');
+  if (existsSync(designFile)) {
+    const raw = readFileSync(designFile, 'utf8');
+    design = { raw, fm: frontmatter(raw), sections: sections(raw) };
+  }
+
   const chunksDir = join(memDir, 'chunks');
   let slugs = [];
   if (existsSync(chunksDir)) {
@@ -173,7 +181,7 @@ export function loadBundle(startDir) {
     return { slug, raw, fm: frontmatter(raw), sections: sections(raw) };
   });
 
-  return { cwd, root, memName, memDir, branch, plan, chunks };
+  return { cwd, root, memName, memDir, branch, plan, design, chunks };
 }
 
 /** A chunk document in the shape the chunk-plan UI expects. */
@@ -185,7 +193,6 @@ function chunkToUi(c) {
     implementationNotes: c.sections['Implementation notes'] || '',
     files: listy(c.fm.files),
     dependsOn: listy(c.fm.depends_on),
-    linesEstimate: c.fm.lines_estimate ? Number(c.fm.lines_estimate) || 0 : 0,
     size: c.fm.size || 'small',
     status: c.fm.status || 'pending',
     snippets: snippets(c.sections['Snippets']),
@@ -226,7 +233,6 @@ export function gather(startDir) {
       description: c.fm.description || '',
       status: c.fm.status || 'pending',
       size: c.fm.size || 'small',
-      linesEstimate: c.fm.lines_estimate ? Number(c.fm.lines_estimate) || 0 : 0,
       testsStatus: c.fm.tests_status || 'none',
       dependsOn: listy(c.fm.depends_on),
       hasDiff,
@@ -311,6 +317,8 @@ export function gatherImplement(startDir) {
     },
     ready: ready.map(c => c.slug),
     drafts,
+    // Project design params (memory/design.md) — path when captured, else null.
+    designFile: b.design ? join(b.memDir, 'design.md') : null,
     blocked: pending.filter(c => !ready.includes(c)).map(c => ({
       name: c.slug,
       waitingOn: listy(c.fm.depends_on).filter(d => !done.has(d)),
@@ -489,9 +497,6 @@ export function gatherReview(startDir, opts = {}) {
       description: c.fm.description || '',
       blastRadius: c.sections['Blast radius'] || '',
       dependsOn: listy(c.fm.depends_on),
-      // Estimate next to the actual stats so the review surfaces chunking
-      // that misjudged its size (feeds better estimates next time).
-      linesEstimate: c.fm.lines_estimate ? Number(c.fm.lines_estimate) || 0 : 0,
       stats: {
         added, removed, codeAdded, codeRemoved, files: files.length,
         complexity: codeTotal <= 100 ? 'green' : codeTotal <= 200 ? 'yellow' : 'red',
