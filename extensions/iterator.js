@@ -56,7 +56,7 @@ const VIEWS = {
 	review: reviewView,
 };
 
-const GATHER_STEPS = ["hub", "plan", "chunk", "implement", "test", "review"];
+const GATHER_STEPS = ["hub", "plan", "chunk", "implement", "memorize", "test", "review"];
 const UI_STEPS = ["hub", "plan", "chunk", "test", "review"];
 
 const COMMANDS = [
@@ -238,11 +238,13 @@ export default function iteratorExtension(pi) {
 			"pass status 'draft' when proposing; returns sizing warnings), update-chunk (targeted " +
 			"frontmatter update: status/tests/done/reviewed + appendCommit/appendReview), adjustments " +
 			"(apply a chunk UI result verbatim: spread the result object in, e.g. " +
-			"{op:'adjustments', ...uiResult}; accept:true or type:'plan-approved' promotes drafts to pending).",
+			"{op:'adjustments', ...uiResult}; accept:true or type:'plan-approved' promotes drafts to pending), " +
+			"memorize (okf-memory shared bundle: create/update/delete knowledge concepts in " +
+			"architecture/decisions/patterns/pitfalls/setup and/or advance last_memorized_commit).",
 		parameters: Type.Object(
 			{
 				op: Type.Union(
-					["plan", "chunks", "update-chunk", "adjustments"].map((s) => Type.Literal(s)),
+					["plan", "chunks", "design", "update-chunk", "adjustments", "memorize"].map((s) => Type.Literal(s)),
 					{ description: "Writer operation." },
 				),
 			},

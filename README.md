@@ -44,9 +44,10 @@ for where this goes next as a pi extension.
       │
       ├─ (optional) /iterator-test   write RED tests from the chunk's contract
       ▼
-/iterator-implement  build the next dependency-ready chunk
-      │              (drives the chunk's tests GREEN if they exist,
-      │               auto-starts the review at the end)
+/iterator-implement  build the dependency-ready wave (every chunk whose
+      │              deps are done), drive each chunk's tests GREEN if
+      │              they exist, auto-start one review over the wave;
+      │              accepted work updates okf-memory when it shares memory/
       ▼
 /iterator-review     chunk-vs-git-diff review          → outcome written into the chunk file
 
@@ -70,13 +71,19 @@ for where this goes next as a pi extension.
   contract (red — the goal implement drives to green); on a **done** chunk it
   writes passing tests against the real code. Either way it commits the tests
   (`test(<slug>)`) and records `tests`/`tests_status` in the chunk file.
-- **`/iterator-implement`** — build the next chunk whose dependencies are all
-  done; if the chunk has tests they are the definition of done (implement →
-  run → fix until green, never weakening a test). Auto-opens the review UI
-  scoped to the chunk — with the test badge visible — and on **Accept and
-  commit** commits it (`chunk(<slug>)`), flips its status to done, and records
-  the commit sha. Chunks with UI surface go through `/iterator-design` so they
-  follow the project's saved design params.
+- **`/iterator-implement`** — build the **dependency-ready wave**: every
+  pending chunk whose dependencies are all done (they are independent by
+  construction, so one round builds them all — faster than one-at-a-time).
+  Each chunk's tests, if present, are its definition of done (implement →
+  run → fix until green, never weakening a test). Auto-opens one review UI
+  over the wave — with per-chunk test badges visible — and on **Accept and
+  commit** commits each chunk separately (`chunk(<slug>)`), flips it to done,
+  and records the commit shas. When okf-memory shares the bundle, the wave's
+  diff is also evaluated for durable knowledge: proposed memory
+  creates/updates show up as toggleable cards in the same review, and
+  accepted ones are written to the knowledge areas with
+  `last_memorized_commit` advanced. Chunks with UI surface go through
+  `/iterator-design` so they follow the project's saved design params.
 - **`/iterator-design`** — the project's look, captured once and reused: on
   the first UI chunk it derives design params (direction, typography, color,
   spacing, responsive) from the plan and codebase, confirms them with you in
@@ -139,6 +146,28 @@ means per-chunk git history and no fragile line-number indexes. The full schema
 is in [`templates/format.md`](templates/format.md) (and in each bundle's
 `memory/format.md`); see [`docs/OKF_SPEC.md`](docs/OKF_SPEC.md) for the format
 itself.
+
+## Sharing `memory/` with okf-memory
+
+iterator and [okf-memory](https://github.com/Christoph/okf-memory) are designed
+to share one bundle. okf-memory owns the **knowledge areas**
+(`architecture/`, `decisions/`, `patterns/`, `pitfalls/`, `setup/`) and the
+`last_memorized_commit` pointer in the root index; iterator owns `plan.md`,
+`chunks/`, and `design.md`; `index.md` and `log.md` are joint. The
+integration is bidirectional:
+
+- iterator's writer **preserves** the okf root-index metadata and area links
+  on every regeneration (it merges its own links instead of owning the file),
+  and both tools append to the same `memory/log.md`.
+- when `/iterator-implement` lands a wave, it evaluates the accepted diff for
+  durable knowledge (`gather.mjs --step memorize` reports the shared-bundle
+  state; the model drafts the semantic cards). Proposals appear as toggleable
+  cards in the commit review; accepted ones are written through
+  `write.mjs` (`op: memorize`) — concept files, regenerated area indexes, log
+  entries — and `last_memorized_commit` advances to the wave's final commit,
+  so `/okf-memorize` never re-reviews work that was already captured at
+  commit time. In a repo without okf areas nothing happens — iterator never
+  creates the knowledge areas uninvited (`/okf-init` does that).
 
 ## Chunking
 

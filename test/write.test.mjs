@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, existsSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { applyOp, topoSort, setFmKeys } from '../skills/iterator/write.mjs';
@@ -391,6 +391,151 @@ test('design op re-run preserves created and logs an update; chunk writes keep t
     // Regression: regenerate() runs on every op and must keep the Design line.
     applyOp(CHUNKS_OP, root);
     assert.match(read(root, 'index.md'), /\* \[Design\]\(design\.md\) - Bolder second pass\./);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// okf-memory shared-bundle integration
+
+const OKF_INDEX = `---
+okf_version: "0.1"
+last_memorized_commit: 1d5c63300b8412ceb9f8933166127441f2fba0b7
+custom_key: keep-me
+---
+
+# Project Memory
+
+Agent knowledge for this repo.
+
+# Areas
+
+* [Architecture](/architecture/) - How the system is structured.
+* [Patterns & Conventions](/patterns/) - House style.
+
+# Workflow
+
+* Use /okf-memorize after notable commits.
+`;
+
+test('regenerate merges into an okf root index instead of overwriting it', () => {
+  const root = makeRepo();
+  try {
+    // The okf index as okf-init would have written it, before any iterator op.
+    mkdirSync(join(root, 'memory'), { recursive: true });
+    writeFileSync(join(root, 'memory', 'index.md'), OKF_INDEX);
+    applyOp(PLAN_OP, root);
+
+    const idx = read(root, 'index.md');
+    assert.match(idx, /last_memorized_commit: 1d5c6330/, 'okf pointer preserved');
+    assert.match(idx, /custom_key: keep-me/, 'unknown fm keys preserved');
+    assert.match(idx, /# Project Memory/, 'okf heading preserved');
+    assert.match(idx, /\[Architecture\]\(\/architecture\/\)/, 'area links preserved');
+    assert.match(idx, /\* \[Plan\]\(plan\.md\) - Protect the API with JWT\./, 'iterator link added');
+    assert.match(idx, /\* \[Chunks\]\(chunks\/\)/, 'chunks link added');
+
+    // Idempotent: further ops must not duplicate iterator's lines.
+    applyOp(CHUNKS_OP, root);
+    const idx2 = read(root, 'index.md');
+    assert.equal((idx2.match(/\]\(plan\.md\)/g) || []).length, 1, 'no duplicate plan link');
+    assert.match(idx2, /last_memorized_commit: 1d5c6330/);
+    assert.match(idx2, /# Workflow/, 'okf prose sections survive re-regeneration');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('memorize op creates/updates/deletes concepts, regenerates the area index, advances the pointer', () => {
+  const root = makeRepo();
+  try {
+    applyOp(PLAN_OP, root);
+    const sha = 'a'.repeat(40);
+    const res = applyOp({
+      op: 'memorize',
+      memories: [{
+        action: 'create', area: 'patterns', slug: 'error-handling', type: 'Pattern',
+        title: 'Error handling', description: 'Wrap all IO in Result.',
+        tags: ['errors'], files: ['src/errors.ts'],
+        body: '# Pattern\n\nAlways wrap IO.',
+      }],
+      advanceTo: sha,
+    }, root);
+    assert.deepEqual(res.applied, ['create patterns/error-handling']);
+    assert.equal(res.advancedTo, sha);
+
+    const concept = read(root, 'patterns', 'error-handling.md');
+    const fm = frontmatter(concept);
+    assert.equal(fm.type, 'Pattern');
+    assert.equal(fm.title, 'Error handling');
+    assert.deepEqual(fm.tags, ['errors']);
+    assert.equal(fm.timestamp, '2026-07-06T12:00:00Z');
+    assert.match(concept, /Always wrap IO\./);
+
+    const areaIdx = read(root, 'patterns', 'index.md');
+    assert.match(areaIdx, /\* \[Error handling\]\(\/patterns\/error-handling\.md\) - Wrap all IO in Result\./);
+
+    const idx = read(root, 'index.md');
+    assert.match(idx, new RegExp(`last_memorized_commit: ${sha}`), 'pointer advanced');
+    assert.match(idx, /\[Patterns & Conventions\]\(\/patterns\/\)/, 'area linked from root');
+    assert.match(read(root, 'log.md'), /\*\*Creation\*\*: Memorized \[Error handling\]/);
+
+    // update: only the given keys change; body stays unless provided
+    applyOp({
+      op: 'memorize',
+      memories: [{ action: 'update', area: 'patterns', slug: 'error-handling', description: 'Updated line.' }],
+    }, root);
+    const updated = read(root, 'patterns', 'error-handling.md');
+    assert.match(updated, /description: Updated line\./);
+    assert.match(updated, /Always wrap IO\./, 'body preserved on frontmatter-only update');
+    assert.match(read(root, 'patterns', 'index.md'), /Updated line\./, 'area index refreshed');
+
+    // delete removes the concept and its index bullet
+    applyOp({
+      op: 'memorize',
+      memories: [{ action: 'delete', area: 'patterns', slug: 'error-handling' }],
+    }, root);
+    assert.ok(!existsSync(join(root, 'memory', 'patterns', 'error-handling.md')));
+    assert.doesNotMatch(read(root, 'patterns', 'index.md'), /error-handling/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('memorize op validates areas, slugs, actions, and the pointer', () => {
+  const root = makeRepo();
+  try {
+    applyOp(PLAN_OP, root);
+    const create = (over) => ({
+      op: 'memorize',
+      memories: [{
+        action: 'create', area: 'patterns', slug: 'x', type: 'Pattern',
+        title: 't', description: 'd', body: 'b', ...over,
+      }],
+    });
+    assert.throws(() => applyOp(create({ area: 'chunks' }), root), /owned by the plan\/chunk ops/);
+    assert.throws(() => applyOp(create({ area: 'nope' }), root), /unknown area/);
+    assert.throws(() => applyOp(create({ slug: 'Bad Slug' }), root), /invalid slug/);
+    assert.throws(() => applyOp(create({ action: 'upsert' }), root), /invalid action/);
+    assert.throws(() => applyOp(create({ body: undefined }), root), /needs type, title, description, body/);
+    assert.throws(() => applyOp({
+      op: 'memorize',
+      memories: [{ action: 'update', area: 'patterns', slug: 'missing', description: 'd' }],
+    }, root), /no concept 'patterns\/missing'/);
+    assert.throws(() => applyOp({ op: 'memorize', advanceTo: 'not-a-sha' }, root), /not a commit sha/);
+    assert.throws(() => applyOp({ op: 'memorize' }, root), /needs memories/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('memorize op with only advanceTo works in an okf-only bundle (no plan)', () => {
+  const root = makeRepo();
+  try {
+    const sha = 'b'.repeat(40);
+    const res = applyOp({ op: 'memorize', advanceTo: sha }, root);
+    assert.equal(res.advancedTo, sha);
+    assert.match(read(root, 'index.md'), new RegExp(`last_memorized_commit: ${sha}`));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

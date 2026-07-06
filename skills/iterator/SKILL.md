@@ -14,9 +14,12 @@ into the existing per-step flows. It never duplicates their steps.
 This skill folder also owns the shared tooling every step skill calls:
 `server.mjs`, the **single UI server for every step** (the browser control
 plane); `gather.mjs`, the deterministic state gatherer
-(`--step hub|plan|chunk|implement|test|review`); and `write.mjs`, the
-deterministic bundle writer (ops `plan|chunks|update-chunk|adjustments` on
-stdin). The step skills are logic-only: they gather via script, add the
+(`--step hub|plan|chunk|implement|memorize|test|review`); and `write.mjs`, the
+deterministic bundle writer (ops `plan|chunks|design|update-chunk|adjustments|memorize`
+on stdin). The bundle can be shared with **okf-memory**: the writer preserves
+the root index's okf metadata (`last_memorized_commit`, area links), and the
+`memorize` step/op let `/iterator-implement` keep the knowledge areas current
+as chunks land. The step skills are logic-only: they gather via script, add the
 semantic text, pipe to the server, and record results via script — the model
 never hand-authors frontmatter, indexes, or the log. The server runs
 single-instance on a fixed port (default `7777`, `$ITERATOR_PORT`) — a

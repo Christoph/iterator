@@ -328,6 +328,24 @@ for (const [step, marker, payload] of SMOKE) {
   });
 }
 
+test('commit mode embeds the wave chunks and okf memory proposals', async () => {
+  const io = await startServer({
+    step: 'review', mode: 'commit', branch: 'test', hasChunksFile: true,
+    chunks: [
+      { name: 'auth-middleware', description: 'JWT middleware', stats: { added: 1, removed: 0, files: 1, complexity: 'green' }, files: [], tests: { status: 'green', total: 3, passing: 3 } },
+      { name: 'logging', description: 'Structured logs', stats: { added: 2, removed: 0, files: 1, complexity: 'green' }, files: [] },
+    ],
+    uncategorized: [],
+    memory: { proposals: [{ action: 'update', area: 'patterns', slug: 'auth-flow', title: 'Auth flow', description: 'JWT verification pattern.', reason: 'Middleware changed the token check.' }] },
+  });
+  const body = await (await fetch(io.url)).text();
+  assert.ok(body.includes('Memory updates'), 'memory section machinery is in the page');
+  assert.ok(body.includes('Middleware changed the token check.'), 'proposal data embedded');
+  assert.ok(body.includes('chunks: names'), 'accept-commit carries the whole wave');
+  io.child.kill();
+  await waitExit(io.child);
+});
+
 test('a mode:"commit" payload without step falls back to the review view', async () => {
   const io = await startServer({
     mode: 'commit', branch: 'test', hasChunksFile: true,

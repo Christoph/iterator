@@ -3,15 +3,21 @@
  *
  * Input:  { branch, commit, plan, progress, hasChunksFile, mode, chunks:[{name,description,
  *           blastRadius,dependsOn,stats,files:[{path,hunks}],
- *           tests:{status,total,passing}}], uncategorized:[] }
+ *           tests:{status,total,passing}}], uncategorized:[],
+ *           memory:{proposals:[{action,area,slug,title,description,reason}]} }
  *   tests (optional): status "red"|"green"|"none"; rendered as a badge so the
  *   reviewer sees the chunk's test state where the commit decision happens.
+ *   memory (optional, commit mode): okf-memory updates proposed from the
+ *   implemented chunks — shown as toggleable cards (default: apply) so the
+ *   knowledge-base write is reviewed exactly where the commit is decided.
  *   mode:"review" (default) — standalone review; primary Accept / Send review.
  *   mode:"commit"           — driven by /iterator-implement to review the just-built
- *                             chunk; primary Accept and commit / Send review.
+ *                             chunk wave; primary Accept and commit / Send review.
  * Output: { type:"review-feedback", branch, features:[{name,status,note}],
  *           lineComments:[{chunk,file,content,type,comment}] }
- *         or (commit mode, no changes) { type:"accept-commit", branch, chunk }
+ *         or (commit mode, no changes) { type:"accept-commit", branch, chunk,
+ *           chunks:[every chunk in the wave],
+ *           memory:{accepted:["area/slug"],skipped:[...]} }
  *         plus the shared { type:"cancel" } / { type:"timeout" }.
  */
 import { renderPage, DIFF_CSS } from '../ui.mjs';
@@ -72,6 +78,13 @@ td.cc textarea{width:100%;background:var(--surface);border:1px solid var(--borde
 .ca{display:flex;gap:6px;margin-top:4px}
 button.cs,button.cc2{font-size:11px;padding:2px 8px;border-radius:3px;border:1px solid var(--border);cursor:pointer;background:var(--surface);color:var(--text)}
 button.cs{background:var(--accent);border-color:var(--accent);color:#fff}
+.mem{padding:8px 12px;border-left:3px solid transparent;cursor:pointer;display:flex;gap:8px;align-items:flex-start}
+.mem:hover{background:var(--bg)}
+.mem.off{opacity:.45}
+.mem .glyph{font-size:12px;width:14px;flex-shrink:0;text-align:center;margin-top:1px}
+.mem .mt{font-size:12px;font-weight:500}
+.mem .ms{font-size:11px;color:var(--text-muted);margin-top:1px}
+.mem .mtag{font-size:10px;border:1px solid var(--border);border-radius:3px;padding:0 4px;margin-left:4px;color:var(--text-muted)}
 .empty{text-align:center;padding:60px 20px;color:var(--text-muted)}
 .empty h3{font-size:16px;margin-bottom:8px}
 .fb{position:fixed;bottom:0;right:0;width:400px;background:var(--fb-bg);border-top:1px solid var(--border);
@@ -114,7 +127,9 @@ const MODE = D.mode || 'review';
 // comments: id -> {chunk,file,content,type,comment}; keyed per chunk and
 // captured at save time so comments survive switching chunks (same
 // file/hunk/line indexes exist in every chunk's diff).
-const S = { active: null, statuses: {}, notes: {}, comments: {} };
+// memSkip: indexes of memory proposals the user toggled OFF (default: apply).
+const S = { active: null, statuses: {}, notes: {}, comments: {}, memSkip: {} };
+const MEM = (D.memory && D.memory.proposals) || [];
 
 renderSidebar();
 const first = (D.chunks||[])[0] || (D.uncategorized && D.uncategorized.length ? {name:'__unc__'} : null);
@@ -142,6 +157,26 @@ function renderSidebar(){
       removed: D.uncategorized.reduce((s,f)=>s+(f.stats&&f.stats.removed||0),0), files:D.uncategorized.length, complexity:'red' }};
     sb.appendChild(makeFI(unc));
   }
+  if(MODE==='commit' && MEM.length){
+    const l = document.createElement('div'); l.className='sec-label'; l.style.marginTop='8px'; l.textContent='Memory updates'; sb.appendChild(l);
+    MEM.forEach((p,i) => sb.appendChild(makeMem(p,i)));
+  }
+}
+// okf-memory proposal card: click toggles apply (default) vs skip.
+function makeMem(p, i){
+  const el = document.createElement('div');
+  el.className = 'mem' + (S.memSkip[i] ? ' off' : '');
+  el.title = (S.memSkip[i] ? 'Skipped — click to apply on commit' : 'Applied on commit — click to skip');
+  const glyph = p.action==='delete' ? '−' : p.action==='update' ? '~' : '+';
+  el.innerHTML = '<div class="glyph">'+(S.memSkip[i]?'✗':glyph)+'</div><div class="fm">'+
+    '<div class="mt">'+esc(p.title||p.slug||'')+'<span class="mtag">'+esc((p.area||'')+'/'+(p.slug||''))+'</span></div>'+
+    '<div class="ms">'+esc(p.reason||p.description||'')+'</div></div>';
+  el.onclick = () => { if(S.memSkip[i]) delete S.memSkip[i]; else S.memSkip[i]=true; renderSidebar(); };
+  return el;
+}
+function memDecisions(){
+  const id = p => (p.area||'')+'/'+(p.slug||'');
+  return { accepted: MEM.filter((p,i)=>!S.memSkip[i]).map(id), skipped: MEM.filter((p,i)=>S.memSkip[i]).map(id) };
 }
 function makeFI(f){
   const el = document.createElement('div');
@@ -296,8 +331,10 @@ function toggleFb(){ const p=document.getElementById('fbpanel'); const t=documen
 function hasChanges(){ const o=buildFeedbackObj(); return o.features.length>0 || o.lineComments.length>0; }
 function onPrimary(){
   if(MODE==='commit' && !hasChanges()){
-    const chunk = (D.chunks[0]||{}).name;
-    post({ type:'accept-commit', branch: D.branch||'HEAD', chunk }, 'Accepted — Claude is committing');
+    const names = (D.chunks||[]).map(f=>f.name);
+    const out = { type:'accept-commit', branch: D.branch||'HEAD', chunk: names[0], chunks: names };
+    if(MEM.length) out.memory = memDecisions();
+    post(out, 'Accepted — Claude is committing');
     return;
   }
   post(buildFeedbackObj(), 'Review sent to Claude');

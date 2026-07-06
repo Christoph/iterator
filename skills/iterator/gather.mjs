@@ -19,9 +19,14 @@
  *              recorded commits (or the `Chunk: <slug>` trailer)
  *   test       test-plan skeleton: chunk contract, red/green mode from
  *              status, detected runner + existing test-file conventions
- *   implement  not a server payload — the next dependency-ready chunk with
- *              its full contract, plus what is blocked on what and the
- *              designFile path when memory/design.md exists
+ *   implement  not a server payload — every dependency-ready chunk with its
+ *              full contract (`wave`, first repeated as `next`), plus what is
+ *              blocked on what and the designFile path when memory/design.md
+ *              exists
+ *   memorize   not a server payload — okf-memory shared-bundle state: whether
+ *              the bundle carries okf knowledge areas, their concept
+ *              inventory, and the commits `last_memorized_commit` has not
+ *              covered yet (for the post-accept memory evaluation)
  *
  * Resolves the bundle at <git-root>/memory (or $ITERATOR_MEMORY_DIR relative
  * to the git root). No bundle → hub prints `"plan": null` (Create-plan hero).
@@ -296,6 +301,14 @@ export function gatherChunk(startDir) {
 // ---------------------------------------------------------------------------
 // implement (agent-facing, not a server payload)
 
+/** A ready chunk's full contract for the implement step. */
+const implementContract = (c) => ({
+  ...chunkToUi(c),
+  blastRadius: c.sections['Blast radius'] || '',
+  tests: listy(c.fm.tests),
+  testsStatus: c.fm.tests_status || 'none',
+});
+
 export function gatherImplement(startDir) {
   const b = loadBundle(startDir);
   const done = new Set(b.chunks.filter(c => c.fm.status === 'done').map(c => c.slug));
@@ -309,12 +322,10 @@ export function gatherImplement(startDir) {
     branch: b.branch,
     plan: b.plan?.fm.title || null,
     progress: progress(b.chunks),
-    next: nextChunk && {
-      ...chunkToUi(nextChunk),
-      blastRadius: nextChunk.sections['Blast radius'] || '',
-      tests: listy(nextChunk.fm.tests),
-      testsStatus: nextChunk.fm.tests_status || 'none',
-    },
+    next: nextChunk && implementContract(nextChunk),
+    // The wave: EVERY dependency-ready chunk with its full contract — they
+    // are mutually independent, so one implement round can build them all.
+    wave: ready.map(implementContract),
     ready: ready.map(c => c.slug),
     drafts,
     // Project design params (memory/design.md) — path when captured, else null.
@@ -325,6 +336,68 @@ export function gatherImplement(startDir) {
     })),
     // pending chunks remain but none is ready → cycle or missing dependency
     stuck: pending.length > 0 && ready.length === 0,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// memorize (agent-facing, not a server payload)
+
+/** okf-memory knowledge areas that can coexist with iterator in memory/. */
+const OKF_AREA_NAMES = ['architecture', 'decisions', 'patterns', 'pitfalls', 'setup'];
+
+/**
+ * State for the post-accept memory evaluation: is this bundle shared with
+ * okf-memory, what knowledge exists (area/concept inventory), and which
+ * commits `last_memorized_commit` has not covered yet. The agent uses this
+ * to decide whether an accepted chunk should create/update memories (written
+ * through write.mjs `op: memorize`).
+ */
+export function gatherMemorize(startDir) {
+  const b = loadBundle(startDir);
+  const indexFile = join(b.memDir, 'index.md');
+  const rootFm = existsSync(indexFile) ? frontmatter(readFileSync(indexFile, 'utf8')) : {};
+
+  const areas = OKF_AREA_NAMES
+    .filter(a => existsSync(join(b.memDir, a, 'index.md')))
+    .map(a => ({
+      name: a,
+      concepts: readdirSync(join(b.memDir, a))
+        .filter(f => f.endsWith('.md') && f !== 'index.md')
+        .map(f => {
+          const fm = frontmatter(readFileSync(join(b.memDir, a, `${f}`), 'utf8'));
+          return {
+            id: `${a}/${f.slice(0, -3)}`,
+            type: fm.type || '',
+            title: fm.title || f.slice(0, -3),
+            description: fm.description || '',
+          };
+        }),
+    }));
+
+  const head = git(['rev-parse', 'HEAD'], b.root) || null;
+  const base = rootFm.last_memorized_commit || null;
+  const baseValid = !!base &&
+    git(['rev-parse', '--verify', '--quiet', `${base}^{commit}`], b.root) !== '';
+  const pending = (baseValid && head)
+    ? git(['log', '--format=%H%x09%s', `${base}..HEAD`], b.root)
+      .split('\n').filter(Boolean)
+      .map(l => { const [sha, ...s] = l.split('\t'); return { sha, subject: s.join('\t') }; })
+    : [];
+
+  return {
+    step: 'memorize',
+    branch: b.branch,
+    // okf-memory shares this bundle when knowledge areas or the memorize
+    // pointer exist; when false, skip the memory evaluation entirely.
+    okf: areas.length > 0 || !!base,
+    head,
+    lastMemorizedCommit: base,
+    baseValid,
+    pendingCount: pending.length,
+    pendingCommits: pending.slice(0, 50),
+    areas,
+    extensionsContract: existsSync(join(b.memDir, 'EXTENSIONS.md'))
+      ? join(b.memDir, 'EXTENSIONS.md') : null,
   };
 }
 
@@ -535,11 +608,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     plan: () => gatherPlan(rootArg),
     chunk: () => gatherChunk(rootArg),
     implement: () => gatherImplement(rootArg),
+    memorize: () => gatherMemorize(rootArg),
     test: () => gatherTest(rootArg, chunk),
     review: () => gatherReview(rootArg, { chunk }),
   };
   if (!steps[step]) {
-    process.stderr.write(`iterator gather: unknown step '${step}' (hub|plan|chunk|implement|test|review)\n`);
+    process.stderr.write(`iterator gather: unknown step '${step}' (hub|plan|chunk|implement|memorize|test|review)\n`);
     process.exit(1);
   }
   process.stdout.write(JSON.stringify(steps[step]()) + '\n');

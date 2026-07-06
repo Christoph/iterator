@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { gather, gatherImplement, gatherReview, frontmatter, globToRegExp } from '../skills/iterator/gather.mjs';
+import { gather, gatherImplement, gatherMemorize, gatherReview, frontmatter, globToRegExp } from '../skills/iterator/gather.mjs';
 
 const git = (dir, ...args) => execFileSync('git', args, {
   cwd: dir, encoding: 'utf8',
@@ -225,4 +225,108 @@ test('globToRegExp handles exact paths, * and **', () => {
   assert.ok(globToRegExp('src/*.ts').test('src/a.ts'));
   assert.ok(!globToRegExp('src/*.ts').test('src/deep/a.ts'));
   assert.ok(globToRegExp('src/**').test('src/deep/a.ts'));
+});
+
+test('implement wave lists every dependency-ready chunk with its full contract', () => {
+  const root = makeFixture();
+  try {
+    // A second dependency-free pending chunk: ready alongside auth-middleware.
+    writeFileSync(join(root, 'memory', 'chunks', 'logging.md'), `---
+type: Chunk
+title: Logging
+description: Structured logs
+status: pending
+size: small
+depends_on: []
+files: ["src/log.ts"]
+---
+
+# Implementation notes
+
+Pino, one logger.
+`);
+    const p = gatherImplement(root);
+    assert.deepEqual(p.wave.map(c => c.name), p.ready, 'wave covers exactly the ready set');
+    assert.equal(p.next.name, p.wave[0].name, 'next stays the first wave chunk');
+    assert.ok(p.wave.length >= 2, 'both ready chunks are in the wave');
+    for (const c of p.wave) {
+      assert.ok('implementationNotes' in c && 'blastRadius' in c && 'tests' in c,
+        `wave chunk ${c.name} carries the full contract`);
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('memorize reports okf:false for an iterator-only bundle', () => {
+  const root = makeFixture();
+  try {
+    const p = gatherMemorize(root);
+    assert.equal(p.step, 'memorize');
+    assert.equal(p.okf, false);
+    assert.deepEqual(p.areas, []);
+    assert.equal(p.lastMemorizedCommit, null);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('memorize inventories okf areas and the uncovered commit range', () => {
+  const root = makeFixture();
+  try {
+    const base = git(root, 'rev-parse', 'HEAD');
+    mkdirSync(join(root, 'memory', 'patterns'), { recursive: true });
+    writeFileSync(join(root, 'memory', 'patterns', 'index.md'), '# Patterns & Conventions\n');
+    writeFileSync(join(root, 'memory', 'patterns', 'one-json-line.md'), `---
+type: Pattern
+title: One JSON line
+description: Servers print exactly one JSON result line.
+---
+
+# Pattern
+`);
+    writeFileSync(join(root, 'memory', 'index.md'), `---
+okf_version: "0.1"
+last_memorized_commit: ${base}
+---
+
+# Project Memory
+`);
+    git(root, 'add', '.');
+    git(root, 'commit', '-q', '-m', 'feat: something new');
+
+    const p = gatherMemorize(root);
+    assert.equal(p.okf, true);
+    assert.equal(p.lastMemorizedCommit, base);
+    assert.equal(p.baseValid, true);
+    assert.equal(p.pendingCount, 1);
+    assert.match(p.pendingCommits[0].subject, /something new/);
+    assert.deepEqual(p.areas.map(a => a.name), ['patterns']);
+    assert.deepEqual(p.areas[0].concepts, [{
+      id: 'patterns/one-json-line', type: 'Pattern',
+      title: 'One JSON line',
+      description: 'Servers print exactly one JSON result line.',
+    }]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('memorize flags an invalid (rebased-away) pointer', () => {
+  const root = makeFixture();
+  try {
+    mkdirSync(join(root, 'memory', 'setup'), { recursive: true });
+    writeFileSync(join(root, 'memory', 'setup', 'index.md'), '# Setup\n');
+    writeFileSync(join(root, 'memory', 'index.md'), `---
+okf_version: "0.1"
+last_memorized_commit: ${'f'.repeat(40)}
+---
+`);
+    const p = gatherMemorize(root);
+    assert.equal(p.okf, true);
+    assert.equal(p.baseValid, false, 'unknown sha must not validate');
+    assert.equal(p.pendingCount, 0, 'no range without a valid base');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

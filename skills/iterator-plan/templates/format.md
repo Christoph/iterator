@@ -230,6 +230,11 @@ okf_version: "0.1"
 * [Log](log.md) - Chronological history of plan/chunk/implement/review events.
 ```
 
+The bundle may be shared with other OKF tools (okf-memory adds knowledge
+areas like `architecture/` and a `last_memorized_commit` frontmatter key
+here). iterator's writer *merges* its link lines into this file — it never
+removes foreign frontmatter keys, headings, prose, or area links.
+
 `memory/chunks/index.md` — no frontmatter; status is folded into the
 description text (which OKF permits). Ordering is dependency order
 (topological, ties broken by creation order):
