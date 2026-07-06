@@ -161,6 +161,43 @@ test('review payload carries lines_estimate next to the actual stats', () => {
   }
 });
 
+test('review groups a chunk\'s tests with it and excludes comment/doc lines from code stats', () => {
+  const root = makeFixture();
+  try {
+    // Give the chunk recorded tests (as /iterator-test would) and stage a
+    // change mixing code, a comment, and a blank line, plus the test file.
+    writeFileSync(join(root, 'memory', 'chunks', 'auth-middleware.md'), `---
+type: Chunk
+title: Auth middleware
+description: JWT middleware
+status: pending
+size: medium
+lines_estimate: 160
+depends_on: [config-module]
+files: ["src/auth/*.ts"]
+tests: ["test/auth.test.mjs"]
+---
+`);
+    writeFileSync(join(root, 'src', 'auth', 'index.ts'),
+      '// verify the token against the config secret\nexport const auth = 1;\n\n');
+    mkdirSync(join(root, 'test'), { recursive: true });
+    writeFileSync(join(root, 'test', 'auth.test.mjs'),
+      'import assert from "node:assert";\nassert.ok(true);\n');
+    git(root, 'add', '.');
+
+    const p = gatherReview(root, { chunk: 'auth-middleware' });
+    const paths = p.chunks[0].files.map(f => f.path);
+    assert.ok(paths.includes('test/auth.test.mjs'), 'test file must be grouped with its chunk');
+    assert.equal(p.uncategorized.length, 0, 'nothing falls to uncategorized');
+
+    const s = p.chunks[0].stats;
+    assert.ok(s.codeAdded < s.added, 'comment/blank lines excluded from the code count');
+    assert.equal(s.codeAdded, 3, 'one code line in src + two in the test file');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('globToRegExp handles exact paths, * and **', () => {
   assert.ok(globToRegExp('src/config.ts').test('src/config.ts'));
   assert.ok(!globToRegExp('src/config.ts').test('src/config_ts'));

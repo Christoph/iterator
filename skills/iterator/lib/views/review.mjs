@@ -165,6 +165,7 @@ function selectFeature(name){
   if(name==='__unc__') feat = { name:'__unc__', description:'Files not matched by any chunk.', files: D.uncategorized||[], blastRadius:null, dependsOn:[] };
   if(!feat) return;
   const total = ((feat.stats&&feat.stats.added)||0)+((feat.stats&&feat.stats.removed)||0);
+  const codeTotal = codeLines(feat, total);
   const note = S.notes[name]||'';
   const st = S.statuses[name];
   const detail = document.getElementById('detail');
@@ -176,11 +177,12 @@ function selectFeature(name){
         '<textarea id="note-ta" placeholder="Note about this chunk…">'+esc(note)+'</textarea>'+
         '<div class="na"><button class="ns" id="note-save">Save</button>'+
         '<button class="nc" id="note-cancel">Cancel</button></div></div></div>'+
-    (total>200?'<div class="warn">⚠️ '+total+' changed lines — exceeds the 200-line guideline.</div>':'')+
-    (estOff(feat, total)?'<div class="warn">📐 estimated ~'+feat.linesEstimate+' lines, actual '+total+' — recalibrate lines_estimate at chunking time.</div>':'')+
+    (codeTotal>200?'<div class="warn">⚠️ '+codeTotal+' changed code lines — exceeds the 200-line guideline (comments/docs excluded).</div>':'')+
+    (estOff(feat, codeTotal)?'<div class="warn">📐 estimated ~'+feat.linesEstimate+' lines, actual '+codeTotal+' code lines — recalibrate lines_estimate at chunking time.</div>':'')+
     '<div class="meta">'+
       ((feat.dependsOn&&feat.dependsOn.length)?'<div class="mi"><div class="ml">Depends on</div><div class="mv">'+esc(feat.dependsOn.join(', '))+'</div></div>':'')+
-      (feat.stats?'<div class="mi"><div class="ml">Changed</div><div class="mv"><span class="sa">+'+feat.stats.added+'</span> <span class="sd">-'+feat.stats.removed+'</span>'+(feat.linesEstimate?' <span style="color:var(--text-muted)">(est ~'+feat.linesEstimate+')</span>':'')+'</div></div>':'')+
+      (feat.stats?'<div class="mi"><div class="ml">Changed</div><div class="mv"><span class="sa">+'+feat.stats.added+'</span> <span class="sd">-'+feat.stats.removed+'</span>'+
+        '<span style="color:var(--text-muted)">'+(codeTotal!==total?' · '+codeTotal+' code':'')+(feat.linesEstimate?' (est ~'+feat.linesEstimate+')':'')+'</span></div></div>':'')+
       (feat.stats?'<div class="mi"><div class="ml">Files</div><div class="mv">'+feat.stats.files+'</div></div>':'')+
       (testBadge(feat)?'<div class="mi"><div class="ml">Tests</div><div class="mv">'+testBadge(feat)+'</div></div>':'')+
     '</div>'+
@@ -235,7 +237,14 @@ function renderHunks(feat){
     container.appendChild(card);
   });
 }
-// estimate clearly off the actual diff size (>2x either way, min 20-line gap)
+// changed CODE lines (comments/docs excluded); falls back to the raw total
+// for payloads gathered before codeAdded/codeRemoved existed
+function codeLines(f, total){
+  const s = f && f.stats;
+  if(!s || s.codeAdded==null) return total;
+  return (s.codeAdded||0)+(s.codeRemoved||0);
+}
+// estimate clearly off the actual code size (>2x either way, min 20-line gap)
 function estOff(f, total){
   const est = f && f.linesEstimate;
   if(!est || !total) return false;

@@ -60,15 +60,26 @@ Split the whole plan (using `ARCHITECTURE.md` for context) into meaningful,
 connected chunks:
 
 - Each chunk is a logical unit of work with a clear, descriptive **slug**.
-- **Size for review, not for neatness.** Target **~50–200 estimated changed
-  lines** per chunk. Below ~30 lines the flow overhead outweighs the chunk —
-  merge it into a neighbor unless it is genuinely isolated; above ~300 lines
-  it cannot be meaningfully reviewed — split it. The writer warns outside
-  this window; relay its warnings to the user.
+- **A chunk contains its own tests.** The reviewer must see the tests next to
+  the logic they cover — include the chunk's (expected) test file paths in
+  its `files`, and count the test code in `linesEstimate`. Never make a
+  separate "write tests for X" chunk.
+- **Size for review, not for neatness.** Target **~100–300 estimated changed
+  lines** per chunk (logic + tests). Below ~50 lines the flow overhead
+  outweighs the chunk — merge it into a neighbor unless it is genuinely
+  isolated; above ~300 lines it cannot be meaningfully reviewed — split it.
+  When in doubt, go bigger: too many tiny chunks is the common failure mode,
+  and each one costs a full test/implement/review round.
+- **Comment and doc changes ride along, but don't count.** Doc updates and
+  comments belong in the same chunk as the code they describe, and they are
+  excluded from the size ceiling (review counts only code lines) — never
+  split a chunk because of comments/docs, and never exclude them to stay
+  under the limit.
 - **Estimate `linesEstimate` from the expected diff** — walk the chunk's
-  `files` and implementation notes and count what will actually change; do
-  not gut-feel it. The review UI shows estimate-vs-actual, so systematic
-  misestimates are visible.
+  `files` and implementation notes and count what will actually change
+  (logic + tests, ignoring comment/doc-only lines); do not gut-feel it. The
+  review UI shows estimate-vs-actual code lines, so systematic misestimates
+  are visible.
 - Record **dependencies** (`depends_on`, chunk slugs). Order dependency-first;
   the graph MUST be acyclic and every `depends_on` entry must reference an
   existing chunk.
@@ -76,7 +87,8 @@ connected chunks:
   parts (interfaces, key functions, call sites), **not** full implementations —
   enough that an implementer can build it from the notes + snippets +
   `ARCHITECTURE.md`.
-- Assign the `files` each chunk owns (paths or simple globs).
+- Assign the `files` each chunk owns (paths or simple globs), including the
+  test files it will add or touch.
 
 ### 3. Write the proposal as drafts, then open the UI
 

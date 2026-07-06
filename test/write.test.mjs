@@ -252,7 +252,7 @@ test('chunks op writes drafts, badges them, and returns sizing warnings', () => 
     const res = applyOp({
       op: 'chunks',
       chunks: [
-        { ...CHUNKS_OP.chunks[1], status: 'draft' },                        // 30 lines → merge warning
+        { ...CHUNKS_OP.chunks[1], status: 'draft', linesEstimate: 120 },    // healthy size, no warning
         { ...CHUNKS_OP.chunks[0], status: 'draft', linesEstimate: 9 },      // way too small
         { name: 'big-refactor', title: 'Big refactor', description: 'x', status: 'draft', linesEstimate: 450, dependsOn: [] },
         { name: 'no-estimate', title: 'No estimate', description: 'x', status: 'draft', dependsOn: [] },
@@ -263,7 +263,7 @@ test('chunks op writes drafts, badges them, and returns sizing warnings', () => 
     assert.ok(res.warnings.some(w => /auth-middleware: ~9 lines.*too small/.test(w)), res.warnings.join('|'));
     assert.ok(res.warnings.some(w => /big-refactor: ~450 lines.*too big/.test(w)));
     assert.ok(res.warnings.some(w => /no-estimate: no lines_estimate/.test(w)));
-    assert.ok(!res.warnings.some(w => /config-module: ~30/.test(w)), '30 lines sits on the floor, no warning');
+    assert.ok(!res.warnings.some(w => /config-module/.test(w)), '120 lines is healthy, no warning');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

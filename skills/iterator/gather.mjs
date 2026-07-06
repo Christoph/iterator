@@ -400,6 +400,13 @@ export function parseDiff(text) {
   return files.filter(f => f.hunks.length);
 }
 
+// Documentation files: every changed line counts as comment/doc, not code.
+const DOC_FILE_RE = /\.(md|mdx|markdown|txt|rst|adoc)$/i;
+// A changed line that is blank or starts with a comment marker. Heuristic on
+// purpose: //, /* */ and JSDoc `*`, #, <!--, and `-- ` (SQL/Lua; `--flag` and
+// CSS `--var:` don't match because they have no space after the dashes).
+const COMMENT_LINE_RE = /^\s*($|\/\/|\/\*|\*\/|\*($|\s)|#|<!--|--($|\s))/;
+
 /** Validated commit shas for a chunk, oldest first (recorded → trailer). */
 function resolveChunkCommits(root, c) {
   const recorded = listy(c.fm.commits)
@@ -436,14 +443,21 @@ export function gatherReview(startDir, opts = {}) {
     }
   }
 
-  // Map each changed file to the first chunk whose `files` globs match.
+  // Map each changed file to its owning chunk: an exact `tests` entry wins
+  // (a chunk's tests are reviewed WITH its logic, never as uncategorized),
+  // then the first chunk whose `files` globs match.
   const parsed = parseDiff(diffText)
     .filter(f => !f.path.startsWith(`${b.memName}/`));
-  const owners = b.chunks.map(c => ({ slug: c.slug, res: listy(c.fm.files).map(globToRegExp) }));
+  const owners = b.chunks.map(c => ({
+    slug: c.slug,
+    res: listy(c.fm.files).map(globToRegExp),
+    tests: new Set(listy(c.fm.tests).map(String)),
+  }));
   const byChunk = new Map();
   const uncategorized = [];
   for (const f of parsed) {
-    const owner = owners.find(o => o.res.some(re => re.test(f.path)));
+    const owner = owners.find(o => o.tests.has(f.path))
+      || owners.find(o => o.res.some(re => re.test(f.path)));
     if (!owner) { uncategorized.push(f); continue; }
     if (opts.chunk && owner.slug !== opts.chunk) continue;
     if (!byChunk.has(owner.slug)) byChunk.set(owner.slug, []);
@@ -454,12 +468,22 @@ export function gatherReview(startDir, opts = {}) {
   for (const c of selected) {
     const files = byChunk.get(c.slug) || [];
     if (!files.length && !opts.chunk) continue;
-    let added = 0, removed = 0;
-    for (const f of files) for (const h of f.hunks) for (const l of h.lines) {
-      if (l.type === 'addition') added++;
-      else if (l.type === 'deletion') removed++;
+    let added = 0, removed = 0, codeAdded = 0, codeRemoved = 0;
+    for (const f of files) {
+      const doc = DOC_FILE_RE.test(f.path);
+      for (const h of f.hunks) for (const l of h.lines) {
+        if (l.type === 'addition') {
+          added++;
+          if (!doc && !COMMENT_LINE_RE.test(l.content)) codeAdded++;
+        } else if (l.type === 'deletion') {
+          removed++;
+          if (!doc && !COMMENT_LINE_RE.test(l.content)) codeRemoved++;
+        }
+      }
     }
-    const total = added + removed;
+    // Review-size verdicts run on CODE lines only: comment/doc changes belong
+    // in the chunk (reviewed together) but never push it over the size limit.
+    const codeTotal = codeAdded + codeRemoved;
     chunks.push({
       name: c.slug,
       description: c.fm.description || '',
@@ -469,8 +493,8 @@ export function gatherReview(startDir, opts = {}) {
       // that misjudged its size (feeds better estimates next time).
       linesEstimate: c.fm.lines_estimate ? Number(c.fm.lines_estimate) || 0 : 0,
       stats: {
-        added, removed, files: files.length,
-        complexity: total <= 100 ? 'green' : total <= 200 ? 'yellow' : 'red',
+        added, removed, codeAdded, codeRemoved, files: files.length,
+        complexity: codeTotal <= 100 ? 'green' : codeTotal <= 200 ? 'yellow' : 'red',
       },
       files,
     });

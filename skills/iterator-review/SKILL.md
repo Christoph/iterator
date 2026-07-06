@@ -39,7 +39,11 @@ Steps, payloads, and rules are unchanged.
 The review view shows each chunk's `lines_estimate` next to the actual diff
 size and flags large deviations — when you see one, note it and calibrate
 future `lines_estimate` values at chunking time from the chunk's `files`
-instead of gut feel.
+instead of gut feel. Size verdicts (complexity dot, over-limit warning,
+est-vs-actual) count **code lines only**: comment and doc changes are shown
+with the chunk but excluded. A chunk's test files are grouped with it (via
+its `files` globs or `tests` entries), so tests are always reviewed next to
+the logic they cover.
 
 ## Steps
 

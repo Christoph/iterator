@@ -134,7 +134,10 @@ suite. Show real output — never claim a result without running. Then verify th
 ### 6. Record, commit, and report
 
 Record through the bundle writer — it sets the frontmatter, updates the
-`timestamp`, regenerates the index (🔴/🟢 badge), and prepends the log entry:
+`timestamp`, regenerates the index (🔴/🟢 badge), and prepends the log entry.
+The recorded `tests` paths make the test files part of the chunk's review
+scope: `/iterator-review` groups their diff with the chunk, so the tests are
+always reviewed next to the logic they cover:
 
 ```sh
 node <skill-dir>/../iterator/write.mjs << 'TEST_WRITE'

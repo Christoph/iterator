@@ -304,10 +304,12 @@ ${chunksSection}
 // ---------------------------------------------------------------------------
 // op: chunks
 
-// Reviewable-chunk size window (estimated changed lines). Outside it the
-// chunks op still writes but returns warnings: below the floor the flow
-// overhead outweighs the chunk, above the ceiling a review stops being real.
-const SIZE_MIN_LINES = 30;
+// Reviewable-chunk size window (estimated changed lines of logic + tests —
+// a chunk always contains its own tests; comment/doc-only lines don't
+// count). Outside it the chunks op still writes but returns warnings: below
+// the floor the flow overhead outweighs the chunk, above the ceiling a
+// review stops being real.
+const SIZE_MIN_LINES = 50;
 const SIZE_MAX_LINES = 300;
 
 function chunkDoc(c, titles, existingReview) {
@@ -400,9 +402,9 @@ function writeChunks(payload, root) {
   for (const c of incoming) {
     if (doneProtected.includes(c.name)) continue;
     const est = Number(c.linesEstimate) || 0;
-    if (!est) warnings.push(`${c.name}: no lines_estimate — estimate the expected diff size from its files`);
-    else if (est < SIZE_MIN_LINES) warnings.push(`${c.name}: ~${est} lines — too small to be worth a chunk; merge it into a neighbor unless it is genuinely isolated`);
-    else if (est > SIZE_MAX_LINES) warnings.push(`${c.name}: ~${est} lines — too big to review; split it`);
+    if (!est) warnings.push(`${c.name}: no lines_estimate — estimate the expected logic+test diff from its files`);
+    else if (est < SIZE_MIN_LINES) warnings.push(`${c.name}: ~${est} lines (incl. its tests) — too small to be worth a chunk; merge it into a neighbor unless it is genuinely isolated`);
+    else if (est > SIZE_MAX_LINES) warnings.push(`${c.name}: ~${est} lines — too big to review; split it (comment/doc lines don't count toward this)`);
   }
 
   regenerate(root);
