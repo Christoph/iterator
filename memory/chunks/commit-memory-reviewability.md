@@ -2,12 +2,13 @@
 type: Chunk
 title: Commit review memory-card readability
 description: Make commit-mode memory proposals readable enough for human approval and refresh the README documentation for the safer OKF flow.
-status: pending
+status: done
 size: medium
 depends_on: [okf-writer-invariants, okf-gather-staleness-range]
 files: ["lib/views/review.mjs", "skills/iterator/lib/views/review.mjs", "test/server.test.mjs", "README.md"]
-timestamp: 2026-07-06T19:50:16.550Z
+timestamp: "2026-07-06T19:58:15.664Z"
 tags: []
+done: 2026-07-06
 ---
 
 # Implementation notes
