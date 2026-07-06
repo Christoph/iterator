@@ -173,10 +173,10 @@ cp -R skills/* .opencode/skills/  cp -R skills/* .agents/skills/   cp -R skills/
 (opencode also discovers Claude-compatible paths like `.claude/skills/` and
 `.agents/skills/` directly.) Invocation differs per harness — e.g.
 `/skill:iterator` or `/skill:iterator-plan` in pi, a `$`-mention in Codex —
-and skills also trigger implicitly by description. In sandboxed harnesses set
-`ITERATOR_NO_OPEN=1` to print the UI URL instead of launching a browser (add
-`ITERATOR_HOST=0.0.0.0` + a published port when the browser lives outside the
-sandbox — see Configuration).
+and skills also trigger implicitly by description. SSH sessions and containers
+are detected automatically: the server binds `0.0.0.0`, skips the browser
+opener, and prints a URL to open on the host through a forwarded/published
+port (see Configuration; force with `ITERATOR_REMOTE=1`).
 
 **pi** can also install the repo directly as a package (the `pi` manifest in
 `package.json` points at `skills/`):
@@ -211,25 +211,39 @@ it (and any non-localhost `Host` header), so no other page or process can forge
 a submission or cancel your flow. Reloading the tab is safe — only closing it
 cancels.
 
-### Docker / sandboxed agents (`ITERATOR_HOST`)
+### Remote sessions: SSH, Docker, devcontainers (`ITERATOR_REMOTE`)
 
-When the agent runs inside a container but your browser is on the host, the
-default `127.0.0.1` bind is unreachable. Set `ITERATOR_HOST=0.0.0.0` (dev
-only!) inside the container and publish the port:
+When the agent runs inside a container or SSH session but your browser is on
+the host, a `127.0.0.1` bind is unreachable through a port forward and there
+is no local browser to open. The server detects this automatically — explicit
+`ITERATOR_REMOTE=1`/`0` override first, then SSH markers (`SSH_TTY`,
+`SSH_CONNECTION`), then container markers (`/.dockerenv`,
+`/run/.containerenv`) — and in remote mode binds `0.0.0.0` (override with
+`ITERATOR_BIND_HOST`), skips the browser opener, and prints a
+`http://127.0.0.1:<port>/?t=…` URL for the host. MicroVM sandboxes have no
+container marker files, so set `ITERATOR_REMOTE=1` in the sandbox image there:
 
-```bash
-# inside the container / sandbox config
-ITERATOR_HOST=0.0.0.0 ITERATOR_NO_OPEN=1 ITERATOR_PORT=7777
-
-# on the host
-docker run -p 7777:7777 …   # then open the printed http://127.0.0.1:7777/?t=… URL
+```dockerfile
+ENV ITERATOR_REMOTE=1
 ```
 
-Pin `ITERATOR_PORT` explicitly: if the port were busy the server's retry would
-move to 7778, which your `-p 7777:7777` mapping would not reach. In exposed
-mode the localhost `Host`-header check is relaxed (the host browser may arrive
-via a container IP), but the one-time token stays mandatory — treat the URL
-like a secret and use this only on trusted dev machines.
+The sandbox must also publish the port to the host:
+
+```bash
+sbx ports <sandbox> --publish 7777:7777      # Docker sandboxes (explicit host:container!)
+docker run -p 127.0.0.1:7777:7777 …          # plain Docker — keep the host side on loopback
+ssh -L 7777:localhost:7777 host              # plain SSH (or LocalForward in ~/.ssh/config)
+```
+
+(VS Code devcontainers and Codespaces forward ports automatically — check the
+Ports tab.) Then open the printed URL in the host browser. Pin `ITERATOR_PORT`
+if collisions are common: a busy port makes the server walk up to 7778, which
+a `7777:7777` mapping would not reach — the stderr line always shows the real
+port. Binding `0.0.0.0` exposes the UI to whatever network the sandbox is
+attached to: keep the host-side publish on loopback, and note the localhost
+`Host`-header check is relaxed in this mode (the host browser may arrive via a
+container IP) while the one-time token stays mandatory — treat the URL like a
+secret.
 
 ## How it works
 

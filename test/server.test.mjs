@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { isRemoteSession } from '../lib/server.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CANCEL_GRACE_MS = 250;
@@ -18,11 +19,12 @@ function startServer(skill, payload, extraEnv = {}) {
         ITERATOR_NO_OPEN: '1',
         ITERATOR_PORT: '0', // ephemeral port, no collisions between tests
         ITERATOR_CANCEL_GRACE_MS: String(CANCEL_GRACE_MS),
+        ITERATOR_REMOTE: '0', // deterministic even when the tests run over SSH / in a container
         ...extraEnv,
       },
     });
     let stderr = '', stdout = '';
-    const io = { child, url: null, stdout: () => stdout };
+    const io = { child, url: null, stdout: () => stdout, stderr: () => stderr };
     child.stdout.on('data', d => (stdout += d));
     child.stderr.on('data', d => {
       stderr += d;
@@ -129,22 +131,62 @@ test('explicit Cancel (/cancel?now=1) cancels immediately', async () => {
   assert.deepEqual(JSON.parse(io.stdout()), { type: 'cancel' });
 });
 
-test('ITERATOR_HOST=0.0.0.0 accepts non-local Host headers but still requires the token', async () => {
-  const io = await startServer('iterator-plan', PLAN_PAYLOAD, { ITERATOR_HOST: '0.0.0.0' });
-  const reqStatus = (path, host) => new Promise((resolve, reject) => {
-    const req = http.request({
-      host: '127.0.0.1', port: io.url.port, path,
-      headers: { Host: host },
-    }, res => { res.resume(); resolve(res.statusCode); });
-    req.on('error', reject);
-    req.end();
-  });
+test('isRemoteSession: explicit override beats SSH markers, SSH markers imply remote', () => {
+  assert.equal(isRemoteSession({ ITERATOR_REMOTE: '1' }), true);
+  assert.equal(isRemoteSession({ ITERATOR_REMOTE: 'true' }), true);
+  assert.equal(isRemoteSession({ ITERATOR_REMOTE: '0', SSH_TTY: '/dev/pts/0' }), false);
+  assert.equal(isRemoteSession({ ITERATOR_REMOTE: 'false', SSH_CONNECTION: '1.2.3.4 5 6.7.8.9 22' }), false);
+  assert.equal(isRemoteSession({ SSH_CONNECTION: '1.2.3.4 5 6.7.8.9 22' }), true);
+  assert.equal(isRemoteSession({ SSH_TTY: '/dev/pts/0' }), true);
+});
+
+const reqStatus = (io, path, host) => new Promise((resolve, reject) => {
+  const req = http.request({
+    host: '127.0.0.1', port: io.url.port, path,
+    headers: { Host: host },
+  }, res => { res.resume(); resolve(res.statusCode); });
+  req.on('error', reject);
+  req.end();
+});
+
+test('ITERATOR_REMOTE=1 binds all interfaces, prints a loopback URL, still requires the token', async () => {
+  const io = await startServer('iterator-plan', PLAN_PAYLOAD, { ITERATOR_REMOTE: '1' });
+  // The printed URL must be clickable on the host: 127.0.0.1, never 0.0.0.0.
+  assert.ok(io.url.href.startsWith('http://127.0.0.1:'));
+  await sleep(100); // the hint line lands right after the resolving "listening on" line
+  assert.match(io.stderr(), /remote session — bound to 0\.0\.0\.0/);
   // Host browser reaching a container by IP/hostname: allowed with the token.
-  assert.equal(await reqStatus(`/?t=${io.url.searchParams.get('t')}`, '172.17.0.2:7777'), 200);
+  assert.equal(await reqStatus(io, `/?t=${io.url.searchParams.get('t')}`, '172.17.0.2:7777'), 200);
   // The token stays mandatory in exposed mode.
-  assert.equal(await reqStatus('/?t=wrong', '172.17.0.2:7777'), 403);
+  assert.equal(await reqStatus(io, '/?t=wrong', '172.17.0.2:7777'), 403);
   io.child.kill();
   await waitExit(io.child);
+});
+
+test('SSH markers imply remote unless ITERATOR_REMOTE=0 forces local', async () => {
+  const ssh = { SSH_CONNECTION: '1.2.3.4 5 6.7.8.9 22', ITERATOR_REMOTE: '' };
+  const remote = await startServer('iterator-plan', PLAN_PAYLOAD, ssh);
+  await sleep(100);
+  assert.match(remote.stderr(), /remote session — bound to 0\.0\.0\.0/);
+  remote.child.kill();
+  await waitExit(remote.child);
+
+  const local = await startServer('iterator-plan', PLAN_PAYLOAD, { ...ssh, ITERATOR_REMOTE: '0' });
+  await sleep(100);
+  assert.ok(!/remote session/.test(local.stderr()));
+  assert.equal(await reqStatus(local, `/?t=${local.url.searchParams.get('t')}`, 'evil.example.com'), 403);
+  local.child.kill();
+  await waitExit(local.child);
+});
+
+test('ITERATOR_BIND_HOST overrides the bind address (ITERATOR_HOST is the deprecated alias)', async () => {
+  for (const env of [{ ITERATOR_BIND_HOST: '0.0.0.0' }, { ITERATOR_HOST: '0.0.0.0' }]) {
+    const io = await startServer('iterator-plan', PLAN_PAYLOAD, env);
+    assert.equal(await reqStatus(io, `/?t=${io.url.searchParams.get('t')}`, '172.17.0.2:7777'), 200);
+    assert.equal(await reqStatus(io, '/?t=wrong', '172.17.0.2:7777'), 403);
+    io.child.kill();
+    await waitExit(io.child);
+  }
 });
 
 // Smoke-test the remaining step servers with their sample payloads.
