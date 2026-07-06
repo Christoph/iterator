@@ -50,7 +50,9 @@ test('GET / serves the persistent shell (iframe + EventSource); status says sess
   try {
     const shell = await (await fetch(origin + '/')).text();
     assert.ok(shell.includes("new EventSource('/events')"));
-    assert.ok(shell.includes('<iframe id="v" src="/view">'));
+    assert.ok(shell.includes('<iframe id="v">'));
+    assert.ok(shell.includes('data-tab="work"'), 'shell has a Work tab');
+    assert.ok(shell.includes('data-tab="knowledge"'), 'shell has a Knowledge tab');
     const status = await (await fetch(origin + '/__iterator/status')).json();
     assert.equal(status.app, 'iterator');
     assert.equal(status.mode, 'session');
@@ -180,6 +182,56 @@ test('stop() resolves a pending round, frees the port, and removes the registry 
   assert.equal(session.isRunning(), false);
   assert.equal(existsSync(registry), false, 'registry entry must be cleaned up');
   await assert.rejects(() => fetch(origin + '/view'), undefined, `port ${port} must be free`);
+});
+
+test('tabs: steps render into their tab; inactive-tab refreshes are stored silently', async () => {
+  const { session, origin } = await startSession();
+  try {
+    // A knowledge round lands on the knowledge tab and directs the shell there.
+    const round = session.showStep({ step: 'knowledge', render: () => viewHtml('KNOWLEDGE-VIEW') });
+    const sse = await firstSseEvent(origin);
+    assert.equal(sse.event, 'view');
+    assert.equal(sse.data.tab, 'knowledge');
+    const kView = await (await fetch(origin + '/view?tab=knowledge')).text();
+    assert.ok(kView.includes('KNOWLEDGE-VIEW'));
+    assert.match(await (await fetch(origin + '/view?tab=work')).text(),
+      /waiting for the next step/, 'work tab untouched');
+    await fetch(`${origin}/submit?r=${srvMod.RUN_ID}`, { method: 'POST', body: '{"type":"cancel"}' });
+    await round;
+
+    // With knowledge active, a hub refresh is stored silently (no broadcast,
+    // no run-id rotation) but served on the next work-tab fetch.
+    const runBefore = srvMod.RUN_ID;
+    session.showView({ step: 'hub', render: () => viewHtml('HUB-VIEW') });
+    assert.equal(srvMod.RUN_ID, runBefore, 'silent store must not rotate the run id');
+    assert.ok((await (await fetch(origin + '/view?tab=work')).text()).includes('HUB-VIEW'));
+    assert.ok((await (await fetch(origin + '/view?tab=knowledge')).text()).includes('KNOWLEDGE-VIEW'));
+
+    // The shell reports a manual switch; the work tab becomes active.
+    await fetch(origin + '/tab', { method: 'POST', body: '{"tab":"work"}' });
+    const shell = await (await fetch(origin + '/')).text();
+    assert.ok(shell.includes('let tab = "work"'));
+  } finally {
+    await session.stop();
+  }
+});
+
+test('an idle submit from a stale-run view still dispatches as unsolicited', async () => {
+  let unsolicited = null;
+  const { session, origin } = await startSession({ onUnsolicited: r => (unsolicited = r) });
+  try {
+    session.showView({ step: 'hub', render: () => viewHtml('HUB') });
+    // The knowledge tab's stored document embeds an older run id; with no
+    // round pending its clicks must still count.
+    const res = await fetch(`${origin}/submit?r=deadbeefdeadbeef`, {
+      method: 'POST', body: '{"type":"action","action":"okf-memorize"}',
+    });
+    assert.equal(res.status, 200);
+    await sleep(20);
+    assert.deepEqual(unsolicited, { type: 'action', action: 'okf-memorize' });
+  } finally {
+    await session.stop();
+  }
 });
 
 test('a legacy one-shot takeover pass leaves the session server alive (mode guard)', async () => {

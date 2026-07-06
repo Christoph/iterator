@@ -187,8 +187,14 @@ export async function takeoverStale(regPath) {
  * @param {object} o
  * @param {string} o.step  short step name, used only in the stderr log line
  * @param {string} o.html  the full HTML document to serve at GET /
+ * @param {(result: object) => Promise<object|void>} [o.onSubmit]  optional:
+ *   runs after the browser answers and may return a transformed object to
+ *   print instead (used to apply purely-mechanical results, e.g. memory
+ *   review verdicts, in code before the agent ever sees them). A throwing
+ *   onSubmit annotates the original result with { applied: { ok, error } }
+ *   rather than losing it.
  */
-export async function serve({ step = 'iterator', html }) {
+export async function serve({ step = 'iterator', html, onSubmit }) {
   const startPort = parseInt(process.env.ITERATOR_PORT || '7777', 10);
   const MAX_PORT_RETRIES = 20;
   const regPath = registryPath();
@@ -244,12 +250,25 @@ export async function serve({ step = 'iterator', html }) {
       }
       let body = '';
       req.on('data', c => (body += c));
-      req.on('end', () => {
+      req.on('end', async () => {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(doneHtml());
         if (!done) {
           done = true;
-          process.stdout.write((body.trim() || '{}') + '\n');
+          let out = body.trim() || '{}';
+          if (onSubmit) {
+            try {
+              const transformed = await onSubmit(JSON.parse(out));
+              if (transformed) out = JSON.stringify(transformed);
+            } catch (e) {
+              try {
+                const parsed = JSON.parse(out);
+                parsed.applied = { ok: false, error: e.message };
+                out = JSON.stringify(parsed);
+              } catch {}
+            }
+          }
+          process.stdout.write(out + '\n');
           try { server.close(); } catch {}
           // Give the socket a tick to flush before exiting.
           setTimeout(() => process.exit(0), 30).unref();

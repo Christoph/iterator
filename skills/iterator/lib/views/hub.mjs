@@ -115,6 +115,15 @@ function render(){
   rechunk.addEventListener('click', () => action('chunk', null, 'Starting /iterator-chunk'));
   bar.insertBefore(rechunk, bar.querySelector('.pbar'));
   bar.insertBefore(revise, rechunk);
+  // Every chunk done → the plan is finished work: offer condensing it into a
+  // decisions/ concept and archiving the chunk files (write.mjs retire-plan).
+  if(total > 0 && done === total){
+    const retire = document.createElement('button');
+    retire.className='act primary-act'; retire.textContent='Retire plan';
+    retire.title='Condense the finished plan into a decisions/ memory and archive its chunks';
+    retire.addEventListener('click', () => action('retire', null, 'Starting plan retirement'));
+    bar.insertBefore(retire, bar.querySelector('.pbar'));
+  }
   w.appendChild(bar);
 
   // graph

@@ -23,17 +23,30 @@
  *              full contract (`wave`, first repeated as `next`), plus what is
  *              blocked on what and the designFile path when memory/design.md
  *              exists
- *   memorize   not a server payload — okf-memory shared-bundle state: whether
- *              the bundle carries okf knowledge areas, their concept
- *              inventory, and the commits `last_memorized_commit` has not
- *              covered yet (for the post-accept memory evaluation)
+ *   memorize   not a server payload — okf shared-bundle state: whether the
+ *              bundle carries okf knowledge areas, their concept inventory,
+ *              and the commits `last_memorized_commit` has not covered yet
+ *              (for the post-accept memory evaluation)
+ *   range      not a server payload — the commit range /okf-memorize must
+ *              study: pointer validation, merge-base fallback, commit list
+ *   knowledge  Knowledge-view payload: bundle status (pointer, staleness,
+ *              unmemorized commits), knowledge areas + concepts, design card
  *
  * Resolves the bundle at <git-root>/memory (or $ITERATOR_MEMORY_DIR relative
  * to the git root). No bundle → hub prints `"plan": null` (Create-plan hero).
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { isAbsolute, join } from 'node:path';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { dirname, isAbsolute, join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  body, frontmatter, globToRegExp, listy, matchConcepts, OKF_AREA_NAMES,
+  OKF_AREAS, sections, snippets,
+} from './lib/bundle.mjs';
+
+// Re-export the shared bundle helpers so existing importers (write.mjs, the
+// test suites) keep one entry point for reading the bundle.
+export { body, frontmatter, globToRegExp, listy, matchConcepts, sections, snippets };
 
 function git(args, cwd) {
   try {
@@ -43,102 +56,6 @@ function git(args, cwd) {
   } catch {
     return '';
   }
-}
-
-/** Coerce a frontmatter value to a list (absent → [], scalar → [scalar]). */
-export const listy = (v) => (Array.isArray(v) ? v : v ? [v] : []);
-
-/**
- * Minimal YAML frontmatter parser for the bundle's schema (see format.md):
- * scalars (optionally quoted), inline lists `[a, b]`, and block lists
- * (`- item`, including `- { sha: …, … }` entries, kept as raw strings).
- */
-export function frontmatter(text) {
-  if (!text.startsWith('---\n')) return {};
-  const end = text.indexOf('\n---', 4);
-  if (end === -1) return {};
-  const unquote = s =>
-    (/^".*"$/.test(s) || /^'.*'$/.test(s)) ? s.slice(1, -1) : s;
-  const fm = {};
-  let key = null;
-  for (const line of text.slice(4, end).split('\n')) {
-    const kv = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
-    if (kv) {
-      key = kv[1];
-      const val = kv[2].trim();
-      if (val === '') fm[key] = null; // may be followed by a block list
-      else if (val.startsWith('[') && val.endsWith(']')) {
-        fm[key] = val.slice(1, -1).split(',')
-          .map(s => unquote(s.trim())).filter(Boolean);
-      } else fm[key] = unquote(val);
-    } else if (key) {
-      const item = line.match(/^\s+-\s+(.*)$/);
-      if (item) {
-        if (!Array.isArray(fm[key])) fm[key] = [];
-        fm[key].push(unquote(item[1].trim()));
-      }
-    }
-  }
-  return fm;
-}
-
-/** The markdown body after the frontmatter block (or the whole text). */
-export function body(text) {
-  if (text.startsWith('---\n')) {
-    const end = text.indexOf('\n---', 4);
-    if (end !== -1) {
-      const nl = text.indexOf('\n', end + 4);
-      return nl === -1 ? '' : text.slice(nl + 1);
-    }
-  }
-  return text;
-}
-
-/**
- * Split a document body into its `# Heading` sections (fence-aware, so a
- * `# comment` line inside a snippet's code block is not a heading).
- */
-export function sections(text) {
-  const out = {};
-  let name = null, buf = [], fence = false;
-  for (const line of body(text).split('\n')) {
-    if (/^```/.test(line)) fence = !fence;
-    if (!fence && /^# /.test(line)) {
-      if (name) out[name] = buf.join('\n').trim();
-      name = line.slice(2).trim();
-      buf = [];
-    } else if (name) buf.push(line);
-  }
-  if (name) out[name] = buf.join('\n').trim();
-  return out;
-}
-
-/** Parse fenced code blocks out of a `# Snippets` section. */
-export function snippets(text) {
-  const out = [];
-  const re = /```(\w*)\n([\s\S]*?)```/g;
-  let m;
-  while ((m = re.exec(text || ''))) {
-    out.push({ lang: m[1] || '', code: m[2].replace(/\n$/, '') });
-  }
-  return out;
-}
-
-/** `files` entries are exact paths or simple globs (`*`, `**`). */
-export function globToRegExp(glob) {
-  let re = '';
-  for (let i = 0; i < glob.length; i++) {
-    const c = glob[i];
-    if (c === '*') {
-      if (glob[i + 1] === '*') {
-        re += '.*';
-        i++;
-        if (glob[i + 1] === '/') i++;
-      } else re += '[^/]*';
-    } else if ('.+^$()|{}[]\\?'.includes(c)) re += '\\' + c;
-    else re += c;
-  }
-  return new RegExp('^' + re + '$');
 }
 
 /**
@@ -208,6 +125,48 @@ const progress = (chunks) => ({
   done: chunks.filter(c => (c.fm.status || 'pending') === 'done').length,
   total: chunks.length,
 });
+
+// ---------------------------------------------------------------------------
+// knowledge concepts + anchor matching (memory flowing back into the work)
+
+/**
+ * Every knowledge concept with its `files:` anchors, cheap enough to load on
+ * each gather: [{ id, area, type, title, description, path, files }].
+ * `path` is absolute so consumers can read the concept body directly.
+ */
+export function loadConcepts(memDir) {
+  const out = [];
+  for (const area of OKF_AREA_NAMES) {
+    const dir = join(memDir, area);
+    if (!existsSync(dir)) continue;
+    for (const f of readdirSync(dir).sort()) {
+      if (!f.endsWith('.md') || f === 'index.md' || f === 'log.md') continue;
+      const fm = frontmatter(readFileSync(join(dir, f), 'utf8'));
+      out.push({
+        id: `${area}/${f.slice(0, -3)}`,
+        area,
+        type: fm.type || '',
+        title: fm.title || f.slice(0, -3),
+        description: fm.description || '',
+        path: join(dir, f),
+        files: listy(fm.files),
+      });
+    }
+  }
+  return out;
+}
+
+// Pitfalls first — they are constraints; then structure, then conventions.
+const AREA_PRIORITY = ['pitfalls', 'architecture', 'patterns', 'decisions', 'setup'];
+const MAX_RELEVANT_MEMORIES = 8;
+
+/** The concepts an implementer should read before touching these files. */
+function relevantMemories(concepts, fileGlobs) {
+  return matchConcepts(concepts, fileGlobs)
+    .sort((a, b) => AREA_PRIORITY.indexOf(a.area) - AREA_PRIORITY.indexOf(b.area))
+    .slice(0, MAX_RELEVANT_MEMORIES)
+    .map(({ id, title, description, path }) => ({ id, title, description, path }));
+}
 
 // ---------------------------------------------------------------------------
 // hub
@@ -295,6 +254,12 @@ export function gatherChunk(startDir) {
     plan: b.plan?.fm.title || null,
     planStatus: b.plan?.fm.status || null,
     chunks: b.chunks.map(chunkToUi),
+    // The bundle's architecture concepts: real subsystem seams (with their
+    // files: anchors) to cut chunk boundaries along, instead of an imagined
+    // architecture.
+    architecture: loadConcepts(b.memDir)
+      .filter(c => c.area === 'architecture')
+      .map(({ id, title, description, files }) => ({ id, title, description, files })),
   };
 }
 
@@ -302,15 +267,20 @@ export function gatherChunk(startDir) {
 // implement (agent-facing, not a server payload)
 
 /** A ready chunk's full contract for the implement step. */
-const implementContract = (c) => ({
+const implementContract = (c, concepts = []) => ({
   ...chunkToUi(c),
   blastRadius: c.sections['Blast radius'] || '',
   tests: listy(c.fm.tests),
   testsStatus: c.fm.tests_status || 'none',
+  // Knowledge anchored to the chunk's files: pitfalls/architecture/patterns
+  // the implementer reads BEFORE coding (progressive disclosure — only these
+  // concept files, never all of memory/).
+  relevantMemories: relevantMemories(concepts, listy(c.fm.files)),
 });
 
 export function gatherImplement(startDir) {
   const b = loadBundle(startDir);
+  const concepts = loadConcepts(b.memDir);
   const done = new Set(b.chunks.filter(c => c.fm.status === 'done').map(c => c.slug));
   // Drafts are not implementable — they are an unaccepted chunk proposal.
   const pending = b.chunks.filter(c => (c.fm.status || 'pending') === 'pending');
@@ -322,10 +292,10 @@ export function gatherImplement(startDir) {
     branch: b.branch,
     plan: b.plan?.fm.title || null,
     progress: progress(b.chunks),
-    next: nextChunk && implementContract(nextChunk),
+    next: nextChunk && implementContract(nextChunk, concepts),
     // The wave: EVERY dependency-ready chunk with its full contract — they
     // are mutually independent, so one implement round can build them all.
-    wave: ready.map(implementContract),
+    wave: ready.map(c => implementContract(c, concepts)),
     ready: ready.map(c => c.slug),
     drafts,
     // Project design params (memory/design.md) — path when captured, else null.
@@ -342,9 +312,6 @@ export function gatherImplement(startDir) {
 // ---------------------------------------------------------------------------
 // memorize (agent-facing, not a server payload)
 
-/** okf-memory knowledge areas that can coexist with iterator in memory/. */
-const OKF_AREA_NAMES = ['architecture', 'decisions', 'patterns', 'pitfalls', 'setup'];
-
 /**
  * State for the post-accept memory evaluation: is this bundle shared with
  * okf-memory, what knowledge exists (area/concept inventory), and which
@@ -357,21 +324,14 @@ export function gatherMemorize(startDir) {
   const indexFile = join(b.memDir, 'index.md');
   const rootFm = existsSync(indexFile) ? frontmatter(readFileSync(indexFile, 'utf8')) : {};
 
+  const concepts = loadConcepts(b.memDir);
   const areas = OKF_AREA_NAMES
     .filter(a => existsSync(join(b.memDir, a, 'index.md')))
     .map(a => ({
       name: a,
-      concepts: readdirSync(join(b.memDir, a))
-        .filter(f => f.endsWith('.md') && f !== 'index.md')
-        .map(f => {
-          const fm = frontmatter(readFileSync(join(b.memDir, a, `${f}`), 'utf8'));
-          return {
-            id: `${a}/${f.slice(0, -3)}`,
-            type: fm.type || '',
-            title: fm.title || f.slice(0, -3),
-            description: fm.description || '',
-          };
-        }),
+      concepts: concepts.filter(c => c.area === a)
+        .map(({ id, type, title, description, files }) =>
+          ({ id, type, title, description, files })),
     }));
 
   const head = git(['rev-parse', 'HEAD'], b.root) || null;
@@ -402,6 +362,152 @@ export function gatherMemorize(startDir) {
     areas,
     extensionsContract: existsSync(join(b.memDir, 'EXTENSIONS.md'))
       ? join(b.memDir, 'EXTENSIONS.md') : null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// range (agent-facing — the commit range /okf-memorize must study)
+
+/**
+ * Everything mechanical about "what happened since last_memorized_commit":
+ * pointer validation, the merge-base fallback after rebases, the commit list.
+ */
+export function gatherRange(startDir) {
+  const b = loadBundle(startDir);
+  const idx = join(b.memDir, 'index.md');
+  const base = existsSync(idx)
+    ? (frontmatter(readFileSync(idx, 'utf8')).last_memorized_commit ?? null)
+    : null;
+  const head = git(['rev-parse', 'HEAD'], b.root) || null;
+  const baseValid =
+    !!base && git(['rev-parse', '--verify', '--quiet', `${base}^{commit}`], b.root) !== '';
+  // After a rebase/force-push the recorded sha may be gone; merge-base
+  // recovers the closest shared ancestor when the object still exists.
+  const mergeBaseFallback =
+    base && !baseValid ? git(['merge-base', 'HEAD', base], b.root) || null : null;
+  const effectiveBase = baseValid ? base : mergeBaseFallback;
+  const commits = (effectiveBase && head)
+    ? git(['log', '--format=%H%x09%s', `${effectiveBase}..HEAD`], b.root)
+      .split('\n').filter(Boolean)
+      .map(l => { const [sha, ...s] = l.split('\t'); return { sha, subject: s.join('\t') }; })
+    : [];
+  return {
+    step: 'range',
+    initialized: existsSync(idx),
+    head,
+    lastMemorizedCommit: base,
+    baseValid,
+    mergeBaseFallback,
+    effectiveBase,
+    commitCount: commits.length,
+    commits: commits.slice(0, 100),
+    nothingToMemorize: !!effectiveBase && commits.length === 0,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// knowledge (the Knowledge tab / okf dashboard payload)
+
+/** Markdown concept files under dir, recursively (index/log excluded). */
+function mdFilesUnder(dir) {
+  const out = [];
+  if (!existsSync(dir)) return out;
+  for (const name of readdirSync(dir).sort()) {
+    const p = join(dir, name);
+    if (statSync(p).isDirectory()) out.push(...mdFilesUnder(p));
+    else if (name.endsWith('.md') && name !== 'index.md' && name !== 'log.md') out.push(p);
+  }
+  return out;
+}
+
+// Bundle files owned by the Work side (plan/chunks/design/format, incl.
+// retired plans under chunks/archive/) — the knowledge browser shows the
+// knowledge areas plus root-level references (e.g. EXTENSIONS.md), never
+// iterator's own documents.
+const WORK_OWNED_RE = /^(plan\.md|design\.md|format\.md|chunks\/)/;
+
+/**
+ * State for the Knowledge view: bundle status (pointer, staleness,
+ * unmemorized commits), the five knowledge areas with their concepts, the
+ * design.md card, and whether the bundle's format.md drifted from the
+ * template.
+ */
+export function gatherKnowledge(startDir) {
+  const b = loadBundle(startDir);
+  const idx = join(b.memDir, 'index.md');
+  const initialized = existsSync(idx);
+  const rootFm = initialized ? frontmatter(readFileSync(idx, 'utf8')) : {};
+  const lastCommit = rootFm.last_memorized_commit ?? null;
+
+  const tracked = new Set(git(['ls-files'], b.root).split('\n').filter(Boolean));
+  const memories = [];
+  for (const p of mdFilesUnder(b.memDir)) {
+    const rel = relative(b.memDir, p).split('\\').join('/');
+    if (WORK_OWNED_RE.test(rel)) continue;
+    const fm = frontmatter(readFileSync(p, 'utf8'));
+    const id = rel.replace(/\.md$/, '');
+    const files = listy(fm.files);
+    memories.push({
+      id,
+      slug: id.split('/').pop(),
+      path: rel,
+      area: id.includes('/') ? id.split('/')[0] : 'root',
+      type: fm.type || '',
+      title: fm.title || id,
+      description: fm.description || '',
+      status: fm.status || '',
+      files,
+      stale: tracked.size > 0 && files.some(f => f && !tracked.has(f)),
+    });
+  }
+
+  let unmemorized = '?';
+  if (lastCommit) {
+    if (git(['rev-parse', '--verify', `${lastCommit}^{commit}`], b.root)) {
+      const out = git(['log', '--oneline', `${lastCommit}..HEAD`], b.root);
+      unmemorized = out ? out.split('\n').filter(Boolean).length : 0;
+    }
+  }
+
+  const areas = OKF_AREA_NAMES.map(id => ({
+    id,
+    title: OKF_AREAS[id][0],
+    description: OKF_AREAS[id][1],
+    count: memories.filter(m => m.area === id).length,
+  }));
+
+  // memory/format.md is copied from the template once (on the first plan
+  // write) and drifts as the template evolves — surface that.
+  const here = dirname(fileURLToPath(import.meta.url));
+  const template = [
+    join(here, '..', 'iterator-plan', 'templates', 'format.md'),
+    join(here, '..', '..', 'templates', 'format.md'),
+  ].find(existsSync);
+  const formatFile = join(b.memDir, 'format.md');
+  const formatStale = !!template && existsSync(formatFile)
+    && readFileSync(template, 'utf8') !== readFileSync(formatFile, 'utf8');
+
+  return {
+    step: 'knowledge',
+    branch: b.branch,
+    project: b.root,
+    bundlePath: `${b.memName}/`,
+    memory: {
+      initialized,
+      okfVersion: rootFm.okf_version ?? null,
+      lastMemorizedCommit: lastCommit,
+      conceptCount: memories.length,
+      staleCount: memories.filter(m => m.stale).length,
+      unmemorizedCommitCount: unmemorized,
+    },
+    areas,
+    memories,
+    design: b.design ? {
+      title: b.design.fm.title || 'Design parameters',
+      description: b.design.fm.description || '',
+      path: 'design.md',
+    } : null,
+    formatStale,
   };
 }
 
@@ -549,6 +655,16 @@ export function gatherReview(startDir, opts = {}) {
     byChunk.get(owner.slug).push(f);
   }
 
+  // Pitfall concepts anchored to the changed files: a known sharp edge in
+  // exactly the code under review is shown next to the chunk.
+  const pitfallConcepts = loadConcepts(b.memDir).filter(c => c.area === 'pitfalls');
+  const pitfallsFor = (paths) => pitfallConcepts
+    .map(c => ({ c, matched: paths.filter(p => matchConcepts([c], [p]).length > 0) }))
+    .filter(x => x.matched.length)
+    .map(({ c, matched }) => ({
+      id: c.id, title: c.title, description: c.description, path: c.path, matched,
+    }));
+
   const chunks = [];
   for (const c of selected) {
     const files = byChunk.get(c.slug) || [];
@@ -579,6 +695,7 @@ export function gatherReview(startDir, opts = {}) {
         complexity: codeTotal <= 100 ? 'green' : codeTotal <= 200 ? 'yellow' : 'red',
       },
       files,
+      pitfalls: pitfallsFor(files.map(f => f.path)),
     });
   }
 
@@ -592,6 +709,7 @@ export function gatherReview(startDir, opts = {}) {
     source,
     chunks,
     uncategorized,
+    pitfalls: pitfallsFor(uncategorized.map(f => f.path)),
   };
 }
 
@@ -613,11 +731,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     chunk: () => gatherChunk(rootArg),
     implement: () => gatherImplement(rootArg),
     memorize: () => gatherMemorize(rootArg),
+    range: () => gatherRange(rootArg),
+    knowledge: () => gatherKnowledge(rootArg),
     test: () => gatherTest(rootArg, chunk),
     review: () => gatherReview(rootArg, { chunk }),
   };
   if (!steps[step]) {
-    process.stderr.write(`iterator gather: unknown step '${step}' (hub|plan|chunk|implement|memorize|test|review)\n`);
+    process.stderr.write(`iterator gather: unknown step '${step}' (hub|plan|chunk|implement|memorize|range|knowledge|test|review)\n`);
     process.exit(1);
   }
   process.stdout.write(JSON.stringify(steps[step]()) + '\n');

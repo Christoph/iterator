@@ -4,7 +4,10 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { gather, gatherImplement, gatherMemorize, gatherReview, frontmatter, globToRegExp } from '../skills/iterator/gather.mjs';
+import {
+  gather, gatherChunk, gatherImplement, gatherKnowledge, gatherMemorize,
+  gatherRange, gatherReview, frontmatter, globToRegExp, matchConcepts,
+} from '../skills/iterator/gather.mjs';
 
 const git = (dir, ...args) => execFileSync('git', args, {
   cwd: dir, encoding: 'utf8',
@@ -306,6 +309,7 @@ last_memorized_commit: ${base}
       id: 'patterns/one-json-line', type: 'Pattern',
       title: 'One JSON line',
       description: 'Servers print exactly one JSON result line.',
+      files: [],
     }]);
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -326,6 +330,232 @@ last_memorized_commit: ${'f'.repeat(40)}
     assert.equal(p.okf, true);
     assert.equal(p.baseValid, false, 'unknown sha must not validate');
     assert.equal(p.pendingCount, 0, 'no range without a valid base');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// range + knowledge (absorbed from okf-memory)
+
+test('gather range reports the commits since a valid pointer', () => {
+  const root = mkdtempSync(join(tmpdir(), 'iterator-gather-'));
+  try {
+    git(root, 'init', '-q');
+    writeFileSync(join(root, 'a'), 'a\n');
+    git(root, 'add', '.');
+    git(root, 'commit', '-qm', 'base');
+    const base = git(root, 'rev-parse', 'HEAD');
+    mkdirSync(join(root, 'memory'), { recursive: true });
+    writeFileSync(join(root, 'memory', 'index.md'),
+      `---\nokf_version: "0.1"\nlast_memorized_commit: ${base}\n---\n# Memory\n`);
+    writeFileSync(join(root, 'b'), 'b\n');
+    git(root, 'add', '.');
+    git(root, 'commit', '-qm', 'feat: new thing');
+
+    const r = gatherRange(root);
+    assert.equal(r.baseValid, true);
+    assert.equal(r.effectiveBase, base);
+    assert.equal(r.commitCount, 1);
+    assert.match(r.commits[0].subject, /new thing/);
+    assert.equal(r.nothingToMemorize, false);
+
+    git(root, 'commit', '-qm', 'empty-range-check', '--allow-empty');
+    writeFileSync(join(root, 'memory', 'index.md'),
+      `---\nokf_version: "0.1"\nlast_memorized_commit: ${git(root, 'rev-parse', 'HEAD')}\n---\n# Memory\n`);
+    assert.equal(gatherRange(root).nothingToMemorize, true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('gather range flags an invalid pointer without a usable fallback', () => {
+  const root = mkdtempSync(join(tmpdir(), 'iterator-gather-'));
+  try {
+    git(root, 'init', '-q');
+    writeFileSync(join(root, 'a'), 'a\n');
+    git(root, 'add', '.');
+    git(root, 'commit', '-qm', 'base');
+    mkdirSync(join(root, 'memory'), { recursive: true });
+    writeFileSync(join(root, 'memory', 'index.md'),
+      `---\nokf_version: "0.1"\nlast_memorized_commit: ${'f'.repeat(40)}\n---\n# Memory\n`);
+    const r = gatherRange(root);
+    assert.equal(r.baseValid, false);
+    assert.equal(r.mergeBaseFallback, null);
+    assert.equal(r.effectiveBase, null);
+    assert.equal(r.commitCount, 0);
+    assert.equal(r.nothingToMemorize, false, "an unusable base is not 'nothing to do'");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+/** A repo with knowledge areas, a plan/chunks (work side), and design.md. */
+function makeKnowledgeFixture() {
+  const root = makeFixture(); // plan + 2 chunks, one commit, staged auth diff
+  mkdirSync(join(root, 'memory', 'pitfalls'), { recursive: true });
+  writeFileSync(join(root, 'memory', 'index.md'),
+    '---\nokf_version: "0.1"\nlast_memorized_commit: HEADSHA\n---\n# Project memory\n'
+      .replace('HEADSHA', git(root, 'rev-parse', 'HEAD')));
+  writeFileSync(join(root, 'memory', 'pitfalls', 'index.md'), '# Pitfalls\n');
+  writeFileSync(join(root, 'memory', 'pitfalls', 'gone-anchor.md'),
+    '---\ntype: Pitfall\ntitle: Gone anchor\ndescription: Anchored to a deleted file.\nfiles:\n  - src/deleted.ts\n---\nbody\n');
+  writeFileSync(join(root, 'memory', 'pitfalls', 'live-anchor.md'),
+    '---\ntype: Pitfall\ntitle: Live anchor\ndescription: Anchored to a tracked file.\nfiles:\n  - src/config.ts\n---\nbody\n');
+  writeFileSync(join(root, 'memory', 'design.md'),
+    '---\ntype: Design\ntitle: Design parameters\ndescription: Dark, dense, mono.\n---\n# Direction\nd\n');
+  return root;
+}
+
+test('gather knowledge reports areas, concepts, staleness, and the design card', () => {
+  const root = makeKnowledgeFixture();
+  try {
+    const p = gatherKnowledge(root);
+    assert.equal(p.step, 'knowledge');
+    assert.equal(p.bundlePath, 'memory/');
+    assert.equal(p.memory.initialized, true);
+    assert.equal(p.memory.okfVersion, '0.1');
+    assert.ok(p.memory.lastMemorizedCommit);
+    // work-owned files (plan.md, chunks/, design.md) are not knowledge concepts
+    assert.equal(p.memory.conceptCount, 2);
+    assert.equal(p.memory.staleCount, 1);
+    assert.equal(p.memory.unmemorizedCommitCount, 0);
+    assert.equal(p.areas.length, 5);
+    assert.equal(p.areas.find(a => a.id === 'pitfalls').count, 2);
+    assert.equal(p.areas.find(a => a.id === 'pitfalls').title, 'Pitfalls');
+
+    const gone = p.memories.find(m => m.id === 'pitfalls/gone-anchor');
+    assert.equal(gone.stale, true);
+    assert.equal(gone.area, 'pitfalls');
+    assert.deepEqual(gone.files, ['src/deleted.ts']);
+    assert.equal(p.memories.find(m => m.id === 'pitfalls/live-anchor').stale, false);
+    assert.ok(!p.memories.some(m => m.id.startsWith('chunks/')), 'chunks are work-side');
+
+    assert.deepEqual(p.design,
+      { title: 'Design parameters', description: 'Dark, dense, mono.', path: 'design.md' });
+    assert.equal(p.formatStale, false, 'no format.md in the bundle → not stale');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('gather knowledge flags a stale format.md and an uninitialized bundle', () => {
+  const root = makeKnowledgeFixture();
+  try {
+    writeFileSync(join(root, 'memory', 'format.md'), '# Old schema copy\n');
+    assert.equal(gatherKnowledge(root).formatStale, true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+  const bare = mkdtempSync(join(tmpdir(), 'iterator-gather-'));
+  try {
+    git(bare, 'init', '-q');
+    const p = gatherKnowledge(bare);
+    assert.equal(p.memory.initialized, false);
+    assert.equal(p.memory.conceptCount, 0);
+    assert.equal(p.areas.length, 5);
+    assert.equal(p.design, null);
+  } finally {
+    rmSync(bare, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// anchor matching — knowledge flowing back into the work (B1)
+
+test('matchConcepts matches bidirectionally between anchors and chunk globs', () => {
+  const concepts = [
+    { id: 'pitfalls/a', area: 'pitfalls', files: ['lib/server.mjs'] },
+    { id: 'architecture/b', area: 'architecture', files: ['lib/views/*'] },
+    { id: 'setup/c', area: 'setup', files: ['package.json'] },
+  ];
+  // chunk glob matches an exact anchor
+  assert.deepEqual(matchConcepts(concepts, ['lib/*.mjs']).map(c => c.id), ['pitfalls/a']);
+  // anchor glob matches an exact chunk path
+  assert.deepEqual(matchConcepts(concepts, ['lib/views/hub.mjs']).map(c => c.id), ['architecture/b']);
+  // exact-to-exact
+  assert.deepEqual(matchConcepts(concepts, ['package.json']).map(c => c.id), ['setup/c']);
+  assert.deepEqual(matchConcepts(concepts, ['src/other.ts']), []);
+});
+
+test('implement contracts carry relevantMemories anchored to each chunk, pitfalls first', () => {
+  const root = makeKnowledgeFixture(); // pitfalls/live-anchor is anchored to src/config.ts
+  try {
+    mkdirSync(join(root, 'memory', 'architecture'), { recursive: true });
+    writeFileSync(join(root, 'memory', 'architecture', 'index.md'), '# Architecture\n');
+    writeFileSync(join(root, 'memory', 'architecture', 'auth-shape.md'),
+      '---\ntype: Architecture\ntitle: Auth shape\ndescription: How auth is layered.\nfiles:\n  - src/auth/*.ts\n---\nbody\n');
+    // auth-middleware owns src/auth/*.ts and depends on the done config chunk.
+    const p = gatherImplement(root);
+    assert.equal(p.next.name, 'auth-middleware');
+    assert.deepEqual(p.next.relevantMemories.map(m => m.id), ['architecture/auth-shape']);
+    const mem = p.next.relevantMemories[0];
+    assert.equal(mem.title, 'Auth shape');
+    assert.ok(mem.path.endsWith(join('memory', 'architecture', 'auth-shape.md')),
+      'path is readable directly');
+
+    // A pitfall anchored to the same files sorts before architecture.
+    writeFileSync(join(root, 'memory', 'pitfalls', 'auth-sharp-edge.md'),
+      '---\ntype: Pitfall\ntitle: Auth sharp edge\ndescription: Token check races.\nfiles:\n  - src/auth/index.ts\n---\nbody\n');
+    const again = gatherImplement(root);
+    assert.deepEqual(again.next.relevantMemories.map(m => m.id),
+      ['pitfalls/auth-sharp-edge', 'architecture/auth-shape']);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('chunk payload lists architecture concepts with their anchors', () => {
+  const root = makeKnowledgeFixture();
+  try {
+    mkdirSync(join(root, 'memory', 'architecture'), { recursive: true });
+    writeFileSync(join(root, 'memory', 'architecture', 'index.md'), '# Architecture\n');
+    writeFileSync(join(root, 'memory', 'architecture', 'auth-shape.md'),
+      '---\ntype: Architecture\ntitle: Auth shape\ndescription: How auth is layered.\nfiles:\n  - src/auth/*.ts\n---\nbody\n');
+    const p = gatherChunk(root);
+    assert.deepEqual(p.architecture, [{
+      id: 'architecture/auth-shape',
+      title: 'Auth shape',
+      description: 'How auth is layered.',
+      files: ['src/auth/*.ts'],
+    }]);
+    assert.equal(gatherChunk(mkFreshRepo()).architecture.length, 0);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+function mkFreshRepo() {
+  const dir = mkdtempSync(join(tmpdir(), 'iterator-gather-'));
+  git(dir, 'init', '-q');
+  return dir;
+}
+
+test('gatherMemorize concepts include files anchors', () => {
+  const root = makeKnowledgeFixture();
+  try {
+    const p = gatherMemorize(root);
+    const pitfalls = p.areas.find(a => a.name === 'pitfalls');
+    const live = pitfalls.concepts.find(c => c.id === 'pitfalls/live-anchor');
+    assert.deepEqual(live.files, ['src/config.ts']);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('review payload carries pitfall cards for anchored changed files', () => {
+  const root = makeKnowledgeFixture(); // staged diff in src/auth/, live pitfall on src/config.ts
+  try {
+    writeFileSync(join(root, 'memory', 'pitfalls', 'auth-sharp-edge.md'),
+      '---\ntype: Pitfall\ntitle: Auth sharp edge\ndescription: Token check races.\nfiles:\n  - src/auth/*.ts\n---\nbody\n');
+    const p = gatherReview(root, { chunk: 'auth-middleware' });
+    assert.equal(p.chunks.length, 1);
+    const pits = p.chunks[0].pitfalls;
+    assert.equal(pits.length, 1);
+    assert.equal(pits[0].id, 'pitfalls/auth-sharp-edge');
+    assert.deepEqual(pits[0].matched, ['src/auth/index.ts']);
+    assert.ok(pits[0].path.endsWith('.md'));
+    assert.deepEqual(p.pitfalls, [], 'no uncategorized pitfalls');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

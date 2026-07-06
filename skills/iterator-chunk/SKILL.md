@@ -48,11 +48,14 @@ node <skill-dir>/../iterator/gather.mjs --step chunk   # existing chunks, UI-sha
 node <skill-dir>/../iterator/gather.mjs --step plan    # plan sections, when you need the text
 ```
 
-`--step chunk` prints `{ plan: <title>, chunks: [...] }` with every existing
-chunk already in the UI payload shape (notes, snippets, files, dependsOn,
-status — including any `draft` leftovers from an interrupted run). **Preserve
-any chunk with `status: done`** — the bundle writer refuses to rewrite them,
-so build your breakdown around them.
+`--step chunk` prints `{ plan: <title>, chunks: [...], architecture: [...] }`
+with every existing chunk already in the UI payload shape (notes, snippets,
+files, dependsOn, status — including any `draft` leftovers from an
+interrupted run). **Preserve any chunk with `status: done`** — the bundle
+writer refuses to rewrite them, so build your breakdown around them.
+`architecture` lists the bundle's architecture concepts (`{ id, title,
+description, files }`) — the project's real subsystem seams with their
+`files:` anchors.
 
 ### 2. Analyze the plan into chunks
 
@@ -89,6 +92,14 @@ connected chunks:
   `ARCHITECTURE.md`.
 - Assign the `files` each chunk owns (paths or simple globs), including the
   test files it will add or touch.
+- **Cut along the recorded architecture.** When the gather payload's
+  `architecture` list is non-empty, prefer chunk boundaries that follow those
+  subsystem seams (a chunk inside one concept's territory beats one straddling
+  two), and seed each chunk's `files` from the matching concept's anchors —
+  they name where that subsystem actually lives, so the review's diff→chunk
+  mapping and the implementer's `relevantMemories` both stay accurate. Read a
+  concept's file (its `id` under `memory/`) only when its one-line description
+  isn't enough.
 
 ### 3. Write the proposal as drafts, then open the UI
 

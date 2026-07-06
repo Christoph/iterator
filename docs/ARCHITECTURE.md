@@ -220,8 +220,9 @@ browser JS; the shell provides the rest:
   loopback. This is the mode the
   [pi-docker-sandbox-setup](https://github.com/Christoph/pi-docker-sandbox-setup)
   image runs in: it sets `ITERATOR_REMOTE=1` and its `pisbx` script publishes
-  `7777:7777` (iterator) and `8888:8888` (okf-memory) — which is why the
-  single-instance fixed port matters.
+  `7777:7777` — the one port everything (Work and Knowledge views) runs on
+  since the okf-memory absorption — which is why the single-instance fixed
+  port matters.
 - **`lib/ui.mjs`** — `renderPage()` builds the full page: the
   `iterator / <step>` header with a branch tag, theme toggle, **Cancel**, and a
   primary button that flips **Accept ↔ Send review** driven by a step-provided

@@ -49,10 +49,12 @@ node <skill-dir>/../iterator/gather.mjs --step implement
 It prints `{ next, wave, ready, drafts, blocked, stuck, designFile, progress }`:
 `wave` is **every** dependency-ready **pending** chunk **with its full
 contract** (implementation notes, snippets, files, blast radius, tests + test
-status), in index (topological) order; `next` repeats the first for older
-flows; `blocked` lists what each remaining chunk is waiting on; `designFile`
-is the path of `memory/design.md` when the project's design params have been
-captured (`null` before the first UI chunk). Chunks with
+status, and `relevantMemories` — the knowledge concepts whose `files:`
+anchors intersect the chunk's files), in index (topological) order; `next`
+repeats the first for older flows; `blocked` lists what each remaining chunk
+is waiting on; `designFile` is the path of `memory/design.md` when the
+project's design params have been captured (`null` before the first UI
+chunk). Chunks with
 `status: draft` are an unaccepted proposal — they never appear in
 `wave`/`ready`; if only drafts exist, tell the user to accept the chunk set
 first (`/iterator-chunk`) and stop.
@@ -77,6 +79,14 @@ implementation notes, snippets, `ARCHITECTURE.md` (read if present), and
 absent). Make the actual code changes in the working tree, scoped to each
 chunk's `files` where possible — wave chunks are independent, so keep their
 edits separable (they are committed one by one in step 5).
+
+**Memory first:** before coding a chunk, read the files listed in its
+contract's `relevantMemories` (each entry carries the absolute `path` of one
+knowledge concept anchored to the chunk's files) — and ONLY those; never
+crawl all of `memory/`. Treat `pitfalls/*` entries as constraints (a known
+sharp edge in exactly the files you are about to change), `architecture/*`
+and `patterns/*` as how the surrounding code expects to be extended. An empty
+list means no anchored knowledge exists — proceed normally.
 
 **Design quality:** if any chunk touches frontend/UI surface (markup, styles,
 client-side components), follow the `/iterator-design` skill while building.
@@ -202,7 +212,11 @@ the tab sends `{ "type": "cancel" }`; a 2h idle sends `{ "type": "timeout" }`.
   if `uncommitted` lists files, they matched no accepted chunk; tell the user
   instead of force-committing them. Report what was committed (and which
   memories were written/skipped), then offer to continue with the next
-  dependency-ready wave (loop to step 1).
+  dependency-ready wave (loop to step 1). If this wave finished the plan
+  (progress shows every chunk done), offer **plan retirement** instead: the
+  `/iterator` hub skill's retire flow condenses the plan + chunks into a
+  `decisions/` concept and archives the chunk files (`write.mjs`
+  op `retire-plan`).
 
 - `{ "type": "review-feedback", "features": [...], "lineComments": [...] }` →
   revise the implementation per the feedback (per-chunk notes/status and line

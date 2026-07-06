@@ -19,10 +19,11 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-const VIEWS = ['hub', 'plan', 'chunk', 'test', 'review'];
+const VIEWS = ['hub', 'plan', 'chunk', 'test', 'review', 'knowledge', 'memory-review'];
 
 /** [source, destination] pairs, relative to the repo root. */
 export const COPIES = [
+  ['lib/bundle.mjs', 'skills/iterator/lib/bundle.mjs'],
   ['lib/server.mjs', 'skills/iterator/lib/server.mjs'],
   ['lib/ui.mjs', 'skills/iterator/lib/ui.mjs'],
   ...VIEWS.map((v) => [`lib/views/${v}.mjs`, `skills/iterator/lib/views/${v}.mjs`]),

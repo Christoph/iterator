@@ -240,3 +240,20 @@ x = 1
   assert.ok(!('not a heading' in s));
   assert.deepEqual(snippets(s['Snippets']), [{ lang: 'py', code: '# not a heading\nx = 1' }]);
 });
+
+test('every skill folder ships a SKILL.md with discoverable frontmatter', async () => {
+  const { readdirSync, readFileSync } = await import('node:fs');
+  const { fileURLToPath } = await import('node:url');
+  const skillsDir = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'skills');
+  const skills = readdirSync(skillsDir).filter(d => !d.startsWith('.'));
+  assert.ok(skills.includes('okf') && skills.includes('okf-init')
+    && skills.includes('okf-consolidate') && skills.includes('okf-memorize'),
+  'the absorbed okf skills are present');
+  for (const skill of skills) {
+    const text = readFileSync(join(skillsDir, skill, 'SKILL.md'), 'utf8');
+    const match = text.match(/^---\n([\s\S]*?)\n---\n/);
+    assert.ok(match, `${skill}/SKILL.md is missing frontmatter`);
+    assert.match(match[1], /^name:\s*\S+/m, `${skill}/SKILL.md missing name`);
+    assert.match(match[1], /^description:\s*\S+/m, `${skill}/SKILL.md missing description`);
+  }
+});

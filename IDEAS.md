@@ -28,7 +28,10 @@ can with an improvised heredoc; tool results are structured (no stdout
 parsing); and pi can render a custom TUI widget per tool call (chunk table,
 diff stats) via the tool's `details`.
 
-## 2. Ambient bundle awareness (`session_start`, `before_agent_start`)
+## 2. Ambient bundle awareness (`session_start`, `before_agent_start`) — ✅ shipped
+
+(shipped as the `before_agent_start` hook: state line + concepts anchored to
+recently touched files, injected with `display: false`; deduped per turn)
 
 - On `session_start`, run the equivalent of `gather --step hub`; if a bundle
   exists, `ctx.ui.notify("iterator: 3/7 chunks done · next ready: auth-middleware")`.
@@ -69,7 +72,11 @@ edits too:
 - `status: done` set by anything other than an accept-commit flow → block and
   explain that `/iterator-implement` owns `done`.
 
-## 5. Footer widget: chunk progress in the TUI
+## 5. Footer widget: chunk progress in the TUI — ✅ shipped
+
+(shipped via `ctx.ui.setStatus('iterator', …)` — pi's footer and
+pi-powerline-footer render extension statuses; includes the 🧠 unmemorized
+segment and the /okf-memorize nudge)
 
 Like pi-powerline-footer: a segment showing `⛭ 3/7 · next: auth-middleware`
 (done/total, next ready chunk, a 🔴 marker when red tests are waiting).

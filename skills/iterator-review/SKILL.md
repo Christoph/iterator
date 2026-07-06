@@ -36,6 +36,13 @@ are available, use them instead of the shell pipelines below.
 itself (pass no diff data); `iterator_write` replaces the write.mjs heredocs.
 Steps, payloads, and rules are unchanged.
 
+The gathered payload also carries **pitfall cards**: `pitfalls/` concepts
+whose `files:` anchors match a chunk's changed files render as an amber
+warning next to that chunk (⚠ on the sidebar row). Before accepting such a
+chunk, read the pitfall's concept file (its `path`) and verify the diff
+against it; mention the verdict ("pitfall X checked — not triggered / fixed /
+still applies") in the chunk's review note.
+
 Size verdicts (complexity dot, over-limit warning) are computed from the
 **actual** diff and count **code lines only**: comment and doc changes are
 shown with the chunk but excluded. When a chunk's real diff blows past the

@@ -28,10 +28,14 @@
  *                 renames incl. depends_on rewiring, description updates) —
  *                 the server's `plan-adjustments` output pipes in unchanged;
  *                 `accept: true` additionally promotes every draft to pending
- *   memorize      create/update/delete okf-memory knowledge concepts
- *                 (architecture/decisions/patterns/pitfalls/setup areas in the
- *                 shared bundle), regenerate their area indexes, and/or
- *                 advance `last_memorized_commit` in the root index
+ *   memorize      create/update/delete okf knowledge concepts
+ *                 (architecture/decisions/patterns/pitfalls/setup areas),
+ *                 regenerate their area indexes, and/or advance
+ *                 `last_memorized_commit` in the root index
+ *   apply-review  the okf skills' verdict-based writer: the memory review
+ *                 UI's decisions plus the original draft cards pipe in
+ *                 verbatim (accept/keep/reject/delete per concept), the
+ *                 pointer advances to headCommit, the bundle is validated
  *   accept-commit process the review UI's accept-commit result end to end:
  *                 branch safety, per-chunk staging + chunk(<slug>) commits,
  *                 done flips, sha recording, okf memory verdicts, pointer
@@ -53,56 +57,18 @@ import {
 } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { frontmatter, gatherReview, listy, loadBundle, sections } from './gather.mjs';
+import { gatherReview, loadBundle } from './gather.mjs';
+import {
+  fmScalar, frontmatter, joinDoc, listy, mergeRootIndex, nowIso, OKF_AREAS,
+  prependLog as prependLogShared, regenerateAreaIndex, setFmKeys, splitDoc,
+  today, updateRootIndex, validateBundle,
+} from './lib/bundle.mjs';
 
-const nowIso = () => process.env.ITERATOR_NOW || new Date().toISOString();
-const today = () => nowIso().slice(0, 10);
-
-/** Quote a frontmatter scalar only when YAML would misread it bare. */
-function fmScalar(v) {
-  const s = String(v).replace(/\s+/g, ' ').trim();
-  return /[:#[\]{}"'`|>&*!%@\n]/.test(s) ? JSON.stringify(s) : s;
-}
+// Re-export the shared helpers this module used to own (tests and the okf
+// skills import them from here).
+export { mergeRootIndex, OKF_AREAS, setFmKeys };
 
 const fail = (msg) => { throw new Error(msg); };
-
-// ---------------------------------------------------------------------------
-// Textual frontmatter/body editing (preserves everything not being changed —
-// the parser in gather.mjs is lossy for block lists, so never round-trip
-// through it when updating an existing file).
-
-function splitDoc(raw) {
-  if (raw.startsWith('---\n')) {
-    const end = raw.indexOf('\n---', 4);
-    if (end !== -1) {
-      const nl = raw.indexOf('\n', end + 4);
-      return { fm: raw.slice(4, end), body: nl === -1 ? '' : raw.slice(nl + 1) };
-    }
-  }
-  return { fm: null, body: raw };
-}
-
-const joinDoc = (fm, body) => `---\n${fm}\n---\n${body}`;
-
-function formatFmValue(key, value) {
-  if (Array.isArray(value)) {
-    const quoted = ['files', 'tests'].includes(key);
-    return `[${value.map(v => quoted ? JSON.stringify(String(v)) : fmScalar(v)).join(', ')}]`;
-  }
-  return fmScalar(value);
-}
-
-/** Set/replace top-level scalar or inline-list keys in a frontmatter block. */
-export function setFmKeys(fm, obj) {
-  let out = fm;
-  for (const [k, v] of Object.entries(obj)) {
-    if (v === undefined) continue;
-    const line = `${k}: ${formatFmValue(k, v)}`;
-    const re = new RegExp(`^${k}:.*$`, 'm');
-    out = re.test(out) ? out.replace(re, line) : `${out.replace(/\s*$/, '')}\n${line}`;
-  }
-  return out;
-}
 
 /** Append one { sha, kind, date } entry to the commits block list. */
 export function appendCommitFm(fm, { sha, kind, date }) {
@@ -211,43 +177,6 @@ function iteratorIndexLinks(b) {
   return links;
 }
 
-/**
- * Merge iterator's links into the bundle root index WITHOUT owning the file:
- * other tools (okf-memory) keep their frontmatter (`last_memorized_commit`,
- * unknown keys), heading, prose, and area links. Iterator's own link lines are
- * replaced in place when present, appended once when missing.
- */
-export function mergeRootIndex(existing, links) {
-  if (!existing) {
-    return `---\nokf_version: "0.1"\n---\n\n# Project memory\n\n${links.map(([, l]) => l).join('\n')}\n`;
-  }
-  const doc = splitDoc(existing);
-  let fm = doc.fm;
-  if (fm === null) fm = 'okf_version: "0.1"';
-  else if (!/^okf_version:/m.test(fm)) fm = `okf_version: "0.1"\n${fm.replace(/\s*$/, '')}`;
-  const lines = doc.body.split('\n');
-  const missing = [];
-  let lastBullet = -1;
-  for (const [target, line] of links) {
-    const esc = target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const re = new RegExp(`\\]\\(/?${esc}\\)`);
-    const i = lines.findIndex(l => /^\s*[*-]\s+\[/.test(l) && re.test(l));
-    if (i !== -1) { lines[i] = line; lastBullet = Math.max(lastBullet, i); }
-    else missing.push(line);
-  }
-  if (missing.length) {
-    if (lastBullet === -1) {
-      for (let i = lines.length - 1; i >= 0; i--) {
-        if (/^\s*[*-]\s+\[/.test(lines[i])) { lastBullet = i; break; }
-      }
-    }
-    if (lastBullet === -1) lines.push('', ...missing);
-    else lines.splice(lastBullet + 1, 0, ...missing);
-  }
-  const body = lines.join('\n').replace(/\n{3,}/g, '\n\n').replace(/\s*$/, '\n');
-  return joinDoc(fm, body);
-}
-
 /** Rebuild every generated file from the bundle's current on-disk state. */
 export function regenerate(root) {
   const b = loadBundle(root);
@@ -272,21 +201,9 @@ export function regenerate(root) {
   writeFileSync(indexFile, mergeRootIndex(existing, iteratorIndexLinks(b)));
 }
 
-/** Prepend a log entry under today's `## date` heading (newest first). */
-export function prependLog(memDir, entry) {
-  const file = join(memDir, 'log.md');
-  const header = '# iterator update log';
-  const day = `## ${today()}`;
-  let text = existsSync(file) ? readFileSync(file, 'utf8') : `${header}\n`;
-  if (text.includes(`${day}\n`)) {
-    text = text.replace(`${day}\n`, `${day}\n* ${entry}\n`);
-  } else {
-    const lines = text.split('\n');
-    const i = lines.findIndex(l => l.startsWith('# '));
-    lines.splice(i + 1, 0, '', day, `* ${entry}`);
-    text = lines.join('\n');
-  }
-  writeFileSync(file, text.replace(/\n{3,}/g, '\n\n'));
+/** Prepend log entries, creating the file with iterator's header. */
+export function prependLog(memDir, entries) {
+  prependLogShared(memDir, entries, { header: '# iterator update log' });
 }
 
 // ---------------------------------------------------------------------------
@@ -739,41 +656,6 @@ function recordReview(payload, root) {
 // ---------------------------------------------------------------------------
 // op: memorize (okf-memory knowledge areas — shared-bundle integration)
 
-/** The okf-memory knowledge areas: dir → [index title, default description]. */
-export const OKF_AREAS = {
-  architecture: ['Architecture', 'How the system is structured.'],
-  decisions: ['Decisions', 'Why important choices were made.'],
-  patterns: ['Patterns & Conventions', 'How code here is written.'],
-  pitfalls: ['Pitfalls', 'Known bugs and sharp edges.'],
-  setup: ['Setup', 'Build/test/run commands and key dependencies.'],
-};
-
-/** Rebuild an area index's bullet list, preserving its heading and prose. */
-function regenerateAreaIndex(memDir, area) {
-  const dir = join(memDir, area);
-  const entries = readdirSync(dir)
-    .filter(f => f.endsWith('.md') && f !== 'index.md')
-    .map(f => {
-      const fm = frontmatter(readFileSync(join(dir, f), 'utf8'));
-      return {
-        slug: f.slice(0, -3),
-        title: fm.title || f.slice(0, -3),
-        description: fm.description || '',
-      };
-    })
-    .sort((a, b) => a.title.localeCompare(b.title));
-  const indexFile = join(dir, 'index.md');
-  const [title, desc] = OKF_AREAS[area] || [area, ''];
-  let head = `# ${title}\n\n${desc}\n`;
-  if (existsSync(indexFile)) {
-    const lines = readFileSync(indexFile, 'utf8').split('\n');
-    const i = lines.findIndex(l => /^\s*[*-]\s+\[/.test(l));
-    head = (i === -1 ? lines.join('\n') : lines.slice(0, i).join('\n')).replace(/\s*$/, '\n');
-  }
-  const bullets = entries.map(e => `* [${e.title}](/${area}/${e.slug}.md) - ${e.description}`);
-  writeFileSync(indexFile, `${head}\n${bullets.join('\n')}\n`.replace(/\n{3,}/g, '\n\n'));
-}
-
 /** Build a fresh okf memory concept document. */
 function memoryDoc(m) {
   const fm = [
@@ -856,47 +738,239 @@ function writeMemorize(payload, root) {
     if (existsSync(join(b.memDir, area))) regenerateAreaIndex(b.memDir, area);
   }
 
-  // Root index: add missing area links (never replace okf's own lines) and
+  // Root index: add missing area links (never replace foreign lines) and
   // advance the memorize pointer; everything else in the file is preserved.
-  mkdirSync(b.memDir, { recursive: true });
-  const indexFile = join(b.memDir, 'index.md');
-  let raw = existsSync(indexFile)
-    ? readFileSync(indexFile, 'utf8')
-    : '---\nokf_version: "0.1"\n---\n\n# Project memory\n';
-  {
-    const doc = splitDoc(raw);
-    let fm = doc.fm ?? 'okf_version: "0.1"';
-    if (advanceTo) {
-      fm = /^last_memorized_commit:/m.test(fm)
-        ? fm.replace(/^last_memorized_commit:.*$/m, `last_memorized_commit: ${advanceTo}`)
-        : `${fm.replace(/\s*$/, '')}\nlast_memorized_commit: ${advanceTo}`;
-    }
-    const lines = doc.body.split('\n');
-    const missing = [];
-    for (const area of touched) {
-      if (!existsSync(join(b.memDir, area))) continue;
-      const re = new RegExp(`\\]\\(/?${area}/\\)`);
-      if (!lines.some(l => /^\s*[*-]\s+\[/.test(l) && re.test(l))) {
-        const [title, desc] = OKF_AREAS[area] || [area, ''];
-        missing.push(`* [${title}](/${area}/) - ${desc}`);
-      }
-    }
-    if (missing.length) {
-      let last = -1;
-      for (let i = lines.length - 1; i >= 0; i--) {
-        if (/^\s*[*-]\s+\[/.test(lines[i])) { last = i; break; }
-      }
-      if (last === -1) lines.push('', ...missing);
-      else lines.splice(last + 1, 0, ...missing);
-    }
-    raw = joinDoc(fm, lines.join('\n').replace(/\n{3,}/g, '\n\n').replace(/\s*$/, '\n'));
-    writeFileSync(indexFile, raw);
-  }
+  updateRootIndex(b.memDir, [...touched], { advanceTo });
 
   if (advanceTo) logLines.push(`**Memorize**: Advanced last_memorized_commit to ${String(advanceTo).slice(0, 7)}.`);
   if (payload.log) prependLog(b.memDir, payload.log);
   else for (const line of logLines.reverse()) prependLog(b.memDir, line);
   return { op: 'memorize', applied, advancedTo: advanceTo, memoryDir: b.memDir };
+}
+
+// ---------------------------------------------------------------------------
+// op: refresh-format
+
+/**
+ * Copy the current templates/format.md over the bundle's format.md. The
+ * writer copies the template only on the first plan write, so the bundle's
+ * copy drifts as the schema evolves; the knowledge view's `formatStale` flag
+ * surfaces that and this op is the fix.
+ */
+function refreshFormat(payload, root) {
+  const b = loadBundle(root);
+  if (!existsSync(b.memDir)) fail('no memory/ bundle to refresh');
+  const here = dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    join(here, '..', 'iterator-plan', 'templates', 'format.md'),
+    join(here, '..', '..', 'templates', 'format.md'),
+  ];
+  const src = candidates.find(existsSync)
+    || fail('cannot find templates/format.md — is the full iterator plugin installed?');
+  copyFileSync(src, join(b.memDir, 'format.md'));
+  prependLog(b.memDir, payload.log
+    || '**Update**: Refreshed format.md from the current schema template.');
+  return { op: 'refresh-format', written: ['format.md', 'log.md'], memoryDir: b.memDir };
+}
+
+// ---------------------------------------------------------------------------
+// op: apply-review (the okf skills' verdict-based writer — okf-init,
+// okf-consolidate, and okf-memorize pipe the review server's output plus the
+// original draft cards in verbatim)
+
+function conceptFmValue(key, value) {
+  if (Array.isArray(value)) {
+    if (!value.length) return null;
+    return `${key}:\n${value.map(v => `  - ${v}`).join('\n')}`;
+  }
+  const s = String(value).replace(/\s+/g, ' ').trim();
+  // ISO timestamps/dates stay bare (house style); other ':'-bearing scalars quote.
+  const bare = /^[0-9][0-9T:.Z+-]*$/.test(s) || !/[:#[\]{}"'`|>&*!%@\n]/.test(s);
+  return `${key}: ${bare ? s : JSON.stringify(s)}`;
+}
+
+/** Build a concept document from a draft card, carrying over unknown keys. */
+function conceptDoc(card, existingRaw) {
+  const prev = existingRaw ? frontmatter(existingRaw) : {};
+  const ORDER = ['type', 'title', 'description', 'status', 'date', 'tags', 'files'];
+  const merged = { ...prev };
+  for (const k of ORDER) if (card[k] != null && card[k] !== '') merged[k] = card[k];
+  merged.timestamp = nowIso();
+  const keys = [
+    ...ORDER.filter(k => merged[k] != null && merged[k] !== ''),
+    'timestamp',
+    ...Object.keys(merged).filter(k => !ORDER.includes(k) && k !== 'timestamp' && merged[k] != null),
+  ];
+  const fm = keys.map(k => conceptFmValue(k, merged[k])).filter(Boolean).join('\n');
+  const bodyText = card.body != null && card.body !== ''
+    ? String(card.body).trim()
+    : (existingRaw ? splitDoc(existingRaw).body.trim() : '');
+  return `---\n${fm}\n---\n\n${bodyText}\n`;
+}
+
+/**
+ * Apply a memory review's verdicts: accept → write/delete the concept,
+ * keep/reject → leave disk unchanged, delete → remove the existing concept.
+ * Afterwards regenerate touched area indexes, update the root index (adding
+ * missing area links, advancing `last_memorized_commit` when headCommit is
+ * given), log, and validate the bundle.
+ */
+function applyReview(payload, root) {
+  const b = loadBundle(root);
+  const mem = payload.bundlePath
+    ? join(b.root, String(payload.bundlePath).replace(/\/+$/, ''))
+    : b.memDir;
+  const mode = payload.mode || 'memorize';
+  const cards = new Map(listy(payload.memories).map(m => [m.id, m]));
+  const decisions = listy(payload.decisions);
+  if (!decisions.length) fail('apply-review needs decisions (the review-approved output)');
+
+  // Validate before writing anything.
+  for (const d of decisions) {
+    if (!['accept', 'reject', 'keep', 'delete'].includes(d.verdict)) {
+      fail(`invalid verdict '${d.verdict}' for '${d.id}'`);
+    }
+    if (!/^[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*$/i.test(String(d.id || ''))) {
+      fail(`invalid concept id '${d.id || ''}' (expected <area>/<slug>)`);
+    }
+    const area = String(d.id).split('/')[0];
+    if (['chunks', 'plans'].includes(area)) {
+      fail(`apply-review: area '${area}' is owned by the plan/chunk ops`);
+    }
+    const card = cards.get(d.id);
+    if (d.verdict === 'accept') {
+      if (!card) fail(`decision '${d.id}' has no matching draft card`);
+      if (card.action !== 'delete' && !(card.type && card.title && card.description)) {
+        fail(`card '${d.id}' needs type, title, description to be written`);
+      }
+    }
+  }
+
+  const written = [];
+  const deleted = [];
+  let kept = 0;
+  let rejected = 0;
+  const touched = new Set();
+  const log = [];
+  for (const d of decisions) {
+    const card = cards.get(d.id) || { id: d.id };
+    const file = join(mem, `${d.id}.md`);
+    const area = d.id.split('/')[0];
+    const ref = `[${card.title || d.id}](/${d.id}.md)`;
+    if (d.verdict === 'delete' || (d.verdict === 'accept' && card.action === 'delete')) {
+      if (existsSync(file)) {
+        rmSync(file);
+        deleted.push(d.id);
+        touched.add(area);
+        log.push(`**Deletion**: Removed memory /${d.id}.md.`);
+      }
+    } else if (d.verdict === 'accept') {
+      const existing = existsSync(file) ? readFileSync(file, 'utf8') : null;
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, conceptDoc(card, existing));
+      written.push(d.id);
+      touched.add(area);
+      log.push(`**${existing ? 'Update' : 'Creation'}**: Memorized ${ref}.`);
+    } else if (d.verdict === 'keep') kept += 1;
+    else rejected += 1;
+  }
+
+  for (const area of touched) regenerateAreaIndex(mem, area);
+  updateRootIndex(mem, [...touched], { advanceTo: payload.headCommit || null });
+  if (payload.headCommit) {
+    log.push(`**${mode === 'init' ? 'Initialization' : 'Memorize'}**: Set last_memorized_commit to ${String(payload.headCommit).slice(0, 12)}.`);
+  }
+  prependLogShared(mem, log.reverse());
+
+  return {
+    op: 'apply-review',
+    mode,
+    written,
+    deleted,
+    kept,
+    rejected,
+    advancedTo: payload.headCommit || null,
+    validation: validateBundle(mem),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// op: retire-plan
+
+/**
+ * A finished plan is knowledge: condense it into a decisions/ concept (the
+ * semantic text comes from the model) and archive the plan + chunk files to
+ * memory/chunks/archive/<created>-<slug>/ — loadBundle reads chunks/
+ * non-recursively, so archived work is invisible to every gather step while
+ * staying browsable in git. The bundle is left plan-less, ready for the next
+ * /iterator-plan.
+ */
+function retirePlan(payload, root) {
+  const b = loadBundle(root);
+  if (!b.plan) fail('retire-plan: no memory/plan.md to retire');
+  const c = payload.concept || {};
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(c.slug || '')) {
+    fail(`retire-plan: invalid concept slug '${c.slug || ''}' (kebab-case required)`);
+  }
+  if (!(c.title && c.description && c.body)) {
+    fail('retire-plan: concept needs title, description, body (what was built, why, key trade-offs)');
+  }
+  const unfinished = b.chunks
+    .filter(ch => (ch.fm.status || 'pending') !== 'done').map(ch => ch.slug);
+  if (unfinished.length && !payload.force) {
+    fail(`retire-plan: chunks not done: ${unfinished.join(', ')} (pass force:true to retire anyway)`);
+  }
+
+  // 1. The condensed decision concept, through the memorize machinery
+  //    (area index + root area link + log all handled there).
+  const files = listy(c.files).length
+    ? listy(c.files)
+    : [...new Set(b.chunks.flatMap(ch => listy(ch.fm.files)))];
+  const archiveName = `${b.plan.fm.created || today()}-${c.slug}`;
+  writeMemorize({
+    memories: [{
+      action: 'create', area: 'decisions', slug: c.slug,
+      type: 'Decision', title: c.title, description: c.description,
+      status: 'accepted', date: today(),
+      tags: listy(c.tags), files,
+      body: `${String(c.body).trim()}\n\n# Retired plan\n\nCondensed from plan "${b.plan.fm.title || ''}" (${b.chunks.length} chunks, archived under /chunks/archive/${archiveName}/).`,
+    }],
+    log: `**Retirement**: Plan "${b.plan.fm.title || ''}" condensed into [${c.title}](/decisions/${c.slug}.md).`,
+  }, root);
+
+  // 2. Archive plan.md + chunks (incl. their index) out of the readers' view.
+  const chunksDir = join(b.memDir, 'chunks');
+  const archiveDir = join(chunksDir, 'archive', archiveName);
+  mkdirSync(archiveDir, { recursive: true });
+  renameSync(join(b.memDir, 'plan.md'), join(archiveDir, 'plan.md'));
+  const archived = ['plan.md'];
+  if (existsSync(chunksDir)) {
+    for (const f of readdirSync(chunksDir)) {
+      if (!f.endsWith('.md')) continue;
+      renameSync(join(chunksDir, f), join(archiveDir, f));
+      archived.push(f);
+    }
+  }
+
+  // 3. Root index: drop the plan/chunks bullets (regenerate() only merges,
+  //    never removes); the knowledge side of the file stays untouched.
+  const indexFile = join(b.memDir, 'index.md');
+  if (existsSync(indexFile)) {
+    const doc = splitDoc(readFileSync(indexFile, 'utf8'));
+    const kept = doc.body.split('\n')
+      .filter(l => !(/^\s*[*-]\s+\[/.test(l) && /\]\(\/?(plan\.md|chunks\/)\)/.test(l)));
+    writeFileSync(indexFile, doc.fm === null
+      ? kept.join('\n')
+      : joinDoc(doc.fm, kept.join('\n').replace(/\n{3,}/g, '\n\n').replace(/\s*$/, '\n')));
+  }
+
+  return {
+    op: 'retire-plan',
+    concept: `decisions/${c.slug}`,
+    archived: `chunks/archive/${archiveName}`,
+    archivedFiles: archived,
+    validation: validateBundle(b.memDir),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -910,9 +984,11 @@ export function applyOp(payload, root) {
   const ops = {
     plan: writePlan, chunks: writeChunks, design: writeDesign,
     'update-chunk': updateChunk, adjustments: applyAdjustments,
-    memorize: writeMemorize, 'accept-commit': acceptCommit, 'record-review': recordReview,
+    memorize: writeMemorize, 'apply-review': applyReview,
+    'refresh-format': refreshFormat, 'retire-plan': retirePlan,
+    'accept-commit': acceptCommit, 'record-review': recordReview,
   };
-  if (!ops[op]) fail(`unknown op '${payload.op || payload.type || ''}' (plan|chunks|design|update-chunk|adjustments|memorize|accept-commit|record-review)`);
+  if (!ops[op]) fail(`unknown op '${payload.op || payload.type || ''}' (plan|chunks|design|update-chunk|adjustments|memorize|apply-review|refresh-format|retire-plan|accept-commit|record-review)`);
   return ops[op](payload, root);
 }
 

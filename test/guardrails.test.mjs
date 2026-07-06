@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  OWNED_KEYS, checkBashCommit, checkEdit, checkWrite, chunkInFlight, isChunkFile,
+  OWNED_KEYS, checkBashCommit, checkEdit, checkWrite, chunkInFlight,
+  isBundleIndexFile, isChunkFile, isConceptFile,
 } from '../lib/guardrails.mjs';
 
 const CHUNK_DOC = `---
@@ -186,4 +187,61 @@ test('B6: a trailerless commit with nothing in flight is allowed', () => {
 
 test('OWNED_KEYS covers exactly the writer-owned frontmatter', () => {
   assert.deepEqual(OWNED_KEYS, ['status', 'tests_status', 'commits', 'timestamp', 'done', 'reviewed']);
+});
+
+// ---------------------------------------------------------------------------
+// knowledge-side guardrails (concepts + indexes) — warn-only by design
+
+test('isConceptFile and isBundleIndexFile classify bundle paths', () => {
+  assert.equal(isConceptFile('memory/pitfalls/grace-timer.md'), true);
+  assert.equal(isConceptFile('/abs/repo/memory/patterns/x.md'), true);
+  assert.equal(isConceptFile('memory/pitfalls/index.md'), false);
+  assert.equal(isConceptFile('memory/chunks/auth.md'), false, 'chunks are not concepts');
+  assert.equal(isConceptFile('memory/plan.md'), false);
+  assert.equal(isConceptFile('src/pitfalls/x.md'), false, 'outside the bundle');
+
+  assert.equal(isBundleIndexFile('memory/index.md'), true);
+  assert.equal(isBundleIndexFile('memory/pitfalls/index.md'), true);
+  assert.equal(isBundleIndexFile('memory/chunks/index.md'), true);
+  assert.equal(isBundleIndexFile('memory/pitfalls/x.md'), false);
+  assert.equal(isBundleIndexFile('index.md'), false, 'outside the bundle');
+});
+
+test('concept writes: frontmatter changes warn, body-only changes stay silent', () => {
+  const concept = '---\ntype: Pitfall\ntitle: T\ndescription: D\nfiles: ["lib/server.mjs"]\n---\n\nbody\n';
+  const created = checkWrite({ path: 'memory/pitfalls/x.md', content: concept }, null);
+  assert.equal(created.warn, true, 'hand-creating a concept warns');
+  assert.match(created.reason, /memorize/);
+
+  const fmChanged = checkWrite(
+    { path: 'memory/pitfalls/x.md', content: concept.replace('title: T', 'title: Renamed') },
+    concept);
+  assert.equal(fmChanged.warn, true);
+  assert.equal(fmChanged.block, undefined, 'knowledge side never blocks');
+
+  const bodyChanged = checkWrite(
+    { path: 'memory/pitfalls/x.md', content: concept.replace('body', 'better body') },
+    concept);
+  assert.equal(bodyChanged, null, 'body prose stays hand-editable');
+});
+
+test('concept edits: frontmatter touches warn, body edits stay silent', () => {
+  const concept = '---\ntype: Pitfall\ntitle: T\ndescription: D\n---\n\nSome body prose.\n';
+  const fmEdit = checkEdit(
+    { path: 'memory/pitfalls/x.md', oldText: 'description: D', newText: 'description: E' },
+    concept);
+  assert.equal(fmEdit.warn, true);
+  const bodyEdit = checkEdit(
+    { path: 'memory/pitfalls/x.md', oldText: 'Some body prose.', newText: 'Better prose.' },
+    concept);
+  assert.equal(bodyEdit, null);
+});
+
+test('bundle index writes and edits always warn toward the writer', () => {
+  const w = checkWrite({ path: 'memory/index.md', content: 'x' }, '---\nokf_version: "0.1"\n---\n');
+  assert.equal(w.warn, true);
+  assert.match(w.reason, /last_memorized_commit/);
+  const e = checkEdit(
+    { path: 'memory/pitfalls/index.md', oldText: 'a', newText: 'b' }, '# Pitfalls\n');
+  assert.equal(e.warn, true);
 });

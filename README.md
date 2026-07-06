@@ -47,11 +47,16 @@ for where this goes next as a pi extension.
 /iterator-implement  build the dependency-ready wave (every chunk whose
       │              deps are done), drive each chunk's tests GREEN if
       │              they exist, auto-start one review over the wave;
-      │              accepted work updates okf-memory when it shares memory/
+      │              accepted work updates the knowledge areas
       ▼
 /iterator-review     chunk-vs-git-diff review          → outcome written into the chunk file
 
 /iterator-test       after implementation: write green tests for a done chunk
+
+/okf                 Knowledge view — areas, concepts, staleness, memorize status
+/okf-init            draft the initial knowledge bundle from the codebase
+/okf-consolidate     re-review existing memories (stale anchors, dead concepts)
+/okf-memorize        memorize commits made outside the iterator flow
 ```
 
 - **`/iterator`** — the hub: a dashboard showing the plan, every chunk with
@@ -78,8 +83,8 @@ for where this goes next as a pi extension.
   run → fix until green, never weakening a test). Auto-opens one review UI
   over the wave — with per-chunk test badges visible — and on **Accept and
   commit** commits each chunk separately (`chunk(<slug>)`), flips it to done,
-  and records the commit shas. When okf-memory shares the bundle, the wave's
-  diff is also evaluated for durable knowledge: proposed memory
+  and records the commit shas. When the bundle carries knowledge areas, the
+  wave's diff is also evaluated for durable knowledge: proposed memory
   creates/updates show up as toggleable cards in the same review, and
   accepted ones are written to the knowledge areas with
   `last_memorized_commit` advanced. Chunks with UI surface go through
@@ -147,27 +152,34 @@ is in [`templates/format.md`](templates/format.md) (and in each bundle's
 `memory/format.md`); see [`docs/OKF_SPEC.md`](docs/OKF_SPEC.md) for the format
 itself.
 
-## Sharing `memory/` with okf-memory
+## The knowledge side (`/okf` skills)
 
-iterator and [okf-memory](https://github.com/Christoph/okf-memory) are designed
-to share one bundle. okf-memory owns the **knowledge areas**
-(`architecture/`, `decisions/`, `patterns/`, `pitfalls/`, `setup/`) and the
-`last_memorized_commit` pointer in the root index; iterator owns `plan.md`,
-`chunks/`, and `design.md`; `index.md` and `log.md` are joint. The
-integration is bidirectional:
+The same bundle carries **knowledge areas** (`architecture/`, `decisions/`,
+`patterns/`, `pitfalls/`, `setup/`) and a `last_memorized_commit` pointer in
+the root index — the okf memory plane, absorbed from the retired
+[okf-memory](https://github.com/Christoph/okf-memory) package. Work and
+knowledge share `index.md` and `log.md`; the writer preserves each side's
+content when regenerating the other's.
 
-- iterator's writer **preserves** the okf root-index metadata and area links
-  on every regeneration (it merges its own links instead of owning the file),
-  and both tools append to the same `memory/log.md`.
-- when `/iterator-implement` lands a wave, it evaluates the accepted diff for
-  durable knowledge (`gather.mjs --step memorize` reports the shared-bundle
-  state; the model drafts the semantic cards). Proposals appear as toggleable
-  cards in the commit review; accepted ones are written through
-  `write.mjs` (`op: memorize`) — concept files, regenerated area indexes, log
-  entries — and `last_memorized_commit` advances to the wave's final commit,
-  so `/okf-memorize` never re-reviews work that was already captured at
-  commit time. In a repo without okf areas nothing happens — iterator never
-  creates the knowledge areas uninvited (`/okf-init` does that).
+- **`/okf`** — the Knowledge view: area cards, every concept with its
+  `files:` anchors and stale flag, memorize status, and the design.md card.
+  In pi it is the session dashboard's second tab (Work | Knowledge).
+- **`/okf-init`** — analyze the repo and draft the initial 3–8 memories per
+  area, reviewed in the browser before anything is written.
+- **`/okf-consolidate`** — re-review existing memories against the current
+  code: stale `files:` anchors, dead concepts, merges.
+- **`/okf-memorize`** — study the commits since `last_memorized_commit` and
+  draft create/update/delete cards, with conflict detection.
+
+Knowledge also flows automatically: when `/iterator-implement` lands a wave,
+it evaluates the accepted diff for durable knowledge (`gather.mjs --step
+memorize`); proposals appear as toggleable cards in the commit review, and
+accepted ones are written through `write.mjs` — concept files, regenerated
+area indexes, log entries — with `last_memorized_commit` advanced to the
+wave's final commit, so `/okf-memorize` never re-reviews work that was
+already captured at commit time. In a repo without okf areas nothing happens
+— iterator never creates the knowledge areas uninvited (`/okf-init` does
+that).
 
 ## Chunking
 
@@ -203,8 +215,8 @@ install from it (inside Claude Code):
 /plugin install iterator
 ```
 
-All seven skills (`/iterator` + the six `/iterator-*` steps) are auto-discovered
-from `skills/*/SKILL.md`.
+All skills (`/iterator` + the six `/iterator-*` steps + the four `/okf*`
+knowledge skills) are auto-discovered from `skills/*/SKILL.md`.
 
 ### Other agents (opencode, Codex CLI, pi, …)
 
@@ -237,12 +249,11 @@ pi install git:github.com/<user>/iterator@<tag>   # or: pi -e … for one sessio
 ```
 
 iterator is designed to work alongside
-[okf-memory](https://github.com/Christoph/okf-memory) (project memory, UI on
-port 8888) and
 [pi-docker-sandbox-setup](https://github.com/Christoph/pi-docker-sandbox-setup)
-(a pi sandbox image that installs both packages, sets `ITERATOR_REMOTE=1` /
-`OKF_REMOTE=1`, and forwards ports 7777 and 8888 to the host via its `pisbx`
-script).
+(a pi sandbox image that installs it, sets `ITERATOR_REMOTE=1`, and forwards
+port 7777 to the host via its `pisbx` script). The former okf-memory package
+(and its port 8888) is absorbed into this repo — everything, including the
+Knowledge view, runs on the one iterator server.
 
 ## Requirements
 

@@ -21,6 +21,7 @@ memory/
 ├── index.md          # bundle root index; carries okf_version frontmatter (OKF §11)
 ├── format.md         # this file — type: Reference — the metadata schema
 ├── plan.md           # type: Plan — the plan concept
+├── design.md         # optional — type: Design — the project's design parameters
 ├── log.md            # OKF §7 update log; skills append entries
 └── chunks/
     ├── index.md      # chunk listing with status, for progressive disclosure
@@ -52,9 +53,8 @@ rewriting every `depends_on` reference to it.
 type: Chunk                             # REQUIRED (OKF type)
 title: Auth middleware                  # display name
 description: JWT-based auth middleware for all protected routes.  # one line
-status: pending                         # pending | done
-size: small                             # small (≤100 est. lines) | medium (≤200) | large (>200)
-lines_estimate: 60                      # integer, estimated from the plan
+status: pending                         # draft | pending | done
+size: small                             # small | medium | large — how big the feature feels
 depends_on: [config-module]             # chunk slugs; [] if none
 files: ["src/auth.ts", "src/middleware/*.ts"]   # paths/globs this chunk owns
 timestamp: 2026-07-02T10:00:00Z         # OKF "timestamp": last meaningful change
@@ -104,13 +104,13 @@ What breaks if this chunk is wrong; which other chunks/files feel it.
 | `type` | yes | Always `Chunk`. OKF consumers route on this. |
 | `title` | yes | Human display name. |
 | `description` | yes | One sentence; copied into `chunks/index.md` entries. |
-| `status` | yes | `pending` or `done`. Only `/iterator-implement` sets `done` (on Accept-and-commit). |
-| `size` / `lines_estimate` | yes | Soft ~200-line guideline. `large` chunks get a ⚠️ in the UIs and should be split. |
+| `status` | yes | `draft`, `pending`, or `done`. `/iterator-chunk` writes proposals as `draft`; accepting the chunk set in the UI promotes every draft to `pending`. Drafts are never implementable/testable. Only `/iterator-implement` sets `done` (on Accept-and-commit). |
+| `size` | yes | `small` \| `medium` \| `large` — a judgment call on how big the **feature** feels, not a line count. A chunk is one user-visible capability (a vertical slice incl. its tests); `large` means "probably two features" and gets a ⚠️ in the UIs — prefer splitting. Reviewability is enforced against the *actual* diff at review time. |
 | `depends_on` | yes (may be `[]`) | Chunk slugs that must be `done` before this chunk is implemented. Must be acyclic and reference existing files. This is the **canonical** dependency data; the `# Depends on` body section mirrors it with optional "why" prose. |
-| `files` | yes | Paths or simple globs the chunk owns. `/iterator-review` maps diff hunks to a chunk through these; first matching chunk wins. |
+| `files` | yes | Paths or simple globs the chunk owns — **including its test files** (a chunk's tests are reviewed together with its logic, never separately). `/iterator-review` maps diff hunks to a chunk through these (first matching chunk wins), with the chunk's `tests` entries as an exact-match fallback. |
 | `timestamp` | yes | ISO 8601 "last meaningful change" (OKF's field — iterator uses it instead of inventing `last_updated`). Every skill that edits the file updates it. |
 | `done`, `reviewed` | when applicable | ISO dates. `reviewed` is set/refreshed by `/iterator-review`; review notes are appended to the `# Review` body section (newest first). |
-| `tests` | no | Test file paths owned by this chunk. Written by `/iterator-test`; consumed by `/iterator-implement` as the implementation goal. |
+| `tests` | no | Test file paths owned by this chunk. Written by `/iterator-test`; consumed by `/iterator-implement` as the implementation goal, and by `/iterator-review` to group the test diff with the chunk's logic. |
 | `tests_status` | no | `none` \| `red` \| `green` (absent = `none`). `red` = tests exist and fail — the *expected* state before implementation (red/green flow). `/iterator-test` sets `red` or `green`; `/iterator-implement` flips `red → green` on Accept-and-commit. Independent of `status`: an implemented-but-red chunk is `status: done`, `tests_status: red`. |
 | `commits` | no | List of `{ sha, kind, date }`, `kind: test \| implement`. Recorded shas are an **optimization** — they go stale when the branch is rebased or amended. The resilient lookup is the `Chunk: <slug>` commit trailer: consumers must fall back to `git log --grep '^Chunk: <slug>'`. A commit cannot contain its own sha, so each sha is recorded in the *next* bundle write after committing. |
 
@@ -160,6 +160,58 @@ so OKF graph consumers see plan → chunk edges.
 
 ---
 
+## Design document — `design.md` (optional)
+
+The project's design parameters, captured once by `/iterator-design` (derived
+from the plan and codebase, confirmed with the user) and reused on every chunk
+that touches UI so the project's interfaces stay consistent. Written only via
+the writer's `design` op; the body prose is hand-editable like chunk bodies.
+Optional — bundles created before it existed are fine without it (OKF
+permissive consumption).
+
+```markdown
+---
+type: Design
+title: <project> design parameters
+description: One-line summary of the visual direction.
+register: product            # brand (expressive) | product (quiet, utilitarian)
+created: 2026-07-06          # first capture date; preserved on re-runs
+timestamp: 2026-07-06T12:00:00Z
+---
+
+# Direction
+
+Aesthetic direction, tone, signature element, what to avoid.
+
+# Typography
+
+Families (display/body/mono), scale ratio, weights.
+
+# Color
+
+Palette (OKLCH/hex values), accent, neutral tint, dark-mode notes.
+
+# Spacing
+
+Base unit, scale steps, radii, section rhythm.
+
+# Responsive
+
+Breakpoints, fluid-type clamp() ranges, touch rules.
+
+# Signature
+
+(optional) The one distinctive recurring element.
+```
+
+`# Direction`, `# Typography`, `# Color`, `# Spacing` are required;
+`# Responsive` and `# Signature` are optional. Sections hold **concrete
+values** (font stacks, color values, pixel scales) so a later session can
+reproduce the look from this file alone. When present, the root `index.md`
+links it as `* [Design](design.md) - <description>`.
+
+---
+
 ## Index files
 
 `memory/index.md` — the bundle root; the only index permitted frontmatter
@@ -178,6 +230,11 @@ okf_version: "0.1"
 * [Log](log.md) - Chronological history of plan/chunk/implement/review events.
 ```
 
+The bundle may be shared with other OKF tools (okf-memory adds knowledge
+areas like `architecture/` and a `last_memorized_commit` frontmatter key
+here). iterator's writer *merges* its link lines into this file — it never
+removes foreign frontmatter keys, headings, prose, or area links.
+
 `memory/chunks/index.md` — no frontmatter; status is folded into the
 description text (which OKF permits). Ordering is dependency order
 (topological, ties broken by creation order):
@@ -192,7 +249,8 @@ description text (which OKF permits). Ordering is dependency order
 
 The test badge (`🔴 tests red` / `🟢 tests green`) sits between the status and
 the size and is **omitted** when `tests_status` is `none`/absent (see
-`api-routes` above).
+`api-routes` above). Unaccepted chunk proposals show `📝 draft` in place of
+`⬜ pending`.
 
 Every skill that changes chunk status or metadata regenerates
 `chunks/index.md`. Skills stay context-efficient by reading `chunks/index.md`
@@ -227,7 +285,6 @@ title: Config module
 description: Centralize environment/config access behind a typed accessor.
 status: done
 size: small
-lines_estimate: 30
 depends_on: []
 files: ["src/config.ts"]
 timestamp: 2026-07-02T09:40:00Z

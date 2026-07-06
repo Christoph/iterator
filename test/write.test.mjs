@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, existsSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { applyOp, topoSort, setFmKeys } from '../skills/iterator/write.mjs';
-import { frontmatter, loadBundle } from '../skills/iterator/gather.mjs';
+import { frontmatter, gather, loadBundle } from '../skills/iterator/gather.mjs';
 
 process.env.ITERATOR_NOW = '2026-07-06T12:00:00Z';
 
@@ -662,6 +662,246 @@ test('record-review consumes the review-feedback payload verbatim', () => {
     assert.match(read(root, 'log.md'), /\*\*Review\*\*: Reviewed \[Chunk A\]\(\/chunks\/chunk-a\.md\); approved\./);
 
     assert.throws(() => applyOp({ type: 'review-feedback', features: [] }, root), /needs features/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// op: apply-review (absorbed from okf-memory)
+
+const REVIEW_CARD = {
+  id: 'patterns/error-handling',
+  area: 'patterns',
+  action: 'create',
+  type: 'Pattern',
+  title: 'Error handling',
+  description: 'Wrap all IO in Result.',
+  tags: ['errors'],
+  files: ['src/errors.ts'],
+  body: '# Pattern\n\nAlways wrap IO.',
+};
+
+test('apply-review writes accepted cards, skips rejected, regenerates indexes, advances the pointer', () => {
+  const root = makeRepo();
+  try {
+    writeFileSync(join(root, 'x'), 'x\n');
+    git(root, 'add', '.');
+    git(root, 'commit', '-qm', 'init');
+    const head = git(root, 'rev-parse', 'HEAD');
+
+    const res = applyOp({
+      op: 'apply-review',
+      mode: 'memorize',
+      headCommit: head,
+      memories: [REVIEW_CARD, { ...REVIEW_CARD, id: 'patterns/dropped', title: 'Dropped' }],
+      decisions: [
+        { id: 'patterns/error-handling', verdict: 'accept' },
+        { id: 'patterns/dropped', verdict: 'reject' },
+      ],
+    }, root);
+    assert.deepEqual(res.written, ['patterns/error-handling']);
+    assert.equal(res.rejected, 1);
+    assert.equal(res.advancedTo, head);
+    assert.equal(res.validation.ok, true, res.validation.errors?.join('\n'));
+
+    const concept = read(root, 'patterns', 'error-handling.md');
+    assert.match(concept, /type: Pattern/);
+    assert.match(concept, /tags:\n  - errors/);
+    assert.match(concept, /timestamp: 2026-07-06T12:00:00Z/);
+    assert.match(concept, /Always wrap IO\./);
+    assert.ok(!existsSync(join(root, 'memory', 'patterns', 'dropped.md')));
+
+    assert.match(read(root, 'patterns', 'index.md'),
+      /\* \[Error handling\]\(\/patterns\/error-handling\.md\) - Wrap all IO in Result\./);
+    const idx = read(root, 'index.md');
+    assert.match(idx, new RegExp(`last_memorized_commit: ${head}`));
+    assert.match(idx, /\[Patterns & Conventions\]\(\/patterns\/\)/);
+    assert.match(read(root, 'log.md'), /\*\*Creation\*\*: Memorized \[Error handling\]/);
+    assert.match(read(root, 'log.md'), /\*\*Memorize\*\*: Set last_memorized_commit/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('apply-review preserves foreign root-index content and unknown concept keys on update', () => {
+  const root = makeRepo();
+  try {
+    mkdirSync(join(root, 'memory', 'patterns'), { recursive: true });
+    writeFileSync(join(root, 'memory', 'index.md'),
+      '---\nokf_version: "0.1"\ncustom_key: keep-me\n---\n\n# Project Memory\n\n# Areas\n\n* [Patterns & Conventions](/patterns/) - House style.\n* [Plan](plan.md) - An iterator plan.\n');
+    writeFileSync(join(root, 'memory', 'patterns', 'error-handling.md'),
+      '---\ntype: Pattern\ntitle: Error handling\ndescription: Old line.\nsource_note: hand-added\n---\n\n# Pattern\n\nOld body.\n');
+
+    applyOp({
+      op: 'apply-review',
+      mode: 'consolidate',
+      memories: [{ ...REVIEW_CARD, action: 'update', description: 'New line.', body: '' }],
+      decisions: [{ id: 'patterns/error-handling', verdict: 'accept' }],
+    }, root);
+
+    const concept = read(root, 'patterns', 'error-handling.md');
+    assert.match(concept, /description: New line\./);
+    assert.match(concept, /source_note: hand-added/, 'unknown fm keys carried over');
+    assert.match(concept, /Old body\./, 'empty card body keeps the existing body');
+
+    const idx = read(root, 'index.md');
+    assert.match(idx, /custom_key: keep-me/);
+    assert.match(idx, /\* \[Plan\]\(plan\.md\) - An iterator plan\./, 'iterator links preserved');
+    assert.equal((idx.match(/\(\/patterns\/\)/g) || []).length, 1, 'no duplicate area link');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('apply-review delete verdicts remove concepts and refresh the area index', () => {
+  const root = makeRepo();
+  try {
+    mkdirSync(join(root, 'memory', 'pitfalls'), { recursive: true });
+    writeFileSync(join(root, 'memory', 'pitfalls', 'stale-thing.md'),
+      '---\ntype: Pitfall\ntitle: Stale thing\ndescription: Gone soon.\n---\n\n# Pitfall\n');
+    const res = applyOp({
+      op: 'apply-review',
+      mode: 'consolidate',
+      memories: [],
+      decisions: [{ id: 'pitfalls/stale-thing', verdict: 'delete' }],
+    }, root);
+    assert.deepEqual(res.deleted, ['pitfalls/stale-thing']);
+    assert.ok(!existsSync(join(root, 'memory', 'pitfalls', 'stale-thing.md')));
+    assert.doesNotMatch(read(root, 'pitfalls', 'index.md'), /stale-thing/);
+    assert.match(read(root, 'log.md'), /\*\*Deletion\*\*: Removed memory \/pitfalls\/stale-thing\.md\./);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('apply-review validates verdicts, ids, ownership, and card completeness before writing', () => {
+  const root = makeRepo();
+  try {
+    const apply = p => applyOp({ op: 'apply-review', ...p }, root);
+    assert.throws(() => apply({ decisions: [] }), /needs decisions/);
+    assert.throws(() => apply({ decisions: [{ id: 'patterns/x', verdict: 'maybe' }] }),
+      /invalid verdict/);
+    assert.throws(() => apply({ decisions: [{ id: 'no-area', verdict: 'accept' }] }),
+      /invalid concept id/);
+    assert.throws(() => apply({ decisions: [{ id: 'chunks/auth', verdict: 'accept' }] }),
+      /owned by the plan\/chunk ops/);
+    assert.throws(() => apply({ memories: [], decisions: [{ id: 'patterns/x', verdict: 'accept' }] }),
+      /no matching draft card/);
+    assert.ok(!existsSync(join(root, 'memory')), 'nothing written on failure');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('apply-review works without a plan (okf-init on a plan-less repo)', () => {
+  const root = makeRepo();
+  try {
+    const res = applyOp({
+      op: 'apply-review',
+      mode: 'init',
+      memories: [REVIEW_CARD],
+      decisions: [{ id: 'patterns/error-handling', verdict: 'accept' }],
+    }, root);
+    assert.deepEqual(res.written, ['patterns/error-handling']);
+    assert.equal(res.validation.ok, true, res.validation.errors?.join('\n'));
+    assert.ok(!existsSync(join(root, 'memory', 'plan.md')));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('refresh-format copies the current template over the bundle copy', () => {
+  const root = makeRepo();
+  try {
+    assert.throws(() => applyOp({ op: 'refresh-format' }, root), /no memory\/ bundle/);
+    applyOp(PLAN_OP, root);
+    writeFileSync(join(root, 'memory', 'format.md'), '# Old schema copy\n');
+    const res = applyOp({ op: 'refresh-format' }, root);
+    assert.deepEqual(res.written, ['format.md', 'log.md']);
+    assert.match(read(root, 'format.md'), /iterator memory format/, 'template content restored');
+    assert.doesNotMatch(read(root, 'format.md'), /Old schema copy/);
+    assert.match(read(root, 'log.md'), /Refreshed format\.md/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// op: retire-plan
+
+test('retire-plan condenses a finished plan into a decision and archives the work', () => {
+  const root = makeRepo();
+  try {
+    applyOp(PLAN_OP, root);
+    applyOp(CHUNKS_OP, root);
+    applyOp({ op: 'adjustments', accept: true }, root);
+    applyOp({ op: 'update-chunk', chunk: 'config-module', set: { status: 'done' } }, root);
+
+    // Refuses while chunks are pending.
+    assert.throws(() => applyOp({
+      op: 'retire-plan',
+      concept: { slug: 'jwt-auth', title: 'JWT auth', description: 'd', body: 'b' },
+    }, root), /chunks not done: auth-middleware/);
+
+    applyOp({ op: 'update-chunk', chunk: 'auth-middleware', set: { status: 'done' } }, root);
+    const res = applyOp({
+      op: 'retire-plan',
+      concept: {
+        slug: 'jwt-auth', title: 'JWT auth shipped',
+        description: 'HS256 middleware behind config.',
+        body: '# What was built\n\nJWT middleware.\n\n# Why\n\nProtect the API.',
+        tags: ['auth'],
+      },
+    }, root);
+    assert.equal(res.concept, 'decisions/jwt-auth');
+    assert.equal(res.validation.ok, true, res.validation.errors?.join('\n'));
+
+    // The decision concept exists, anchored to the chunks' files by default.
+    const concept = read(root, 'decisions', 'jwt-auth.md');
+    assert.match(concept, /type: Decision/);
+    assert.match(concept, /src\/auth\/\*\.ts/);
+    assert.match(concept, /src\/config\.ts/);
+    assert.match(concept, /# Retired plan/);
+
+    // Plan + chunks moved to the archive, invisible to the gathers.
+    assert.ok(!existsSync(join(root, 'memory', 'plan.md')));
+    assert.ok(!existsSync(join(root, 'memory', 'chunks', 'auth-middleware.md')));
+    assert.match(res.archived, /^chunks\/archive\//);
+    assert.ok(existsSync(join(root, 'memory', res.archived, 'plan.md')));
+    assert.ok(existsSync(join(root, 'memory', res.archived, 'auth-middleware.md')));
+    const hub = gather(root);
+    assert.equal(hub.plan, null, 'hub shows the create-plan hero again');
+    assert.deepEqual(hub.chunks, [], 'archived chunks are invisible');
+
+    // Root index: work links gone, knowledge side present.
+    const idx = read(root, 'index.md');
+    assert.doesNotMatch(idx, /\]\(plan\.md\)/);
+    assert.doesNotMatch(idx, /\]\(chunks\/\)/);
+    assert.match(idx, /\]\(\/decisions\/\)/);
+    assert.match(read(root, 'log.md'), /\*\*Retirement\*\*: Plan "Add JWT auth" condensed/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('retire-plan validates the concept and honors force for unfinished plans', () => {
+  const root = makeRepo();
+  try {
+    assert.throws(() => applyOp({ op: 'retire-plan', concept: { slug: 'x', title: 't', description: 'd', body: 'b' } }, root),
+      /no memory\/plan\.md/);
+    applyOp(PLAN_OP, root);
+    applyOp(CHUNKS_OP, root);
+    assert.throws(() => applyOp({ op: 'retire-plan', concept: { slug: 'Bad Slug', title: 't', description: 'd', body: 'b' } }, root),
+      /invalid concept slug/);
+    assert.throws(() => applyOp({ op: 'retire-plan', concept: { slug: 'x', title: 't' } }, root),
+      /needs title, description, body/);
+    const res = applyOp({
+      op: 'retire-plan', force: true,
+      concept: { slug: 'abandoned', title: 'Abandoned plan', description: 'd', body: 'b' },
+    }, root);
+    assert.equal(res.concept, 'decisions/abandoned');
+    assert.ok(!existsSync(join(root, 'memory', 'plan.md')));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import http from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
@@ -358,4 +359,118 @@ test('a mode:"commit" payload without step falls back to the review view', async
   assert.ok(body.includes('Accept and commit'));
   io.child.kill();
   await waitExit(io.child);
+});
+
+// ---------------------------------------------------------------------------
+// knowledge + memory-review views (absorbed from okf-memory)
+
+const fixture = (name) => JSON.parse(
+  readFileSync(join(root, 'test', 'fixtures', `${name}.json`), 'utf8'));
+
+test('knowledge view renders memory state, areas, concepts, design, and actions', async () => {
+  const io = await startServer(fixture('knowledge'));
+  const page = await (await fetch(io.url)).text();
+  assert.match(page, /Memory status/);
+  assert.match(page, /Knowledge areas/);
+  assert.match(page, /All memories/);
+  assert.match(page, /Safe browser rendering/);
+  assert.match(page, /data-action="update-memory"/);
+  assert.match(page, /data-target="pitfalls\/gone-anchor"/);
+  assert.match(page, /badge-stale/);
+  assert.match(page, /Design parameters/, 'design.md card present');
+  assert.match(page, /data-action="refresh-format"/, 'formatStale affordance');
+  assert.match(page, /data-action="okf-memorize"/);
+  assert.match(page, /Draft memory from prompt/);
+  assert.doesNotMatch(page, /data-action="okf-init"/, 'initialized bundle hides Initialize');
+
+  const payload = { type: 'action', action: 'update-memory', target: 'pitfalls/gone-anchor', prompt: 'Re-anchor it.' };
+  await fetch(io.url.origin + '/submit', { method: 'POST', body: JSON.stringify(payload) });
+  const code = await waitExit(io.child);
+  assert.equal(code, 0);
+  assert.equal(io.stdout().trim(), JSON.stringify(payload));
+});
+
+test('memorize review renders conflicts, range, and grouped cards', async () => {
+  const io = await startServer(fixture('memorize'));
+  const page = await (await fetch(io.url)).text();
+  assert.match(page, /CONFLICT/);
+  assert.match(page, /Existing memory says handlers return Result values instead of throwing/);
+  assert.match(page, /Patterns &amp; Conventions <span class="count">2<\/span>/);
+  assert.match(page, /abc1234\.\.def5678/);
+  io.child.kill();
+  await waitExit(io.child);
+});
+
+test('consolidate review renders stale badge and current versions for keep/update', async () => {
+  const io = await startServer(fixture('consolidate'));
+  const page = await (await fetch(io.url)).text();
+  assert.match(page, /STALE/);
+  assert.match(page, /Referenced file packages\/api\/src\/server.ts no longer exists/);
+  assert.match(page, /Current version on disk/);
+  io.child.kill();
+  await waitExit(io.child);
+});
+
+test('memory-review feedback body round-trips verbatim (no apply on feedback)', async () => {
+  const io = await startServer({ ...fixture('init'), apply: true });
+  const payload = {
+    type: 'review-feedback',
+    mode: 'init',
+    decisions: [{ id: 'patterns/error-handling', verdict: 'accept' }],
+    comments: [{ id: 'patterns/error-handling', comment: 'Mention middleware. Keep > and < chars.' }],
+    general: 'Add one architecture memory.',
+  };
+  await fetch(io.url.origin + '/submit', { method: 'POST', body: JSON.stringify(payload) });
+  await waitExit(io.child);
+  assert.equal(io.stdout().trim(), JSON.stringify(payload));
+});
+
+test('memory-review with apply:true applies review-approved via the writer', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const { mkdtempSync, rmSync, existsSync: exists } = await import('node:fs');
+  const { tmpdir: tmp } = await import('node:os');
+  const repo = mkdtempSync(join(tmp(), 'iterator-apply-'));
+  const git = (...args) => execFileSync('git', args, {
+    cwd: repo, encoding: 'utf8',
+    env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' },
+  }).trim();
+  try {
+    git('init', '-q');
+    const { writeFileSync: wf } = await import('node:fs');
+    wf(join(repo, 'x'), 'x\n');
+    git('add', '.');
+    git('commit', '-qm', 'init');
+    const head = git('rev-parse', 'HEAD');
+
+    const card = {
+      id: 'patterns/error-handling', area: 'patterns', action: 'create',
+      type: 'Pattern', title: 'Error handling', description: 'Wrap all IO.',
+      body: '# Pattern\n\nAlways wrap IO.',
+    };
+    const io = await startServer({
+      step: 'memory-review', mode: 'memorize', apply: true, project: repo,
+      headCommit: head, commitCount: 1,
+      areas: [{ id: 'patterns', title: 'Patterns & Conventions', description: '' }],
+      memories: [card],
+    }, { ITERATOR_NOW: '2026-07-06T12:00:00Z' });
+    await fetch(io.url.origin + '/submit', {
+      method: 'POST',
+      body: JSON.stringify({
+        type: 'review-approved', mode: 'memorize',
+        decisions: [{ id: 'patterns/error-handling', verdict: 'accept' }],
+      }),
+    });
+    await waitExit(io.child);
+
+    const out = JSON.parse(io.stdout().trim());
+    assert.equal(out.type, 'review-approved');
+    assert.equal(out.applied.ok, true, JSON.stringify(out.applied));
+    assert.deepEqual(out.applied.written, ['patterns/error-handling']);
+    assert.equal(out.applied.advancedTo, head);
+    assert.equal(out.applied.validation.ok, true);
+    assert.ok(exists(join(repo, 'memory', 'patterns', 'error-handling.md')),
+      'concept written on disk before the agent sees the result');
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
 });
