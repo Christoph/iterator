@@ -19,34 +19,35 @@ wants to work through the chunk plan. If `memory/chunks/` has no chunk files,
 tell the user to run `/iterator-plan` → `/iterator-chunk` first and stop.
 
 If the user's message contains a result payload from a previous session
-(`accept-commit`, `review-feedback`, `cancel`, `timeout`), process it (step 5)
+(`accept-commit`, `review-feedback`, `cancel`, `timeout`), process it (step 4)
 before continuing.
 
 ## Steps
 
-### 1. Load the chunk graph
+### 1. Pick the next dependency-ready chunk
 
-Read `memory/chunks/index.md` for the ordered chunk list with status. Load the
-candidate chunk's file `memory/chunks/<slug>.md` for its `depends_on`, `status`,
-`files`, `tests`/`tests_status`, `# Implementation notes`, and `# Snippets`.
-(Read only the files you need — the index is enough to choose.)
+Selection is scripted — do **not** read bundle files yourself:
 
-### 2. Pick the next dependency-ready chunk
+```sh
+node <skill-dir>/../iterator/gather.mjs --step implement
+```
 
-- Consider only chunks with `status: pending`.
-- A chunk is **ready** when every slug in its `depends_on` has `status: done`.
-- Choose the first ready chunk in dependency order. **Never implement a chunk
-  before its dependencies are done.**
-- **Cycle / stuck check:** if pending chunks remain but none is ready, there is a
-  dependency cycle or a dependency on a non-existent chunk. Report it and stop —
-  do not guess an order.
+It prints `{ next, ready, blocked, stuck, progress }`: `next` is the first
+dependency-ready pending chunk **with its full contract** (implementation
+notes, snippets, files, blast radius, tests + test status); `blocked` lists
+what each remaining chunk is waiting on.
 
-If the user named a specific chunk, verify its `depends_on` are all done before
-implementing; if not, name the missing dependency and stop.
+- Implement `next`. **Never implement a chunk before its dependencies are
+  done.**
+- If `stuck` is true (pending chunks remain but none is ready), there is a
+  dependency cycle or a dependency on a non-existent chunk. Report it and stop
+  — do not guess an order.
+- If the user named a specific chunk, it must appear in `ready`; if not, name
+  the missing dependency (from `blocked`) and stop.
 
-### 3. Implement the chunk — tests are the goal when they exist
+### 2. Implement the chunk — tests are the goal when they exist
 
-Implement the selected chunk using its `# Implementation notes`, `# Snippets`,
+Implement the selected chunk using `next`'s implementation notes, snippets,
 `ARCHITECTURE.md` (read if present), and `GUIDELINES.md` **only if it exists**
 (read and follow it; skip silently if absent). Make the actual code changes in
 the working tree, scoped to the chunk's `files` where possible.
@@ -67,66 +68,55 @@ the real failing output, then let them choose: keep fixing, open the review
 anyway (the red badge will be visible), or pause. If the chunk has no tests,
 skip this gate — it is not an error.
 
-### 4. Auto-open the review UI (commit mode)
+### 3. Auto-open the review UI (commit mode)
 
-Collect the diff you produced and pipe it into the **shared UI server** (it
-ships with the `/iterator` hub skill) in review commit mode — the same UI as
-`/iterator-review`, scoped to the one chunk, with **Accept and commit** as the
-primary button:
+The review payload (diff parsed into hunks, mapped to the chunk, stats) is
+computed by script; you only add the commit-mode fields. Gather it, then pipe
+the augmented payload into the **shared UI server** (both ship with the
+`/iterator` hub skill):
 
 ```sh
-git diff --stat
-node <plugin-root>/skills/iterator/server.mjs << 'REVIEW_DATA'
-{
-  "step": "review",
-  "mode": "commit",
-  "branch": "<branch>",
-  "hasChunksFile": true,
-  "chunks": [
-    {
-      "name": "auth-middleware",
-      "description": "JWT-based auth middleware for protected routes.",
-      "dependsOn": ["config-module"],
-      "stats": { "added": 42, "removed": 8, "files": 2, "complexity": "yellow" },
-      "tests": { "status": "green", "total": 3, "passing": 3 },
-      "files": [
-        { "path": "src/auth.ts", "hunks": [
-          { "header": "@@ -1,0 +1,12 @@", "oldStart": 1, "newStart": 1,
-            "lines": [ { "type": "addition", "content": "export function requireAuth(){ /* ... */ }" } ] } ] }
-      ]
-    }
-  ],
-  "uncategorized": []
-}
-REVIEW_DATA
+node <skill-dir>/../iterator/gather.mjs --step review --chunk <slug>
 ```
 
-Include `"tests"` (from the green-gate run: `status` red/green, counts) when
-the chunk has tests, and omit it otherwise — the UI shows a 🔴/🟢 badge next to
-the chunk so the test state is visible exactly where the commit decision
-happens.
+Take the printed JSON, set `"mode": "commit"`, and — when the chunk has tests —
+add `"tests": { "status": "<red|green>", "total": N, "passing": N }` from your
+green-gate run (omit it otherwise), then pipe the result into
+`node <skill-dir>/../iterator/server.mjs` via a heredoc. The UI shows a 🔴/🟢
+badge next to the chunk so the test state is visible exactly where the commit
+decision happens.
 
 The UI shows the chunk, its diff grouped by file, per-line comments, and the
 **Accept and commit** / **Send review** primary. Closing the tab sends
 `{ "type": "cancel" }`; a 2h idle sends `{ "type": "timeout" }`.
 
-### 5. Process the result
+### 4. Process the result
 
 - `{ "type": "accept-commit", "chunk": "<slug>" }` → the implementation is
   accepted:
   1. **Branch safety:** if the current branch is the default (`main`/`master`),
      create and switch to a working branch first — never commit to the default
      branch.
-  2. **Flip the chunk file** `memory/chunks/<slug>.md`: `status: done`, add
-     `done: <YYYY-MM-DD>`, update `timestamp` — and if the chunk has tests,
-     set `tests_status` to the color of the last real run (normally
-     `red → green`; keep `red` if the user accepted with red tests —
-     `status` and `tests_status` are independent by design).
-  3. **Regenerate** `memory/chunks/index.md` (✅ done marker, 🔴/🟢 badge) and
-     prepend a `memory/log.md` entry:
-     `* **Implementation**: Committed chunk(<slug>) on branch <branch>.`
-  4. **Commit** the code changes **together with** the chunk-file flip, index,
-     and log updates in one commit:
+  2. **Flip the chunk through the bundle writer** — it sets `status: done`
+     (with the `done` date and `timestamp`) and regenerates the index (✅
+     marker, 🔴/🟢 badge) and log:
+
+     ```sh
+     node <skill-dir>/../iterator/write.mjs << 'DONE_WRITE'
+     {
+       "op": "update-chunk",
+       "chunk": "<slug>",
+       "set": { "status": "done", "tests_status": "<red|green>" },
+       "log": "**Implementation**: Committed chunk(<slug>) on branch <branch>."
+     }
+     DONE_WRITE
+     ```
+
+     Include `tests_status` only when the chunk has tests: the color of the
+     last real run (normally `red → green`; keep `red` if the user accepted
+     with red tests — `status` and `tests_status` are independent by design).
+  3. **Commit** the code changes **together with** the bundle updates in one
+     commit:
 
      ```
      chunk(<slug>): <short summary>
@@ -135,17 +125,17 @@ The UI shows the chunk, its diff grouped by file, per-line comments, and the
      ```
 
      (The `Chunk: <slug>` trailer lets tooling find every commit for a chunk.)
-  5. **Record the commit**: append `{ sha, kind: implement, date }` to the
-     chunk's `commits` list in the next bundle write (a commit cannot contain
-     its own sha; the trailer keeps the chunk findable meanwhile — see
-     `memory/format.md`).
-  6. Report what was committed, then offer to continue with the next
-     dependency-ready chunk (loop to step 2).
+  4. **Record the commit**: in the *next* bundle write, pipe
+     `{ "op": "update-chunk", "chunk": "<slug>", "appendCommit": { "sha": "<sha>", "kind": "implement" } }`
+     into the writer (a commit cannot contain its own sha; the trailer keeps
+     the chunk findable meanwhile — see `memory/format.md`).
+  5. Report what was committed, then offer to continue with the next
+     dependency-ready chunk (loop to step 1).
 
 - `{ "type": "review-feedback", "features": [...], "lineComments": [...] }` →
   revise the implementation per the feedback (per-chunk notes/status and line
   comments), **re-run the chunk's tests** (the green gate applies to every
-  round, not just the first), then re-run from step 4 with the fresh test
+  round, not just the first), then re-run from step 3 with the fresh test
   state. **Do not commit yet.**
 
 - `{ "type": "cancel" }` or `{ "type": "timeout" }` → stop without committing; the

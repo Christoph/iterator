@@ -11,9 +11,14 @@ chunk and an action instead of remembering which skill comes next. This skill
 is a **thin router** — it gathers state, opens the dashboard, and dispatches
 into the existing per-step flows. It never duplicates their steps.
 
-This skill folder also owns `server.mjs`, the **single UI server for every
-step** (the browser control plane): the step skills are logic-only and pipe
-their payloads into this server whenever they need the user. It runs
+This skill folder also owns the shared tooling every step skill calls:
+`server.mjs`, the **single UI server for every step** (the browser control
+plane); `gather.mjs`, the deterministic state gatherer
+(`--step hub|plan|chunk|implement|test|review`); and `write.mjs`, the
+deterministic bundle writer (ops `plan|chunks|update-chunk|adjustments` on
+stdin). The step skills are logic-only: they gather via script, add the
+semantic text, pipe to the server, and record results via script — the model
+never hand-authors frontmatter, indexes, or the log. The server runs
 single-instance on a fixed port (default `7777`, `$ITERATOR_PORT`) — a
 lingering server from an earlier run is shut down and replaced, so the
 dashboard URL never changes (and a sandbox only ever needs to forward 7777).

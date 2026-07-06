@@ -23,6 +23,14 @@ skills are logic-only. All persistent state lives in a `memory/` directory
 that is a conformant [Open Knowledge Format (OKF) v0.1](docs/OKF_SPEC.md)
 bundle.
 
+Everything mechanical is deterministic code, not prompt instructions: the hub
+skill ships `gather.mjs` (computes every step's payload — bundle state, parsed
+git diffs mapped to chunks, test-runner detection) and `write.mjs` (owns every
+bundle write — frontmatter, timestamps, topological indexes, the update log,
+cycle/reference validation). The model only supplies the semantic text: plan
+prose, chunk descriptions, test cases, and the code itself. See `IDEAS.md`
+for where this goes next as a pi extension.
+
 ## The flow
 
 ```

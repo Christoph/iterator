@@ -28,16 +28,20 @@ If `memory/chunks/` has no chunk files, tell the user: "No chunks found. Run
 `/iterator-plan` → `/iterator-chunk` first." and stop.
 
 If the user's message contains feedback JSON (`"type": "review-feedback"`) from a
-previous session, process it (step 6) before re-running.
+previous session, process it (step 4) before re-running.
 
 ## Steps
 
-### 1. Load chunks via the index
+### 1. Load the chunk state
 
-Read `memory/chunks/index.md` for the ordered chunk list with status. Open only
-the chunk files you need for the selected scope; parse each: `title`,
-`description`, `files`, `depends_on`, `size`, `status`, and existing `# Review`
-notes.
+Scripted — do **not** read bundle files yourself:
+
+```sh
+node <skill-dir>/../iterator/gather.mjs --step hub
+```
+
+gives the ordered chunk list with status, test badges, and per-chunk
+`hasDiff`/`hasCommits` (which is exactly what decides reviewability).
 
 ### 2. Choose which chunk(s) to review
 
@@ -51,75 +55,28 @@ notes.
 Report the current state before opening the browser: total chunks, how many
 done, how many remain, and which chunk(s) are being reviewed.
 
-### 3. Collect git state
+### 3. Build the payload and open the server
+
+The entire review payload is computed by script — the git diff parsed into
+hunks, each changed file mapped to the first chunk whose `files` globs match
+(unmatched → **Uncategorized**), per-chunk stats (added/removed; complexity
+green ≤ 100, yellow 101–200, red > 200), plan title, and progress. For a
+**done** chunk with a clean working tree it automatically rebuilds the diff
+from the chunk's recorded commits (validated shas, falling back to the
+`Chunk: <slug>` trailer), excluding the bundle's own `memory/` paths.
+
+Pipe it straight into the shared UI server (both ship with the `/iterator` hub
+skill, a sibling folder):
 
 ```sh
-git diff HEAD --stat
-git diff HEAD
-git rev-parse --abbrev-ref HEAD
-git log -1 --format="%H %s"
+node <skill-dir>/../iterator/gather.mjs --step review --chunk <slug> \
+  | node <skill-dir>/../iterator/server.mjs
 ```
 
-If the working tree is clean vs. HEAD, fall back to `git diff --stat` / `git
-diff`.
-
-**Committed chunk (red/green history):** if the diff is still empty and the
-selected chunk is `status: done`, build the diff from the chunk's commits
-instead:
-
-1. Prefer the shas recorded in the chunk's `commits` frontmatter — validate
-   each with `git cat-file -e <sha>^{commit}` first (recorded shas go stale
-   after a rebase/amend).
-2. Fall back to the trailer: `git log --format=%H --grep='^Chunk: <slug>$'`.
-3. Produce the diff with `git show <sha>` per commit (oldest first), or
-   `git diff <oldest>^ <newest>` when they are consecutive. Exclude the
-   bundle's own `memory/` paths so the review shows code, not bookkeeping.
-   Set the payload's `commit` field to the reviewed range so the UI header
-   says what is being shown.
-
-Only if there is no working-tree diff **and** no resolvable commits, show the
-`chunks/index.md` progress summary instead of opening the browser.
-
-### 4. Map hunks to the selected chunk(s)
-
-For each changed file, find the **first** chunk whose `files` list matches (exact
-path or simple glob); unmatched files go to **Uncategorized**. Only include the
-chunk(s) selected in step 2. Compute per-chunk stats: lines added/removed;
-complexity green ≤ 100, yellow 101–200, red > 200.
-
-### 5. Build the payload and open the server (no temp file)
-
-Pipe the data into the shared UI server (it ships with the `/iterator` hub
-skill, a sibling folder) via a heredoc:
-
-```sh
-node <skill-dir>/../iterator/server.mjs << 'REVIEW_DATA'
-{
-  "step": "review",
-  "branch": "<branch>",
-  "commit": "<hash subject>",
-  "plan": "<plan title>",
-  "progress": { "done": 1, "total": 3 },
-  "hasChunksFile": true,
-  "chunks": [
-    {
-      "name": "auth-middleware",
-      "description": "JWT-based auth middleware for protected routes.",
-      "blastRadius": "All routes behind the auth guard",
-      "dependsOn": ["config-module"],
-      "stats": { "added": 42, "removed": 8, "files": 3, "complexity": "yellow" },
-      "files": [
-        { "path": "src/auth.ts", "hunks": [
-          { "header": "@@ -41,5 +41,12 @@", "oldStart": 41, "newStart": 41,
-            "lines": [ { "type": "context", "content": "function login(user) {" },
-                       { "type": "addition", "content": "  const jwt = sign(payload, SECRET);" } ] } ] }
-      ]
-    }
-  ],
-  "uncategorized": []
-}
-REVIEW_DATA
-```
+Omit `--chunk` to review everything with a diff ("All pending"). If the
+printed payload has empty `chunks[].files` and `uncategorized` (no working-tree
+diff and no resolvable commits), don't open the browser — show the progress
+summary from `--step hub` instead.
 
 The server starts on **port 7777** (or `$ITERATOR_PORT`; fixed — a lingering
 iterator server from an earlier run is replaced), opens the browser, and
@@ -129,31 +86,39 @@ complexity), the selected chunk's diff grouped by file, per-chunk status buttons
 Header controls: **Accept** / **Cancel** / **Send review**; a closed tab sends
 `{ "type": "cancel" }`, a 2h idle sends `{ "type": "timeout" }`.
 
-### 6. Process the output and update the chunk files
+### 4. Process the output and record the outcome
 
 The server prints `{ "type": "review-feedback", ... }`, `{ "type": "cancel" }`, or
 `{ "type": "timeout" }`.
 
 For `cancel` / `timeout`: stop and report that the review ended without changes.
 
-For `review-feedback`, for each entry in `features[]` (each is a reviewed chunk):
-- Refresh the chunk file's `reviewed: <YYYY-MM-DD>` and `timestamp`.
-- **Append** (newest first) a dated entry under the chunk's `# Review` section —
-  never overwrite prior review history:
-  - `status: "approved"` → `* **Approved** — <note or "no changes requested">`
-  - `status: "changes"` → `* **Needs changes** — <note>` (and address the note)
-  - `status: "question"` → answer inline for the user; record
-    `* **Question** — <note> → <answer>`
-- **Do not** set `status: done`.
+For `review-feedback`, for each entry in `features[]` (each is a reviewed
+chunk), record the outcome through the bundle writer — it refreshes
+`reviewed`/`timestamp`, appends the note under `# Review` (newest first, never
+overwriting history), regenerates the index, and prepends the log entry:
+
+```sh
+node <skill-dir>/../iterator/write.mjs << 'REVIEW_WRITE'
+{
+  "op": "update-chunk",
+  "chunk": "<slug>",
+  "appendReview": "* **Approved** — <note or \"no changes requested\">",
+  "log": "**Review**: Reviewed [<Title>](/chunks/<slug>.md); <approved / N changes requested>."
+}
+REVIEW_WRITE
+```
+
+The review line by status: `approved` → `* **Approved** — <note>`; `changes` →
+`* **Needs changes** — <note>` (and address the note); `question` → answer
+inline for the user, then record `* **Question** — <note> → <answer>`.
+**Do not** set `status: done` (the writer flips status only when explicitly
+asked — never ask it to here).
 
 For each `lineComments[]` entry: explain or fix (ask before changing code).
 
-Then regenerate `memory/chunks/index.md` (reflecting refreshed metadata) and
-prepend a `memory/log.md` entry, e.g.
-`* **Review**: Reviewed [<Title>](/chunks/<slug>.md); <approved / N changes requested>.`
-
-Only the reviewed chunk file(s) plus the two generated files
-(`chunks/index.md`, `log.md`) should change. Report which chunks were
+Only the reviewed chunk file(s) plus the generated files should change (the
+writer guarantees this). Report which chunks were
 approved/flagged and how many remain: "All chunks reviewed ✓" or "N chunk(s)
 still pending. Run `/iterator-review` again to continue."
 

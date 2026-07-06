@@ -35,70 +35,54 @@ If `memory/chunks/` has no chunk files, tell the user: "No chunks found. Run
 `/iterator-plan` → `/iterator-chunk` first." and stop.
 
 If the user's message contains a test-plan result payload (`test-approved`,
-`test-feedback`, `cancel`, `timeout`), process it (steps 5–7).
+`test-feedback`, `cancel`, `timeout`), process it (steps 4–6).
 
 ## Steps
 
-### 1. Load the chunk list via the index
+### 1. Choose which chunk to test
 
-Read `memory/chunks/index.md`, then open only the chunk file(s) you need. Parse
-each chunk's `title`, `description`, `# Implementation notes`, `files`,
-`depends_on`, `size`, and `status`.
-
-### 2. Choose which chunk to test
-
+Get the chunk list from `node <skill-dir>/../iterator/gather.mjs --step hub`
+(names, sizes, statuses, test badges — do **not** read bundle files yourself).
 If the user named a chunk, use it. Otherwise use `AskUserQuestion` (header
 `Chunk`) — offer the most-foundational chunks first (dependency order), each
 labeled with the chunk name and size. Prefer testing dependency-first so a
 chunk's dependencies are already covered.
 
-### 3. Detect the project's test setup
+### 2. Gather the chunk contract, mode, and test setup
 
-Before writing anything, figure out how this project tests so generated tests
-actually run:
+One scripted call collects everything mechanical:
 
 ```sh
-cat package.json 2>/dev/null            # "scripts.test", devDeps: jest/vitest/mocha/node:test
-ls *.cfg *.toml pyproject.toml 2>/dev/null   # pytest / other runners
-git ls-files | grep -Ei '(\.test\.|\.spec\.|_test\.|/tests?/)' | head
+node <skill-dir>/../iterator/gather.mjs --step test --chunk <slug>
 ```
 
-Detect the **test runner**, the **existing test location & naming** convention,
-and the **assertion/mocking style** already in use — match them exactly. If there
-is no test setup at all, recommend a runner and confirm before adding a dev
-dependency or config.
+It prints the payload skeleton: `mode` (red/green from the chunk's `status`),
+the chunk `contract` (implementation notes, snippets, files, dependsOn), the
+detected `runner` (package.json scripts/deps, pytest config), and
+`existingTests` (sample paths showing the project's location/naming
+convention). Read a couple of the `existingTests` files to match the
+assertion/mocking style exactly. If `runner` is null there is no test setup —
+recommend one and confirm before adding a dev dependency or config.
 
-### 4. Understand the chunk and propose a test plan in the browser
+### 3. Propose a test plan in the browser
 
-Pick the mode from the chunk's `status`:
+Derive the cases from the gathered contract:
 
-- **Red mode (`pending`):** there is no implementation to read. Derive the test
-  surface from the chunk's contract: `description`, `# Implementation notes`,
-  `# Snippets` (exported names, signatures), and the module paths in `files`.
-  Import from the paths the chunk *will* own; assert the behavior the notes
-  promise.
-- **Green mode (`done`):** for each file in the chunk's `files` (expand globs
-  against `git ls-files`), read the current implementation and its public
-  surface.
+- **Red mode (`pending`):** there is no implementation to read. Use the
+  contract — `description`, implementation notes, snippets (exported names,
+  signatures), and the module paths in `files`. Import from the paths the
+  chunk *will* own; assert the behavior the notes promise.
+- **Green mode (`done`):** for each file in the contract's `files` (expand
+  globs against `git ls-files`), read the current implementation and its
+  public surface.
 
-In both modes, consider the failure modes implied by the chunk's `depends_on`.
-Then propose a **test plan** and open it in the UI (include `"mode"` so the
-user sees whether these tests are expected to fail):
+In both modes, consider the failure modes implied by the chunk's `dependsOn`.
+Then fill the gathered skeleton's `cases` and pipe it into the UI server —
+each case `{ "title": ..., "kind": "happy|edge|integration", "rationale": ... }`:
 
 ```sh
 node <skill-dir>/../iterator/server.mjs << 'TEST_DATA'
-{
-  "step": "test",
-  "branch": "<branch>",
-  "mode": "red",
-  "chunk": { "name": "auth-middleware", "description": "JWT middleware for protected routes." },
-  "runner": "vitest",
-  "cases": [
-    { "title": "requireAuth passes a valid token", "kind": "happy", "rationale": "Core behavior of the middleware." },
-    { "title": "requireAuth rejects a missing token", "kind": "edge", "rationale": "Unauthenticated requests must 401." },
-    { "title": "protected route + middleware end-to-end", "kind": "integration", "rationale": "The chunk spans router + middleware." }
-  ]
-}
+<the gathered payload with cases filled in>
 TEST_DATA
 ```
 
@@ -106,16 +90,16 @@ Each case has a kind (`happy` / `edge` / `integration`), a one-line rationale, a
 include checkbox, and a per-case comment box, plus an overall comment. Header
 controls: **Accept** / **Cancel** / **Send review**.
 
-### 5. Process the test-plan output
+### 4. Process the test-plan output
 
 - `{ "type": "test-approved", "cases": [...] }` → write tests for exactly the
-  included cases (step 6).
+  included cases (step 5).
 - `{ "type": "test-feedback", "cases": [...], "comment": "..." }` → revise the plan
   per the per-case and overall comments (add/remove/reword cases) and re-run
-  step 4.
+  step 3.
 - `{ "type": "cancel" }` / `{ "type": "timeout" }` → stop; no files written.
 
-### 6. Write the tests, run them, and verify the expected color
+### 5. Write the tests, run them, and verify the expected color
 
 Write tests covering the approved cases:
 
@@ -139,17 +123,25 @@ suite. Show real output — never claim a result without running. Then verify th
   implementation is wrong — investigate and tell the user; do not adjust
   assertions to match buggy behavior.
 
-### 7. Record, commit, and report
+### 6. Record, commit, and report
 
-Update the chunk file: set `tests` (the test file paths), `tests_status`
-(`red` or `green` as verified above), and `timestamp`. Regenerate
-`memory/chunks/index.md` (the 🔴/🟢 badge — see `memory/format.md`) and prepend
-a `memory/log.md` entry:
-`* **Tests**: Added <N> <red|green> test(s) for [<Title>](/chunks/<slug>.md) (<runner>).`
+Record through the bundle writer — it sets the frontmatter, updates the
+`timestamp`, regenerates the index (🔴/🟢 badge), and prepends the log entry:
 
-Commit the test files **together with** the chunk-file/index/log updates
-(branch safety: if on `main`/`master`, create and switch to a working branch
-first — same rule as `/iterator-implement`):
+```sh
+node <skill-dir>/../iterator/write.mjs << 'TEST_WRITE'
+{
+  "op": "update-chunk",
+  "chunk": "<slug>",
+  "set": { "tests": ["<test file path>", "..."], "tests_status": "<red|green>" },
+  "log": "**Tests**: Added <N> <red|green> test(s) for [<Title>](/chunks/<slug>.md) (<runner>)."
+}
+TEST_WRITE
+```
+
+Commit the test files **together with** the bundle updates (branch safety: if
+on `main`/`master`, create and switch to a working branch first — same rule as
+`/iterator-implement`):
 
 ```
 test(<slug>): <short summary>
@@ -157,10 +149,11 @@ test(<slug>): <short summary>
 Chunk: <slug>
 ```
 
-Then append `{ sha, kind: test, date }` to the chunk's `commits` list — in the
-*next* bundle write (a commit cannot contain its own sha; per
-`memory/format.md` the `Chunk: <slug>` trailer is the resilient lookup, so a
-briefly missing sha is harmless).
+Then record the sha in the *next* bundle write by piping
+`{ "op": "update-chunk", "chunk": "<slug>", "appendCommit": { "sha": "<sha>", "kind": "test" } }`
+into the writer (a commit cannot contain its own sha; per `memory/format.md`
+the `Chunk: <slug>` trailer is the resilient lookup, so a briefly missing sha
+is harmless).
 
 Report which chunk was covered, the file(s) created, the verified color (red:
 "expected to fail — implement drives these green"), any cases intentionally

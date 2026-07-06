@@ -31,10 +31,17 @@ it per step 4.
 
 ### 1. Load the plan and any existing chunks
 
-Read `memory/plan.md`. If `memory/chunks/index.md` exists, read it first, then
-open only the chunk files you need (progressive disclosure). **Preserve any
-chunk with `status: done`** — never rewrite or renumber done chunks when
-re-chunking.
+Both are scripted — do **not** read bundle files yourself:
+
+```sh
+node <skill-dir>/../iterator/gather.mjs --step chunk   # existing chunks, UI-shaped
+node <skill-dir>/../iterator/gather.mjs --step plan    # plan sections, when you need the text
+```
+
+`--step chunk` prints `{ plan: <title>, chunks: [...] }` with every existing
+chunk already in the UI payload shape (notes, snippets, files, dependsOn,
+status). **Preserve any chunk with `status: done`** — the bundle writer
+refuses to rewrite them, so build your breakdown around them.
 
 ### 2. Analyze the plan into chunks
 
@@ -89,90 +96,68 @@ warning), snippets, per-chunk comments, drag-to-move files between chunks, and
 
 ### 4. Process the server output
 
-- `{ "type": "plan-approved" }` → the breakdown is accepted. **Write the chunk
-  files and regenerate the indexes** (step 5), then tell the user they can run
+- `{ "type": "plan-approved" }` → the breakdown is accepted. **Write the chunks
+  through the bundle writer** (step 5), then tell the user they can run
   `/iterator-implement` to build chunks in dependency order.
 - `{ "type": "plan-adjustments", "moves": [...], "renames": [...], "descUpdates": [...], "comments": [...] }`
-  → apply each change to the chunk **files** (a `move` rewrites both chunks'
-  `files`; a `rename` renames the file **and** rewrites every `depends_on`
-  reference; a `descUpdate` edits `description`), regenerate indexes, then re-run
-  step 3 with the updated chunks.
+  → the mechanical edits are applied by the writer — pipe the server's output
+  line **verbatim** into it:
+
+  ```sh
+  node <skill-dir>/../iterator/write.mjs << 'ADJUSTMENTS'
+  <the plan-adjustments JSON line, unchanged>
+  ADJUSTMENTS
+  ```
+
+  It applies moves, renames (including `depends_on` and link rewiring), and
+  description updates, and regenerates the indexes. You only act on the
+  `comments[]` (semantic feedback). Then re-run
+  `gather.mjs --step chunk | server.mjs` to reopen the UI with fresh state.
 - `{ "type": "split-request", "chunk": "<slug>", "content": "..." }` → split that
-  chunk into ~200-line sub-chunks with clear slugs and correct `depends_on`,
-  **create the new files, delete the old file**, rewire references, regenerate
-  indexes, and re-run step 3.
+  chunk into ~200-line sub-chunks with clear slugs and correct `depends_on`
+  (semantic work — yours), then write via step 5 with the new chunks in
+  `chunks` and the old slug in `deletes`. Re-run step 3.
 - `{ "type": "merge-request", "chunks": ["a","b"] }` → merge them meaningfully
-  into one chunk with a clear slug, **delete the two merged files**, redirect any
-  `depends_on` that pointed at either merged slug to the new slug, drop the
-  merged nodes, regenerate indexes, and re-run step 3.
+  into one chunk with a clear slug; write via step 5 with the merged chunk in
+  `chunks`, both old slugs in `deletes`, and any `depends_on` that pointed at
+  either old slug redirected to the new one. Re-run step 3.
 - `{ "type": "cancel" }` or `{ "type": "timeout" }` → stop; report that chunking
   was cancelled. Only files already written on a prior approval remain.
 
-**Cycle check:** before writing, confirm the dependency graph is acyclic and
-every `depends_on` references an existing chunk. If not, do not write — surface
-the cycle/missing reference and re-open the UI so the user can fix it.
+### 5. Write chunks through the bundle writer
 
-### 5. Write chunk files and regenerate indexes
+The write is scripted — pipe the chunk set into the shared bundle writer. It
+owns frontmatter, timestamps, dependency-order (topological) indexes, the plan
+`# Chunks` section, the log entry, and OKF conformance, and it **validates
+before writing**: an acyclic graph, every `depends_on` referencing an existing
+chunk, and done chunks left untouched.
 
-For each chunk write `memory/chunks/<slug>.md` per `memory/format.md`:
-
-```markdown
----
-type: Chunk
-title: <title>
-description: <one sentence>
-status: pending
-size: <small|medium|large>
-lines_estimate: <N>
-depends_on: [<slug>, ...]
-files: ["<path-or-glob>", ...]
-timestamp: <ISO 8601>
-tags: []
----
-
-# Implementation notes
-<how to build it>
-
-# Snippets
-```<lang>
-<illustrative code>
+```sh
+node <skill-dir>/../iterator/write.mjs << 'CHUNKS_WRITE'
+{
+  "op": "chunks",
+  "chunks": [
+    {
+      "name": "auth-middleware",
+      "title": "Auth middleware",
+      "description": "JWT middleware for protected routes",
+      "implementationNotes": "Verify token from the config secret.",
+      "files": ["src/auth.ts"],
+      "dependsOn": ["config-module"],
+      "linesEstimate": 60,
+      "size": "small",
+      "snippets": [{ "lang": "ts", "code": "export function requireAuth(){ /* ... */ }" }],
+      "blastRadius": "All routes behind the auth guard."
+    }
+  ],
+  "deletes": []
+}
+CHUNKS_WRITE
 ```
 
-# Depends on
-* [<Title>](/chunks/<slug>.md) — <why>
-
-# Blast radius
-<what breaks if this is wrong>
-```
-
-Then regenerate the two generated files and record the event:
-
-- **`memory/chunks/index.md`** (no frontmatter) — chunks in dependency order
-  (topological, ties by creation order):
-
-  ```markdown
-  # Chunks
-
-  * [Config module](config-module.md) - ✅ done · small · Centralize env/config access
-  * [Auth middleware](auth-middleware.md) - ⬜ pending · small · depends: config-module · JWT middleware
-  ```
-
-- **`memory/plan.md` `# Chunks` section** — regenerate as bundle-absolute links
-  so graph consumers see plan → chunk edges:
-
-  ```markdown
-  # Chunks
-
-  * [Config module](/chunks/config-module.md) - Centralize env/config access
-  * [Auth middleware](/chunks/auth-middleware.md) - JWT middleware for protected routes
-  ```
-
-- **`memory/index.md`** — refresh the plan description line if it changed.
-- **`memory/log.md`** — prepend a dated entry, e.g.
-  `* **Creation**: Created <N> chunks from the plan.` (or `**Update**` for a
-  re-chunk / split / merge).
-
-Update each edited chunk file's `timestamp`. Keep the bundle OKF-conformant.
+On a validation failure it prints `{ "ok": false, "error": ... }` and writes
+**nothing** — fix the breakdown (or reopen the UI so the user can fix the
+cycle) rather than writing files by hand.
 
 ## Shared UI behavior
 
