@@ -6,9 +6,13 @@ status: done
 size: small
 depends_on: []
 files: ["skills/iterator/write.mjs", "test/write.test.mjs"]
-timestamp: "2026-07-06T19:57:51.804Z"
+timestamp: "2026-07-06T19:57:51.887Z"
 tags: []
 done: 2026-07-06
+commits:
+  - sha: 32200acd92daf48266b40ab2ead7a1eaf1dd4413
+    kind: implement
+    date: 2026-07-06
 ---
 
 # Implementation notes
