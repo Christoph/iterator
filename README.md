@@ -167,19 +167,23 @@ content when regenerating the other's.
 - **`/okf-init`** — analyze the repo and draft the initial 3–8 memories per
   area, reviewed in the browser before anything is written.
 - **`/okf-consolidate`** — re-review existing memories against the current
-  code: stale `files:` anchors, dead concepts, merges.
+  code: stale `files:` anchors (paths or globs), dead concepts, merges. This
+  flow never advances `last_memorized_commit`.
 - **`/okf-memorize`** — study the commits since `last_memorized_commit` and
-  draft create/update/delete cards, with conflict detection.
+  draft create/update/delete cards, with conflict detection. Memory-only
+  bookkeeping commits are excluded from this range.
 
 Knowledge also flows automatically: when `/iterator-implement` lands a wave,
 it evaluates the accepted diff for durable knowledge (`gather.mjs --step
-memorize`); proposals appear as toggleable cards in the commit review, and
-accepted ones are written through `write.mjs` — concept files, regenerated
-area indexes, log entries — with `last_memorized_commit` advanced to the
-wave's final commit, so `/okf-memorize` never re-reviews work that was
-already captured at commit time. In a repo without okf areas nothing happens
-— iterator never creates the knowledge areas uninvited (`/okf-init` does
-that).
+memorize`). Proposals appear in the commit review as full human-reviewable
+cards — action/id/type, description/reason, `files:` anchors, tags/source
+commits, proposed body, and current body when updating — with an explicit
+Apply/Skip toggle before **Accept and commit**. Accepted ones are written
+through `write.mjs` — concept files, regenerated area indexes, log entries —
+with `last_memorized_commit` advanced only after the reviewed implementation
+range is covered, so `/okf-memorize` never re-reviews work that was already
+captured at commit time. In a repo without okf areas nothing happens —
+iterator never creates the knowledge areas uninvited (`/okf-init` does that).
 
 ## Chunking
 
@@ -188,7 +192,7 @@ vertical slice including its own tests — that can be implemented, tested, and
 reviewed on its own. `size` is a judgment call, not a line count:
 
 | Size | Color | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | small | 🟢 green | One focused change |
 | medium | 🟡 yellow | A feature touching a few files |
 | large | 🔴 red | Probably two features — should be split |

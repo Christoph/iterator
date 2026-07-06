@@ -18,6 +18,14 @@ const CANCEL_GRACE_MS = 250;
  * its URL. Every spawn gets its own registry file so takeover only happens in
  * the tests that opt into a shared one.
  */
+function parseJson(text) {
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    throw new Error(`invalid JSON in test fixture/output: ${err.message}`);
+  }
+}
+
 function startServer(payload, extraEnv = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [SERVER], {
@@ -37,7 +45,15 @@ function startServer(payload, extraEnv = {}) {
     child.stderr.on('data', d => {
       stderr += d;
       const m = stderr.match(/listening on (http:\/\/127\.0\.0\.1:\d+\/)/);
-      if (m && !io.url) { io.url = new URL(m[1]); resolve(io); }
+      if (m && !io.url) {
+        try {
+          io.url = new URL(m[1]);
+        } catch (err) {
+          reject(err);
+          return;
+        }
+        resolve(io);
+      }
     });
     child.on('error', reject);
     child.on('exit', code => { if (!io.url) reject(new Error(`exited ${code} before listening: ${stderr}`)); });
@@ -121,7 +137,7 @@ test('beacon /cancel with no reload emits {"type":"cancel"} after the grace peri
   const io = await startServer(PLAN_PAYLOAD);
   await fetch(io.url.origin + '/cancel', { method: 'POST' });
   await waitExit(io.child);
-  assert.deepEqual(JSON.parse(io.stdout()), { type: 'cancel' });
+  assert.deepEqual(parseJson(io.stdout()), { type: 'cancel' });
 });
 
 test('explicit Cancel (/cancel?now=1) cancels immediately', async () => {
@@ -130,7 +146,7 @@ test('explicit Cancel (/cancel?now=1) cancels immediately', async () => {
   await fetch(io.url.origin + '/cancel?now=1', { method: 'POST' });
   await waitExit(io.child);
   assert.ok(Date.now() - t0 < CANCEL_GRACE_MS, 'must not wait for the grace period');
-  assert.deepEqual(JSON.parse(io.stdout()), { type: 'cancel' });
+  assert.deepEqual(parseJson(io.stdout()), { type: 'cancel' });
 });
 
 test('a /cancel carrying a previous run\'s id is ignored (stale-tab guard)', async () => {
@@ -162,7 +178,7 @@ test('SIGTERM resolves the contract with {"type":"cancel"} and exit 0', async ()
   io.child.kill('SIGTERM');
   const code = await waitExit(io.child);
   assert.equal(code, 0);
-  assert.deepEqual(JSON.parse(io.stdout()), { type: 'cancel' });
+  assert.deepEqual(parseJson(io.stdout()), { type: 'cancel' });
 });
 
 test('a new server takes over the fixed port from a lingering one', async () => {
@@ -176,7 +192,7 @@ test('a new server takes over the fixed port from a lingering one', async () => 
   const b = await startServer(PLAN_PAYLOAD, shared);
   const codeA = await waitExit(a.child);
   assert.equal(codeA, 0);
-  assert.deepEqual(JSON.parse(a.stdout()), { type: 'cancel' }, 'evicted server must resolve as cancel');
+  assert.deepEqual(parseJson(a.stdout()), { type: 'cancel' }, 'evicted server must resolve as cancel');
   assert.equal(b.url.port, a.url.port, 'successor must reuse the same fixed port');
   assert.match(b.stderr(), /closing previous UI server/);
   assert.equal(b.child.exitCode, null, 'successor must still be running');
@@ -337,11 +353,24 @@ test('commit mode embeds the wave chunks and okf memory proposals', async () => 
       { name: 'logging', description: 'Structured logs', stats: { added: 2, removed: 0, files: 1, complexity: 'green' }, files: [] },
     ],
     uncategorized: [],
-    memory: { proposals: [{ action: 'update', area: 'patterns', slug: 'auth-flow', title: 'Auth flow', description: 'JWT verification pattern.', reason: 'Middleware changed the token check.' }] },
+    memory: { proposals: [{
+      action: 'update', area: 'patterns', slug: 'auth-flow', type: 'Pattern',
+      title: 'Auth flow', description: 'JWT verification pattern.',
+      reason: 'Middleware changed the token check.',
+      files: ['src/auth.ts'], tags: ['auth'], sourceCommits: ['abcdef1234567890'],
+      body: '# Pattern\n\nVerify JWTs in middleware before route handlers.',
+      existingBody: '# Pattern\n\nOld token check guidance.',
+    }] },
   });
   const body = await (await fetch(io.url)).text();
   assert.ok(body.includes('Memory updates'), 'memory section machinery is in the page');
-  assert.ok(body.includes('Middleware changed the token check.'), 'proposal data embedded');
+  assert.ok(body.includes('Memory proposal details'), 'full memory-review panel is present');
+  assert.ok(body.includes('Middleware changed the token check.'), 'proposal reason embedded');
+  assert.ok(body.includes('Verify JWTs in middleware before route handlers.'), 'proposal body embedded for review');
+  assert.ok(body.includes('Old token check guidance.'), 'existing body embedded for comparison');
+  assert.ok(body.includes('src/auth.ts'), 'file anchors embedded for review');
+  assert.ok(body.includes('abcdef1234567890'), 'source commits embedded for review');
+  assert.ok(body.includes('data-mem-body'), 'client renders proposal markdown bodies');
   assert.ok(body.includes('chunks: names'), 'accept-commit carries the whole wave');
   io.child.kill();
   await waitExit(io.child);
@@ -364,7 +393,7 @@ test('a mode:"commit" payload without step falls back to the review view', async
 // ---------------------------------------------------------------------------
 // knowledge + memory-review views (absorbed from okf-memory)
 
-const fixture = (name) => JSON.parse(
+const fixture = (name) => parseJson(
   readFileSync(join(root, 'test', 'fixtures', `${name}.json`), 'utf8'));
 
 test('knowledge view renders memory state, areas, concepts, design, and actions', async () => {
@@ -462,7 +491,7 @@ test('memory-review with apply:true applies review-approved via the writer', asy
     });
     await waitExit(io.child);
 
-    const out = JSON.parse(io.stdout().trim());
+    const out = parseJson(io.stdout().trim());
     assert.equal(out.type, 'review-approved');
     assert.equal(out.applied.ok, true, JSON.stringify(out.applied));
     assert.deepEqual(out.applied.written, ['patterns/error-handling']);
