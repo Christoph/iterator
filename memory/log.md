@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-06
+* **Update**: Hub payload gathering moved into code — skills/iterator/gather.mjs prints the step:"hub" payload (frontmatter, hasDiff via files globs, hasCommits via Chunk: trailer); SKILL.md no longer instructs the model to read bundle files. Stale-tab guard added: pages embed a per-run id echoed on /submit and /cancel so a leftover tab from an earlier round can no longer cancel the live one (same fixes applied to okf-memory, incl. its gather.mjs).
 * **Update**: UI made the control plane — one shared server in the iterator hub skill renders all step views (lib/views/); step skills are logic-only. Single-instance takeover keeps the fixed port 7777 (fixes the port-drift leak; pisbx forwards exactly 7777). Per-run URL token dropped (dev-only, matches okf-memory). Added pi extension (extensions/iterator.js) so iterator, okf-memory, and pi-docker-sandbox-setup work together.
 
 ## 2026-07-05

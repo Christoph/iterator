@@ -12,6 +12,8 @@
  * value containing `</script>` cannot terminate the embedded <script> block.
  */
 
+import { RUN_ID } from './server.mjs';
+
 /* ------------------------------------------------------------------ *
  * Server-side helpers
  * ------------------------------------------------------------------ */
@@ -112,12 +114,15 @@ tr.context td{color:var(--text-code)}
  * ------------------------------------------------------------------ */
 
 const SHARED_JS = `
+// __RUN is this round's id (embedded by renderPage); echoing it lets the
+// server ignore /cancel-/submit from tabs that belong to an earlier round.
+function __q(path){ return path + (path.indexOf('?')>=0 ? '&' : '?') + 'r=' + __RUN; }
 let __submitted = false;
 function sendCancel(){ if(__submitted) return; __submitted = true;
-  try{ navigator.sendBeacon('/cancel','{}'); }catch(e){} }
+  try{ navigator.sendBeacon(__q('/cancel'),'{}'); }catch(e){} }
 window.addEventListener('pagehide', sendCancel);
 async function cancelFlow(){ __submitted = true;
-  try{ await fetch('/cancel?now=1',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}); }catch(e){}
+  try{ await fetch(__q('/cancel?now=1'),{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}); }catch(e){}
   try{ window.close(); }catch(e){} }
 function toggleTheme(){ document.documentElement.dataset.theme =
   document.documentElement.dataset.theme==='dark'?'light':'dark'; }
@@ -137,7 +142,7 @@ async function post(payload, okMsg){
   __submitted = true;
   if(btn){ btn.disabled=true; btn.dataset.prev=btn.textContent; btn.textContent='Sending…'; }
   try{
-    await fetch('/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    await fetch(__q('/submit'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     if(btn) btn.textContent = '✓ ' + (okMsg||'Sent to Claude');
   }catch(e){
     __submitted=false;
@@ -240,6 +245,7 @@ export function renderPage(o) {
     (o.body || '') + '\n' +
     '<script>\n' +
     'const D = ' + embed(o.data == null ? {} : o.data) + ';\n' +
+    'const __RUN = ' + embed(RUN_ID) + ';\n' +
     'const __PRIMARY = ' + embed(primary) + ';\n' +
     'document.getElementById("branch").textContent = ' + embed(branch) + ';\n' +
     SHARED_JS + '\n' +

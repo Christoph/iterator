@@ -40,11 +40,12 @@ test('renderPage includes header controls and custom labels', () => {
   assert.ok(html.includes('toggleTheme()'));
 });
 
-test('shared client JS posts to the server endpoints', () => {
+test('shared client JS posts to the server endpoints with the run id', () => {
   const html = renderPage({ step: 't', data: {}, body: '', clientJs: '' });
-  assert.ok(html.includes("fetch('/submit'"));
-  assert.ok(html.includes("sendBeacon('/cancel'"));
-  assert.ok(html.includes("fetch('/cancel?now=1'"));
+  assert.ok(html.includes('const __RUN = '));
+  assert.ok(html.includes("fetch(__q('/submit')"));
+  assert.ok(html.includes("sendBeacon(__q('/cancel')"));
+  assert.ok(html.includes("fetch(__q('/cancel?now=1')"));
 });
 
 test('mdToHtml refuses javascript: links', () => {

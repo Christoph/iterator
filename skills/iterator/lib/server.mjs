@@ -27,9 +27,15 @@
  *
  * Security / robustness:
  *   - Locally the server binds 127.0.0.1 and requires a localhost Host header
- *     (rejects DNS-rebinding requests). There is no per-run token — the
+ *     (rejects DNS-rebinding requests). There is no per-run auth token — the
  *     dashboard is a local dev tool and the URL stays clean/bookmarkable,
  *     matching okf-memory's server.
+ *   - Stale-tab guard: every page embeds a per-run id and echoes it on
+ *     /submit and /cancel (?r=…). With a fixed shared port, a tab left over
+ *     from an EARLIER round fires its pagehide /cancel beacon at the CURRENT
+ *     server when closed — without the id check that silently cancelled the
+ *     live round. Mismatched ids are ignored (absent ids are allowed so curl
+ *     and scripts keep working).
  *   - A /cancel from the pagehide beacon is held for a short grace period and
  *     dropped if the page reloads (GET / arrives again), so an accidental F5
  *     no longer kills the whole flow. The explicit Cancel button sends
@@ -44,6 +50,7 @@
  */
 import http from 'node:http';
 import { exec } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { tmpdir, userInfo } from 'node:os';
 import { join } from 'node:path';
@@ -107,6 +114,11 @@ const EXPOSED = BIND_HOST !== '127.0.0.1';
 // really a lingering iterator UI (tokenless read-only status endpoint, so a
 // reused pid is never killed by mistake), SIGTERMs it, and takes the port.
 const STATUS_PATH = '/__iterator/status';
+
+// Per-run id, embedded into the page (lib/ui.mjs) and echoed on /submit and
+// /cancel so a stale tab from a previous round can't act on this run. Not an
+// auth secret — purely round-matching.
+export const RUN_ID = randomBytes(8).toString('hex');
 
 /** Registry file recording the currently-listening UI server for this user. */
 export function registryPath() {
@@ -199,6 +211,12 @@ export async function serve({ step = 'iterator', html }) {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(html);
     } else if (req.method === 'POST' && url.pathname === '/submit') {
+      const r = url.searchParams.get('r');
+      if (r && r !== RUN_ID) {
+        process.stderr.write('iterator: ignored /submit from a previous run’s tab\n');
+        res.writeHead(409); res.end();
+        return;
+      }
       let body = '';
       req.on('data', c => (body += c));
       req.on('end', () => {
@@ -213,10 +231,15 @@ export async function serve({ step = 'iterator', html }) {
         }
       });
     } else if (req.method === 'POST' && url.pathname === '/cancel') {
+      const r = url.searchParams.get('r');
       let body = '';
       req.on('data', c => (body += c));
       req.on('end', () => {
         res.writeHead(204); res.end();
+        if (r && r !== RUN_ID) {
+          process.stderr.write('iterator: ignored /cancel from a previous run’s tab\n');
+          return;
+        }
         if (done || cancelTimer) return;
         if (url.searchParams.get('now') === '1') { finish({ type: 'cancel' }); return; }
         cancelTimer = setTimeout(() => finish({ type: 'cancel' }), CANCEL_GRACE_MS);

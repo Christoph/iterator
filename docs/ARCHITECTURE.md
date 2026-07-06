@@ -92,7 +92,7 @@ iterator/
 │       ├── test.mjs             #   per-chunk test plan; red/green mode banner
 │       └── review.mjs           #   chunk-grouped diff review (+ implement's commit mode)
 ├── skills/
-│   ├── iterator/                # hub skill — owns server.mjs (the control plane) + lib/ copy
+│   ├── iterator/                # hub skill — server.mjs (control plane) + gather.mjs (payload builder) + lib/ copy
 │   ├── iterator-plan/           # logic-only; carries templates/format.md
 │   ├── iterator-chunk/          # logic-only
 │   ├── iterator-implement/     # logic-only; green gate; auto-review; Accept and commit

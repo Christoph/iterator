@@ -68,7 +68,7 @@ iterator/
 │   ├── ui.mjs                   # shared page shell: header, theme, CSS vars, esc/mdToHtml, embed, post
 │   └── views/                   # one view module per step: hub, plan, chunk, test, review
 ├── skills/
-│   ├── iterator/                # hub skill — owns server.mjs (the control plane) + bundled lib/
+│   ├── iterator/                # hub skill — server.mjs (control plane) + gather.mjs (payload builder) + bundled lib/
 │   ├── iterator-plan/           # SKILL.md (logic only) + templates/format.md
 │   ├── iterator-chunk/          # SKILL.md (logic only)
 │   ├── iterator-implement/      # SKILL.md (logic only; uses the review view in commit mode)

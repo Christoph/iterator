@@ -24,49 +24,26 @@ When the user types `/iterator`, asks for an iterator overview / dashboard, or
 wants to drive the flow from one place.
 
 If the user's message contains a hub result payload (`action`, `cancel`,
-`timeout`), process it per step 3.
+`timeout`), process it per step 2.
 
 ## Steps
 
-### 1. Gather state
+### 1. Gather state and open the dashboard
 
-Resolve the bundle (`git rev-parse --show-toplevel`; `<root>/memory` or
-`$ITERATOR_MEMORY_DIR` relative to the git root).
-
-- **No bundle** → payload with `"plan": null` (the UI shows a Create-plan
-  hero); skip to step 2.
-- Read `memory/plan.md` frontmatter (`title`, `status`) and
-  `memory/chunks/index.md`, then each chunk file's frontmatter: `title`,
-  `description`, `status`, `size`, `lines_estimate`, `tests_status`,
-  `depends_on`, `commits`, `files`.
-- Compute per chunk:
-  - `hasDiff` — any file in `git diff HEAD --name-only` (falling back to
-    `git diff --name-only`) matches the chunk's `files` globs.
-  - `hasCommits` — the chunk has validated `commits` entries, **or**
-    `git log --format=%H --grep='^Chunk: <slug>$'` finds any (the trailer is
-    the resilient lookup; recorded shas go stale on rebase).
-
-### 2. Open the dashboard
+Both are mechanical and fully scripted — do **not** read bundle files or run
+git yourself to assemble the payload. From anywhere inside the project:
 
 ```sh
-node <skill-dir>/server.mjs << 'HUB_DATA'
-{
-  "step": "hub",
-  "branch": "<branch>",
-  "plan": { "title": "<plan title>", "status": "approved" },
-  "progress": { "done": 1, "total": 3 },
-  "chunks": [
-    {
-      "name": "auth-middleware", "title": "Auth middleware",
-      "description": "JWT-based auth middleware for protected routes.",
-      "status": "pending", "size": "small", "linesEstimate": 60,
-      "testsStatus": "red", "dependsOn": ["config-module"],
-      "hasDiff": false, "hasCommits": false
-    }
-  ]
-}
-HUB_DATA
+node <skill-dir>/gather.mjs | node <skill-dir>/server.mjs
 ```
+
+`gather.mjs` resolves the bundle (`<git-root>/memory` or
+`$ITERATOR_MEMORY_DIR`), reads the plan and chunk frontmatter, and computes
+per chunk `hasDiff` (working-tree diff vs the chunk's `files` globs) and
+`hasCommits` (recorded `commits` or the `Chunk: <slug>` trailer). It prints
+the complete `step:"hub"` payload; with no bundle it prints `"plan": null`
+(the UI shows a Create-plan hero). Pass an explicit project path as its first
+argument only when the shell's cwd is not inside the target repo.
 
 The UI renders the plan bar (status, progress, **Revise plan** / **Re-chunk**),
 the dependency graph (with cycle warning), and one card per chunk with 🔴/🟢
@@ -75,7 +52,7 @@ all `depends_on` are done), **Test** (always; labeled "Test (red)" on pending
 chunks), **Review** (enabled when `hasDiff || hasCommits`). There is no header
 primary; the card buttons are the actions.
 
-### 3. Dispatch the action
+### 2. Dispatch the action
 
 The server prints one JSON line. For
 `{ "type": "action", "action": "...", "chunk": "<slug>|null" }`, dispatch:
@@ -97,12 +74,12 @@ it arrives, report why and reopen the dashboard.
 For `{ "type": "cancel" }` / `{ "type": "timeout" }`: stop and print a short
 state summary (done/total, next ready chunk).
 
-### 4. Loop
+### 3. Loop
 
 When the dispatched flow finishes — success, feedback resolved, or the user
-declined — re-gather state (step 1) and re-open the dashboard (step 2). The
-dashboard is the resting point between actions; one-shot round trips, no
-long-running server.
+declined — re-run the gather-and-serve pipeline (step 1). The dashboard is
+the resting point between actions; one-shot round trips, no long-running
+server.
 
 ## Relationship to the other skills
 

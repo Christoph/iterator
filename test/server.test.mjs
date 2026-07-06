@@ -132,6 +132,30 @@ test('explicit Cancel (/cancel?now=1) cancels immediately', async () => {
   assert.deepEqual(JSON.parse(io.stdout()), { type: 'cancel' });
 });
 
+test('a /cancel carrying a previous run\'s id is ignored (stale-tab guard)', async () => {
+  const io = await startServer(PLAN_PAYLOAD);
+  await fetch(io.url.origin + '/cancel?r=deadbeefdeadbeef', { method: 'POST' });
+  await sleep(CANCEL_GRACE_MS + 100);
+  assert.equal(io.child.exitCode, null, 'stale beacon must not cancel the live round');
+  assert.equal(io.stdout(), '');
+  io.child.kill();
+  await waitExit(io.child);
+});
+
+test('a /submit carrying a previous run\'s id is rejected; the current page still works', async () => {
+  const io = await startServer(PLAN_PAYLOAD);
+  const forged = await fetch(io.url.origin + '/submit?r=deadbeefdeadbeef', { method: 'POST', body: '{"type":"evil"}' });
+  assert.equal(forged.status, 409);
+  assert.equal(io.child.exitCode, null);
+  assert.equal(io.stdout(), '');
+  // The live page's own run id must be accepted.
+  const page = await (await fetch(io.url)).text();
+  const run = page.match(/const __RUN = "([0-9a-f]+)"/)[1];
+  await fetch(`${io.url.origin}/submit?r=${run}`, { method: 'POST', body: '{"type":"ok"}' });
+  assert.equal(await waitExit(io.child), 0);
+  assert.equal(io.stdout().trim(), '{"type":"ok"}');
+});
+
 test('SIGTERM resolves the contract with {"type":"cancel"} and exit 0', async () => {
   const io = await startServer(PLAN_PAYLOAD);
   io.child.kill('SIGTERM');
