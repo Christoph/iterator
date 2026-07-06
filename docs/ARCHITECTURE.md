@@ -178,10 +178,14 @@ source by `npm run sync`). The shell provides the rest:
     if a `GET /` follows — so an accidental reload doesn't kill the flow. The
     explicit Cancel button sends `/cancel?now=1` and cancels immediately.
 
-  `ITERATOR_NO_OPEN=1` skips the browser opener (CI, remote sessions); the
-  real URL is always printed to stderr. `ITERATOR_HOST` (dev only) rebinds the
-  server, e.g. `0.0.0.0` for a Docker sandbox whose browser is on the host —
-  the token stays mandatory; only the localhost Host-header check is relaxed.
+  `ITERATOR_NO_OPEN=1` skips the browser opener (CI); the real URL is always
+  printed to stderr. Remote sessions (SSH, Docker/devcontainer — detected via
+  `isRemoteSession()`: `ITERATOR_REMOTE` override, then SSH markers, then
+  container marker files) bind `0.0.0.0` instead of loopback so a forwarded
+  port can reach the server, skip the opener, and print a `127.0.0.1` URL for
+  the host browser. `ITERATOR_BIND_HOST` (alias `ITERATOR_HOST`, deprecated)
+  overrides the bind address either way — the token stays mandatory; only the
+  localhost Host-header check is relaxed when bound beyond loopback.
 - **`lib/ui.mjs`** — `renderPage()` builds the full page: the
   `iterator / <step>` header with a branch tag, theme toggle, **Cancel**, and a
   primary button that flips **Accept ↔ Send review** driven by a step-provided

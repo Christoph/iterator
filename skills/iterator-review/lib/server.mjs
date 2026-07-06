@@ -26,10 +26,18 @@
  *     dropped if the page reloads (GET / arrives again), so an accidental F5
  *     no longer kills the whole flow. The explicit Cancel button sends
  *     /cancel?now=1 and still cancels immediately.
+ *
+ * Remote sessions (SSH, Docker/devcontainer sandbox — see isRemoteSession):
+ * the browser lives on the host, so we bind 0.0.0.0 instead of loopback (a
+ * forwarded port cannot reach a loopback bind), skip the browser opener, and
+ * print a http://127.0.0.1:<port>/ URL for the host to open through its
+ * forward. ITERATOR_REMOTE=1/0 overrides detection; ITERATOR_BIND_HOST
+ * overrides the bind address.
  */
 import http from 'node:http';
 import { exec } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { existsSync } from 'node:fs';
 
 /** Read all of stdin as a string, resolving with '' if nothing arrives. */
 export function readStdin() {
@@ -57,12 +65,31 @@ const CANCEL_GRACE_MS = parseInt(process.env.ITERATOR_CANCEL_GRACE_MS || '2500',
 
 const LOCAL_HOST_RE = /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/;
 
-// Dev-only: ITERATOR_HOST=0.0.0.0 exposes the server beyond localhost (e.g. a
-// Docker sandbox whose browser lives on the host). The per-run token stays
-// mandatory in every mode — it is the real defense once the port is reachable
-// from outside. Only the localhost Host-header check is relaxed, because the
-// host browser may reach us via a container IP or hostname.
-const BIND_HOST = process.env.ITERATOR_HOST || '127.0.0.1';
+/**
+ * Detect a remote session (SSH, Docker/devcontainer sandbox) where the browser
+ * lives on the *host*: a loopback bind would be unreachable through a port
+ * forward, and there is no local browser to open. Detection order: explicit
+ * ITERATOR_REMOTE override ("1"/"true" forces remote, "0"/"false" forces
+ * local), then SSH markers, then container markers. MicroVM sandboxes have no
+ * container marker files — set ITERATOR_REMOTE=1 in the sandbox image there.
+ */
+export function isRemoteSession(env = process.env) {
+  const override = String(env.ITERATOR_REMOTE ?? '').toLowerCase();
+  if (override === '1' || override === 'true') return true;
+  if (override === '0' || override === 'false') return false;
+  if (env.SSH_TTY || env.SSH_CONNECTION) return true;
+  return existsSync('/.dockerenv') || existsSync('/run/.containerenv');
+}
+
+// In a remote session bind all interfaces so a forwarded/published port can
+// reach us; locally stay on loopback. ITERATOR_BIND_HOST overrides either way
+// (ITERATOR_HOST is the deprecated alias). The per-run token stays mandatory
+// in every mode — it is the real defense once the port is reachable from
+// outside. Only the localhost Host-header check is relaxed when exposed,
+// because the host browser may reach us via a container IP or hostname.
+const REMOTE = isRemoteSession();
+const BIND_HOST = process.env.ITERATOR_BIND_HOST || process.env.ITERATOR_HOST
+  || (REMOTE ? '0.0.0.0' : '127.0.0.1');
 const EXPOSED = BIND_HOST !== '127.0.0.1';
 
 /**
@@ -130,19 +157,29 @@ export function serve({ step = 'iterator', html }) {
 
   const onListen = () => {
     const { port } = server.address();
+    // Always display 127.0.0.1, never the bind address — 0.0.0.0 is not a
+    // clickable URL, and through a forward the host reaches us on its own
+    // loopback anyway.
     const url = `http://127.0.0.1:${port}/?t=${token}`;
-    if (!process.env.ITERATOR_NO_OPEN) {
-      const opener = process.platform === 'win32' ? 'start ""'
-        : process.platform === 'darwin' ? 'open' : 'xdg-open';
+    if (!REMOTE && !process.env.ITERATOR_NO_OPEN) {
+      const opener = process.env.BROWSER
+        || (process.platform === 'win32' ? 'start ""'
+          : process.platform === 'darwin' ? 'open' : 'xdg-open');
       exec(`${opener} "${url}"`);
     }
     process.stderr.write(`iterator: ${step} listening on ${url}\n`);
+    if (REMOTE) {
+      process.stderr.write(
+        `iterator: remote session — bound to ${BIND_HOST}. Forward/publish port ${port} ` +
+        `to the host loopback (e.g. sbx ports <sandbox> --publish ${port}:${port}, ` +
+        `docker run -p 127.0.0.1:${port}:${port}, or ssh -L ${port}:localhost:${port}), ` +
+        `then open the URL above in the host browser.\n`);
+    }
     if (EXPOSED) {
       process.stderr.write(
-        `iterator: WARNING — bound to ${BIND_HOST} (ITERATOR_HOST): anyone who can ` +
-        `reach this port and obtain the token can answer as the user. Dev use only.\n` +
-        `iterator: from the host, open http://127.0.0.1:${port}/?t=${token} ` +
-        `(with a published port, e.g. docker run -p ${port}:${port}).\n`);
+        `iterator: WARNING — listening on ${BIND_HOST}: anyone who can reach this ` +
+        `port and obtain the token can answer as the user. Keep the host-side ` +
+        `publish on loopback (127.0.0.1:${port}, not 0.0.0.0:${port}).\n`);
     }
   };
 
