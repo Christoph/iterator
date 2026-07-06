@@ -11,6 +11,13 @@ chunk and an action instead of remembering which skill comes next. This skill
 is a **thin router** — it gathers state, opens the dashboard, and dispatches
 into the existing per-step flows. It never duplicates their steps.
 
+This skill folder also owns `server.mjs`, the **single UI server for every
+step** (the browser control plane): the step skills are logic-only and pipe
+their payloads into this server whenever they need the user. It runs
+single-instance on a fixed port (default `7777`, `$ITERATOR_PORT`) — a
+lingering server from an earlier run is shut down and replaced, so the
+dashboard URL never changes (and a sandbox only ever needs to forward 7777).
+
 ## When to use this skill
 
 When the user types `/iterator`, asks for an iterator overview / dashboard, or

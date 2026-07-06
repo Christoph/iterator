@@ -16,10 +16,12 @@ connected slice of implementation of roughly 200 lines, in dependency order.
 Review-effectiveness research shows defect detection degrades past ~200–400
 lines, so ~200 is a conservative, reviewable default.
 
-Every step has a browser UI built on one shared shell, so all six UIs (the
-dashboard and the five steps) look and behave the same, and all persistent
-state lives in a `memory/` directory that is a conformant
-[Open Knowledge Format (OKF) v0.1](docs/OKF_SPEC.md) bundle.
+The browser UI is the **control plane**: one server (shipped with the
+`/iterator` hub skill) renders every step's view — dashboard, plan review,
+chunk breakdown, test plan, diff review — on one fixed port, and the step
+skills are logic-only. All persistent state lives in a `memory/` directory
+that is a conformant [Open Knowledge Format (OKF) v0.1](docs/OKF_SPEC.md)
+bundle.
 
 ## The flow
 
@@ -160,10 +162,11 @@ from `skills/*/SKILL.md`.
 ### Other agents (opencode, Codex CLI, pi, …)
 
 The skills follow the [Agent Skills](https://code.claude.com/docs/en/skills)
-standard, and every `skills/<name>/` folder is standalone — it bundles its own
-copy of the shared UI shell (and `iterator-plan` bundles the OKF schema
-template). Copy or symlink the skill folders into your harness's skills
-directory:
+standard. The `iterator` hub skill folder carries the whole UI (shared shell +
+step views); the step skills are logic-only and call the hub's server, so
+**always install the skill folders together** (`iterator-plan` additionally
+bundles the OKF schema template). Copy or symlink them into your harness's
+skills directory:
 
 ```bash
 # opencode                        # Codex CLI                      # pi
@@ -178,12 +181,21 @@ are detected automatically: the server binds `0.0.0.0`, skips the browser
 opener, and prints a URL to open on the host through a forwarded/published
 port (see Configuration; force with `ITERATOR_REMOTE=1`).
 
-**pi** can also install the repo directly as a package (the `pi` manifest in
-`package.json` points at `skills/`):
+**pi** can also install the repo directly as a package — the `pi` manifest in
+`package.json` points at `skills/` and `extensions/`, so the install also
+registers friendly `/iterator…` commands that forward to the skills:
 
 ```bash
 pi install git:github.com/<user>/iterator@<tag>   # or: pi -e … for one session
 ```
+
+iterator is designed to work alongside
+[okf-memory](https://github.com/Christoph/okf-memory) (project memory, UI on
+port 8888) and
+[pi-docker-sandbox-setup](https://github.com/Christoph/pi-docker-sandbox-setup)
+(a pi sandbox image that installs both packages, sets `ITERATOR_REMOTE=1` /
+`OKF_REMOTE=1`, and forwards ports 7777 and 8888 to the host via its `pisbx`
+script).
 
 ## Requirements
 
@@ -193,23 +205,26 @@ pi install git:github.com/<user>/iterator@<tag>   # or: pi -e … for one sessio
 
 ## Configuration
 
-Each interactive step runs a tiny local HTTP server bound to `127.0.0.1` that
-opens a browser UI and prints your response back to Claude — no clipboard, no
-temp files. The port defaults to **7777**; override it with `ITERATOR_PORT`:
+Every interactive step runs through one tiny local HTTP server (the hub
+skill's `server.mjs`) bound to `127.0.0.1` that opens a browser UI and prints
+your response back to Claude — no clipboard, no temp files. The port defaults
+to **7777**; override it with `ITERATOR_PORT`:
 
 ```bash
 ITERATOR_PORT=9000   # set in your shell
 ```
 
-If the port is busy the server automatically picks the next free port and prints
-the real URL. Set `ITERATOR_MEMORY_DIR` to relocate the bundle (resolved relative
-to the git root). Set `ITERATOR_NO_OPEN=1` to print the URL without opening a
-browser (useful for CI and remote sessions).
+The port is **stable by design**: the server is single-instance — a lingering
+iterator server from an earlier run (tracked in a per-user registry file,
+verified via `/__iterator/status`) is shut down and replaced, so back-to-back
+runs never drift to 7778. Only when a *different* program holds the port does
+the server walk up and print the real URL (`ITERATOR_NO_TAKEOVER=1` disables
+the takeover). Set `ITERATOR_MEMORY_DIR` to relocate the bundle (resolved
+relative to the git root). Set `ITERATOR_NO_OPEN=1` to print the URL without
+opening a browser (useful for CI and remote sessions).
 
-Each run's URL carries a one-time token; the server rejects any request without
-it (and any non-localhost `Host` header), so no other page or process can forge
-a submission or cancel your flow. Reloading the tab is safe — only closing it
-cancels.
+The server rejects requests with a non-localhost `Host` header (DNS-rebinding
+protection). Reloading the tab is safe — only closing it cancels.
 
 ### Remote sessions: SSH, Docker, devcontainers (`ITERATOR_REMOTE`)
 
@@ -220,8 +235,9 @@ is no local browser to open. The server detects this automatically — explicit
 `SSH_CONNECTION`), then container markers (`/.dockerenv`,
 `/run/.containerenv`) — and in remote mode binds `0.0.0.0` (override with
 `ITERATOR_BIND_HOST`), skips the browser opener, and prints a
-`http://127.0.0.1:<port>/?t=…` URL for the host. MicroVM sandboxes have no
-container marker files, so set `ITERATOR_REMOTE=1` in the sandbox image there:
+`http://127.0.0.1:<port>/` URL for the host. MicroVM sandboxes have no
+container marker files, so set `ITERATOR_REMOTE=1` in the sandbox image there
+(pi-docker-sandbox-setup's image already does):
 
 ```dockerfile
 ENV ITERATOR_REMOTE=1
@@ -236,21 +252,23 @@ ssh -L 7777:localhost:7777 host              # plain SSH (or LocalForward in ~/.
 ```
 
 (VS Code devcontainers and Codespaces forward ports automatically — check the
-Ports tab.) Then open the printed URL in the host browser. Pin `ITERATOR_PORT`
-if collisions are common: a busy port makes the server walk up to 7778, which
-a `7777:7777` mapping would not reach — the stderr line always shows the real
-port. Binding `0.0.0.0` exposes the UI to whatever network the sandbox is
-attached to: keep the host-side publish on loopback, and note the localhost
-`Host`-header check is relaxed in this mode (the host browser may arrive via a
-container IP) while the one-time token stays mandatory — treat the URL like a
-secret.
+Ports tab.) Then open the printed URL in the host browser. The single-instance
+takeover keeps the server on 7777 across runs, so a `7777:7777` mapping keeps
+working; the stderr line always shows the real port in the rare case a foreign
+process forces a walk. Binding `0.0.0.0` exposes the UI to whatever network
+the sandbox is attached to: keep the host-side publish on loopback (the
+localhost `Host`-header check is relaxed in this mode because the host browser
+may arrive via a container IP, and there is no auth token — anyone who can
+reach the port can answer as you).
 
 ## How it works
 
-1. A skill builds a JSON payload and pipes it to `skills/<step>/server.mjs` via a
-   heredoc — nothing is written to `/tmp`.
-2. The server serves a self-contained page (data embedded inline and safely
-   escaped) and opens `http://127.0.0.1:<port>/?t=<one-time token>`.
+1. A skill builds a JSON payload (with a `step` field picking the view) and
+   pipes it to `skills/iterator/server.mjs` via a heredoc — nothing is written
+   to `/tmp`.
+2. The server shuts down any lingering iterator server, binds the fixed port,
+   serves a self-contained page (data embedded inline and safely escaped), and
+   opens `http://127.0.0.1:<port>/`.
 3. On submit the browser POSTs structured JSON to `/submit`; the server prints it
    to stdout and exits. Closing the tab POSTs `/cancel`, emitting
    `{ "type": "cancel" }`, so a closed tab never leaves the flow hanging

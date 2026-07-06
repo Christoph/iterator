@@ -63,11 +63,13 @@ if it implies a new dependency / product-fit question worth confirming.
 
 ### 3. Generate the plan and open the plan-review UI
 
-Draft the plan sections, then open the plan-review UI by piping the payload into
-the server via a heredoc (no temp file):
+Draft the plan sections, then open the plan-review UI by piping the payload
+into the **shared UI server** via a heredoc (no temp file). The server ships
+with the `/iterator` hub skill — a sibling of this skill's folder; if it is
+missing, tell the user to install the full iterator plugin and stop:
 
 ```sh
-node <skill-dir>/server.mjs << 'PLAN_DATA'
+node <skill-dir>/../iterator/server.mjs << 'PLAN_DATA'
 {
   "step": "plan",
   "branch": "<branch>",
@@ -177,6 +179,9 @@ it into chunks."
 
 ## Shared UI behavior (all iterator UIs)
 
+- Every step renders through the **one UI server** in the `/iterator` hub
+  skill folder (`<skill-dir>/../iterator/server.mjs`) — the browser control
+  plane. The step skills only assemble payloads and process the answer.
 - All interaction happens in the browser and is sent back automatically via the
   local server — no manual copy/paste of JSON.
 - Header controls: **Toggle theme**, **Cancel** (always), and a primary button
@@ -185,8 +190,11 @@ it into chunks."
 - Closing the browser tab sends `{ "type": "cancel" }`, so a closed tab never
   leaves the flow hanging. After 2h with no answer the server emits
   `{ "type": "timeout" }`.
-- Port is `7777` by default (or `$ITERATOR_PORT`); if busy the server picks the
-  next free port and prints the real URL to stderr.
+- Port is `7777` by default (or `$ITERATOR_PORT`) and stays **fixed**: a
+  lingering iterator server from an earlier run is shut down and replaced, so
+  the URL is stable across runs (a sandbox forwards exactly this port). Only
+  when a different program holds the port does the server walk up and print
+  the real URL to stderr.
 
 ## Lifecycle
 

@@ -86,7 +86,7 @@ Then propose a **test plan** and open it in the UI (include `"mode"` so the
 user sees whether these tests are expected to fail):
 
 ```sh
-node <skill-dir>/server.mjs << 'TEST_DATA'
+node <skill-dir>/../iterator/server.mjs << 'TEST_DATA'
 {
   "step": "test",
   "branch": "<branch>",

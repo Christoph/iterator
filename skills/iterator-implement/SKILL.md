@@ -69,14 +69,16 @@ skip this gate — it is not an error.
 
 ### 4. Auto-open the review UI (commit mode)
 
-Collect the diff you produced and pipe it into the **review** server in commit
-mode — this is the same UI as `/iterator-review`, scoped to the one chunk, with
-**Accept and commit** as the primary button:
+Collect the diff you produced and pipe it into the **shared UI server** (it
+ships with the `/iterator` hub skill) in review commit mode — the same UI as
+`/iterator-review`, scoped to the one chunk, with **Accept and commit** as the
+primary button:
 
 ```sh
 git diff --stat
-node <plugin-root>/skills/iterator-review/server.mjs << 'REVIEW_DATA'
+node <plugin-root>/skills/iterator/server.mjs << 'REVIEW_DATA'
 {
+  "step": "review",
   "mode": "commit",
   "branch": "<branch>",
   "hasChunksFile": true,

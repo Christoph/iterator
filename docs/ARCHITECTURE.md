@@ -35,19 +35,27 @@ past ~200–400 lines, so ~200 is a conservative, reviewable default.
 /iterator-test       GREEN: tests for an already-done chunk
 ```
 
-All step skills share the `iterator-` prefix so they group in autocomplete, and
-every step has a browser UI built on **one shared UI shell** (`lib/`, bundled
-into each skill folder by `npm run sync`), so all six UIs look and behave the
-same.
+All step skills share the `iterator-` prefix so they group in autocomplete.
+
+**The UI is the control plane; the skills are the logic.** One server —
+`skills/iterator/server.mjs`, shipped with the hub skill — renders every
+step's view (`hub`, `plan`, `chunk`, `test`, `review`, selected by the
+payload's `step` field) on one fixed port. The step skills never own a server:
+they gather state, assemble a payload, pipe it into the hub's server
+(`<skill-dir>/../iterator/server.mjs`), and process the single JSON line that
+comes back. All views are built on the same shared shell (`lib/ui.mjs` +
+`lib/views/`, bundled into the hub skill folder by `npm run sync`), so they
+look and behave the same.
 
 **The hub is a router, not a replacement.** `/iterator` gathers bundle + git
 state, renders the dashboard (cards, badges, dependency graph, per-chunk
 Test/Implement/Review buttons with enablement rules), and exits with one
 `{ type: "action" }` payload; the skill dispatches into the chosen step flow
 and reopens the dashboard when it finishes. The one-shot round-trip model is
-kept deliberately — the dashboard closes while an action runs and reopens
-after, rather than a long-running server with a progress channel (rejected:
-it would break the "server exits on submit" contract every skill relies on).
+kept deliberately — the server exits on every submit rather than staying
+resident with a progress channel — but the **port is a stable singleton**:
+each new server run shuts down a lingering predecessor and rebinds the same
+port, so the flow feels like one continuously-updating dashboard tab.
 
 **Red/green testing.** `tests_status` (`none | red | green`) is independent of
 `status` (`pending | done`): `/iterator-test` on a pending chunk writes
@@ -71,20 +79,29 @@ iterator/
 ├── .claude-plugin/
 │   ├── plugin.json              # Plugin manifest (name: iterator; skills auto-discovered)
 │   └── marketplace.json         # Local-marketplace manifest for persistent installs
+├── extensions/
+│   └── iterator.js              # pi extension: /iterator… commands → /skill:iterator…
 ├── lib/
-│   ├── server.mjs               # shared local HTTP server: stdin→JSON, /submit + /cancel, timeout
-│   └── ui.mjs                    # shared page shell: header, theme, CSS vars, esc/mdToHtml, post()
-├── skills/                      # each folder is standalone (carries its own lib/ copy)
-│   ├── iterator/                # hub dashboard: cards, badges, graph → dispatches actions
-│   ├── iterator-plan/           # plan-review UI; creates/updates the memory/ bundle
-│   ├── iterator-chunk/          # chunk-plan UI: graph, cards, split/merge → one file per chunk
-│   ├── iterator-implement/      # builds the next ready chunk; green gate; auto-review; Accept and commit
-│   ├── iterator-review/         # chunk-grouped diff review; writes outcomes into chunk files
-│   └── iterator-test/           # per-chunk test-plan UI; red mode (pending) / green mode (done)
+│   ├── server.mjs               # shared local HTTP server: stdin→JSON, /submit + /cancel,
+│   │                            #   single-instance takeover, timeout
+│   ├── ui.mjs                   # shared page shell: header, theme, CSS vars, esc/mdToHtml, post()
+│   └── views/                   # one view module per step (render(data) → html)
+│       ├── hub.mjs              #   dashboard: cards, badges, graph → dispatches actions
+│       ├── plan.mjs             #   plan review: sections, comments, dependency chips
+│       ├── chunk.mjs            #   chunk breakdown: graph, cards, split/merge
+│       ├── test.mjs             #   per-chunk test plan; red/green mode banner
+│       └── review.mjs           #   chunk-grouped diff review (+ implement's commit mode)
+├── skills/
+│   ├── iterator/                # hub skill — owns server.mjs (the control plane) + lib/ copy
+│   ├── iterator-plan/           # logic-only; carries templates/format.md
+│   ├── iterator-chunk/          # logic-only
+│   ├── iterator-implement/     # logic-only; green gate; auto-review; Accept and commit
+│   ├── iterator-review/         # logic-only
+│   └── iterator-test/           # logic-only
 ├── templates/
 │   └── format.md                # self-describing bundle schema, copied into every bundle
 ├── scripts/
-│   └── sync.mjs                 # copies lib/ + templates/ into the skill folders
+│   └── sync.mjs                 # copies lib/ (+views) into the hub skill, template into iterator-plan
 ├── docs/
 │   └── OKF_SPEC.md              # Open Knowledge Format v0.1 spec
 ├── test/                        # node:test suite (npm test, no dependencies)
@@ -95,15 +112,18 @@ iterator/
 ```
 
 Skills are discovered automatically from `skills/*/SKILL.md`; the manifest does
-not list them.
+not list them. The `pi` manifest in `package.json` additionally registers
+`extensions/iterator.js`, which adds friendly `/iterator…` commands in pi that
+forward to the skills (same pattern as okf-memory).
 
-Every `skills/<name>/` folder is **standalone**: skills with a UI carry a
-bundled copy of the shared shell (`skills/<name>/lib/`), and `iterator-plan`
-also carries `templates/format.md`. That makes a single skill folder droppable
-into any harness that implements the Agent Skills standard (Claude Code,
-opencode, Codex CLI, pi) without the rest of the repo. The repo-root `lib/` and
-`templates/` remain the source of truth; `npm run sync` refreshes the bundled
-copies and `test/sync.test.mjs` fails if they drift.
+The **hub skill folder is the UI**: `skills/iterator/` carries `server.mjs`
+plus a bundled copy of the shared shell and all step views
+(`skills/iterator/lib/`). The step skills are logic-only — they must be
+installed **alongside** the hub skill, whose server they invoke as
+`<skill-dir>/../iterator/server.mjs`. `iterator-plan` also carries
+`templates/format.md`. The repo-root `lib/` and `templates/` remain the source
+of truth; `npm run sync` refreshes the bundled copies and `test/sync.test.mjs`
+fails if they drift.
 
 ## The `memory/` bundle (OKF v0.1)
 
@@ -149,30 +169,39 @@ resolved relative to the git root.
 
 ## Shared UI shell (`lib/`)
 
-Every step's `server.mjs` shrinks to: parse the stdin payload → provide a body
-renderer + step-specific browser JS → call `serve()`. Each server imports the
-shell from its own bundled copy (`./lib/`, kept in sync with the repo-root
-source by `npm run sync`). The shell provides the rest:
+The hub's `server.mjs` is a thin dispatcher: parse the stdin payload → pick
+the view module from `payload.step` → `serve()` the rendered page. Each view
+module (`lib/views/<step>.mjs`) supplies only a body renderer + step-specific
+browser JS; the shell provides the rest:
 
 - **`lib/server.mjs`** — `readPayload()` (stdin→JSON) and `serve({ step, html })`:
   an HTTP server bound to `127.0.0.1` handling `GET /`, `POST /submit`,
   `POST /cancel`, plus a 2-hour timeout and the browser opener. Port comes from
-  `ITERATOR_PORT` (default `7777`). Three defects from the old per-skill servers
-  are fixed here:
+  `ITERATOR_PORT` (default `7777`). Defects fixed here:
   - **F8** — page data is embedded with `<` escaped (`embed()` in `ui.mjs`), so
     a diff line containing `</script>` can't terminate the script block.
-  - **F9** — a busy port no longer crashes: `serve()` retries the next port a
-    few times, then falls back to an ephemeral port, and always prints the real
-    URL.
+  - **F9** — the port is a **stable singleton**. Each server records
+    `{ pid, port }` in a per-user registry file (`ITERATOR_REGISTRY`
+    overrides the path); the next server verifies the recorded process really
+    is a lingering iterator UI via the tokenless read-only
+    `GET /__iterator/status` endpoint (so a reused pid is never killed by
+    mistake), SIGTERMs it, waits for it to exit, and binds the same fixed
+    port. That is what keeps a sandbox's `7777:7777` forward working across
+    runs — an orphaned server can no longer push the next run to 7778. Only
+    when a *foreign* process holds the port does `serve()` walk up / fall
+    back to an ephemeral port, always printing the real URL.
+    `ITERATOR_NO_TAKEOVER=1` disables the takeover (used by the tests).
   - **F10** — the timeout prints `{ "type": "timeout" }` to stdout instead of
     exiting silently, so the SKILL.md output contract is never violated.
+  - **F11** — SIGTERM/SIGINT/SIGHUP print `{ "type": "cancel" }` before
+    exiting, so a superseded or interrupted server still satisfies the
+    one-JSON-line contract and never leaves the port occupied.
 
-  Two protections on top of the `127.0.0.1` bind:
-  - **Per-run token.** The opened URL carries a random token and every request
-    must echo it (plus a localhost `Host` header) or get a 403. Without this,
-    any web page open in the same browser could POST a forged `/submit` —
-    which Claude would read as the user's answer — or `/cancel` the flow, and
-    DNS rebinding could reach the server despite the localhost bind.
+  Protections on top of the `127.0.0.1` bind:
+  - **Host-header check.** Locally, requests with a non-localhost `Host`
+    header get a 403, so DNS rebinding can't reach the server. (There is no
+    per-run URL token — the dashboard is a local dev tool and the URL stays
+    clean, matching okf-memory's server.)
   - **Reload grace.** A `/cancel` from the `pagehide` beacon is held for a
     short grace period (`ITERATOR_CANCEL_GRACE_MS`, default 2.5s) and dropped
     if a `GET /` follows — so an accidental reload doesn't kill the flow. The
@@ -184,8 +213,13 @@ source by `npm run sync`). The shell provides the rest:
   container marker files) bind `0.0.0.0` instead of loopback so a forwarded
   port can reach the server, skip the opener, and print a `127.0.0.1` URL for
   the host browser. `ITERATOR_BIND_HOST` (alias `ITERATOR_HOST`, deprecated)
-  overrides the bind address either way — the token stays mandatory; only the
-  localhost Host-header check is relaxed when bound beyond loopback.
+  overrides the bind address either way; the localhost Host-header check is
+  relaxed when bound beyond loopback, so keep the host-side publish on
+  loopback. This is the mode the
+  [pi-docker-sandbox-setup](https://github.com/Christoph/pi-docker-sandbox-setup)
+  image runs in: it sets `ITERATOR_REMOTE=1` and its `pisbx` script publishes
+  `7777:7777` (iterator) and `8888:8888` (okf-memory) — which is why the
+  single-instance fixed port matters.
 - **`lib/ui.mjs`** — `renderPage()` builds the full page: the
   `iterator / <step>` header with a branch tag, theme toggle, **Cancel**, and a
   primary button that flips **Accept ↔ Send review** driven by a step-provided
@@ -199,15 +233,17 @@ Step-specific browser handlers are wired with `addEventListener` + closures,
 never inline `on*` attribute strings built from data — so chunk names
 containing quotes or backslashes can't break the markup or inject script.
 
-This is what makes "each step has its own UI with the same base structure and
-flow" true by construction rather than by copy-paste discipline.
+This is what makes "each step has its own view with the same base structure
+and flow" true by construction rather than by copy-paste discipline.
 
 ### Browser round-trip (no temp files)
 
-1. A skill builds a JSON payload and pipes it to `server.mjs` via a heredoc —
-   nothing is written to `/tmp`.
-2. `server.mjs` serves the page (data embedded inline, safely escaped) and opens
-   the browser on `127.0.0.1:<port>`.
+1. A skill builds a JSON payload (with a `step` field picking the view) and
+   pipes it to the hub's `server.mjs` via a heredoc — nothing is written to
+   `/tmp`.
+2. `server.mjs` replaces any lingering iterator server, serves the page (data
+   embedded inline, safely escaped), and opens the browser on
+   `127.0.0.1:<port>`.
 3. On submit the browser `POST`s structured JSON to `/submit`; the server prints
    it to stdout and exits. Closing the tab `POST`s `/cancel` (via `sendBeacon`),
    emitting `{ "type": "cancel" }`, so a closed tab never leaves the flow

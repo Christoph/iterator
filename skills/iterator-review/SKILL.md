@@ -89,11 +89,13 @@ complexity green ≤ 100, yellow 101–200, red > 200.
 
 ### 5. Build the payload and open the server (no temp file)
 
-Pipe the data into the server via a heredoc:
+Pipe the data into the shared UI server (it ships with the `/iterator` hub
+skill, a sibling folder) via a heredoc:
 
 ```sh
-node <skill-dir>/server.mjs << 'REVIEW_DATA'
+node <skill-dir>/../iterator/server.mjs << 'REVIEW_DATA'
 {
+  "step": "review",
   "branch": "<branch>",
   "commit": "<hash subject>",
   "plan": "<plan title>",
@@ -119,8 +121,9 @@ node <skill-dir>/server.mjs << 'REVIEW_DATA'
 REVIEW_DATA
 ```
 
-The server starts on **port 7777** (or `$ITERATOR_PORT`; it retries if busy),
-opens the browser, and blocks. The UI shows a chunk sidebar (colored by
+The server starts on **port 7777** (or `$ITERATOR_PORT`; fixed — a lingering
+iterator server from an earlier run is replaced), opens the browser, and
+blocks. The UI shows a chunk sidebar (colored by
 complexity), the selected chunk's diff grouped by file, per-chunk status buttons
 (Approved / Needs Changes / Question), chunk notes, and line-level comments.
 Header controls: **Accept** / **Cancel** / **Send review**; a closed tab sends

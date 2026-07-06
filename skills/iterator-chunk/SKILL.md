@@ -55,11 +55,12 @@ connected chunks:
 
 ### 3. Open the chunk-plan UI
 
-Pipe the chunk data into the server via a heredoc (no temp file). Include
+Pipe the chunk data into the shared UI server (it ships with the `/iterator`
+hub skill, a sibling folder) via a heredoc (no temp file). Include
 `"status": "done"` for already-completed chunks so they render locked:
 
 ```sh
-node <skill-dir>/server.mjs << 'CHUNK_DATA'
+node <skill-dir>/../iterator/server.mjs << 'CHUNK_DATA'
 {
   "step": "chunk",
   "branch": "<branch>",

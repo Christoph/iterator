@@ -40,12 +40,11 @@ test('renderPage includes header controls and custom labels', () => {
   assert.ok(html.includes('toggleTheme()'));
 });
 
-test('shared client JS sends the URL token with every request', () => {
+test('shared client JS posts to the server endpoints', () => {
   const html = renderPage({ step: 't', data: {}, body: '', clientJs: '' });
-  assert.ok(html.includes("new URLSearchParams(location.search).get('t')"));
-  assert.ok(html.includes("__api('/submit')"));
-  assert.ok(html.includes("__api('/cancel')"));
-  assert.ok(html.includes("__api('/cancel?now=1')"));
+  assert.ok(html.includes("fetch('/submit'"));
+  assert.ok(html.includes("sendBeacon('/cancel'"));
+  assert.ok(html.includes("fetch('/cancel?now=1'"));
 });
 
 test('mdToHtml refuses javascript: links', () => {
