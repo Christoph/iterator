@@ -821,6 +821,16 @@ function applyReview(payload, root) {
     ? join(b.root, String(payload.bundlePath).replace(/\/+$/, ''))
     : b.memDir;
   const mode = payload.mode || 'memorize';
+  const headCommit = payload.headCommit || null;
+  if (!['init', 'consolidate', 'memorize'].includes(mode)) {
+    fail(`apply-review: invalid mode '${mode}' (init|consolidate|memorize)`);
+  }
+  if (mode === 'consolidate' && headCommit) {
+    fail('apply-review: consolidate reviews must not include headCommit (the memorize pointer is not advanced by consolidation)');
+  }
+  if (headCommit && !/^[0-9a-f]{7,40}$/i.test(String(headCommit))) {
+    fail(`apply-review: headCommit '${headCommit}' is not a commit sha`);
+  }
   const cards = new Map(listy(payload.memories).map(m => [m.id, m]));
   const decisions = listy(payload.decisions);
   if (!decisions.length) fail('apply-review needs decisions (the review-approved output)');
@@ -837,7 +847,13 @@ function applyReview(payload, root) {
     if (['chunks', 'plans'].includes(area)) {
       fail(`apply-review: area '${area}' is owned by the plan/chunk ops`);
     }
+    if (!OKF_AREAS[area]) {
+      fail(`apply-review: unknown area '${area}' (${Object.keys(OKF_AREAS).join('|')})`);
+    }
     const card = cards.get(d.id);
+    if (card?.area && card.area !== area) {
+      fail(`card '${d.id}' area '${card.area}' does not match id area '${area}'`);
+    }
     if (d.verdict === 'accept') {
       if (!card) fail(`decision '${d.id}' has no matching draft card`);
       if (card.action !== 'delete' && !(card.type && card.title && card.description)) {
@@ -876,9 +892,9 @@ function applyReview(payload, root) {
   }
 
   for (const area of touched) regenerateAreaIndex(mem, area);
-  updateRootIndex(mem, [...touched], { advanceTo: payload.headCommit || null });
-  if (payload.headCommit) {
-    log.push(`**${mode === 'init' ? 'Initialization' : 'Memorize'}**: Set last_memorized_commit to ${String(payload.headCommit).slice(0, 12)}.`);
+  updateRootIndex(mem, [...touched], { advanceTo: headCommit });
+  if (headCommit) {
+    log.push(`**${mode === 'init' ? 'Initialization' : 'Memorize'}**: Set last_memorized_commit to ${String(headCommit).slice(0, 12)}.`);
   }
   prependLogShared(mem, log.reverse());
 
@@ -889,7 +905,7 @@ function applyReview(payload, root) {
     deleted,
     kept,
     rejected,
-    advancedTo: payload.headCommit || null,
+    advancedTo: headCommit,
     validation: validateBundle(mem),
   };
 }

@@ -149,7 +149,7 @@ test('update-chunk flips status, appends commits and review notes', () => {
     assert.equal(fm.status, 'done');
     assert.equal(fm.done, '2026-07-06', 'done date derived from ITERATOR_NOW');
     assert.equal(fm.tests_status, 'green');
-    assert.match(raw, /commits:\n  - sha: abc1234\n    kind: implement\n    date: 2026-07-06/);
+    assert.match(raw, /commits:\n {2}- sha: abc1234\n {4}kind: implement\n {4}date: 2026-07-06/);
     assert.match(read(root, 'chunks', 'index.md'), /✅ done · 🟢 tests green/);
     assert.match(read(root, 'log.md'), /Committed chunk\(config-module\)/);
 
@@ -707,7 +707,7 @@ test('apply-review writes accepted cards, skips rejected, regenerates indexes, a
 
     const concept = read(root, 'patterns', 'error-handling.md');
     assert.match(concept, /type: Pattern/);
-    assert.match(concept, /tags:\n  - errors/);
+    assert.match(concept, /tags:\n {2}- errors/);
     assert.match(concept, /timestamp: 2026-07-06T12:00:00Z/);
     assert.match(concept, /Always wrap IO\./);
     assert.ok(!existsSync(join(root, 'memory', 'patterns', 'dropped.md')));
@@ -786,6 +786,12 @@ test('apply-review validates verdicts, ids, ownership, and card completeness bef
       /invalid concept id/);
     assert.throws(() => apply({ decisions: [{ id: 'chunks/auth', verdict: 'accept' }] }),
       /owned by the plan\/chunk ops/);
+    assert.throws(() => apply({ decisions: [{ id: 'extras/x', verdict: 'keep' }] }),
+      /unknown area 'extras'/);
+    assert.throws(() => apply({ mode: 'consolidate', headCommit: 'a'.repeat(40), decisions: [{ id: 'patterns/x', verdict: 'keep' }] }),
+      /consolidate reviews must not include headCommit/);
+    assert.throws(() => apply({ mode: 'memorize', headCommit: 'not-a-sha', decisions: [{ id: 'patterns/x', verdict: 'keep' }] }),
+      /headCommit 'not-a-sha' is not a commit sha/);
     assert.throws(() => apply({ memories: [], decisions: [{ id: 'patterns/x', verdict: 'accept' }] }),
       /no matching draft card/);
     assert.ok(!existsSync(join(root, 'memory')), 'nothing written on failure');

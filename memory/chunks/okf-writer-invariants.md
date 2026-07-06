@@ -2,12 +2,13 @@
 type: Chunk
 title: OKF writer invariants
 description: Enforce apply-review pointer and knowledge-area invariants so memory approvals cannot skip future memorize coverage or create unsupported areas.
-status: pending
+status: done
 size: small
 depends_on: []
 files: ["skills/iterator/write.mjs", "test/write.test.mjs"]
-timestamp: 2026-07-06T19:50:16.549Z
+timestamp: "2026-07-06T19:57:51.804Z"
 tags: []
+done: 2026-07-06
 ---
 
 # Implementation notes
