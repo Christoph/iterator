@@ -386,8 +386,12 @@ export function gatherRange(startDir) {
   const mergeBaseFallback =
     base && !baseValid ? git(['merge-base', 'HEAD', base], b.root) || null : null;
   const effectiveBase = baseValid ? base : mergeBaseFallback;
+  // Memory-only bookkeeping commits do not represent project work to study.
+  // Keep /okf-memorize's explicit range aligned with the footer/implement
+  // memorize gather, which already excludes the bundle path.
+  const pathspec = isAbsolute(b.memName) ? [] : ['--', '.', `:(exclude)${b.memName}`];
   const commits = (effectiveBase && head)
-    ? git(['log', '--format=%H%x09%s', `${effectiveBase}..HEAD`], b.root)
+    ? git(['log', '--format=%H%x09%s', `${effectiveBase}..HEAD`, ...pathspec], b.root)
       .split('\n').filter(Boolean)
       .map(l => { const [sha, ...s] = l.split('\t'); return { sha, subject: s.join('\t') }; })
     : [];
@@ -440,6 +444,14 @@ export function gatherKnowledge(startDir) {
   const lastCommit = rootFm.last_memorized_commit ?? null;
 
   const tracked = new Set(git(['ls-files'], b.root).split('\n').filter(Boolean));
+  const trackedPaths = [...tracked];
+  const anchorIsStale = (anchor) => {
+    const a = String(anchor || '');
+    if (!a) return false;
+    if (tracked.has(a)) return false;
+    const re = globToRegExp(a);
+    return !trackedPaths.some(p => re.test(p));
+  };
   const memories = [];
   for (const p of mdFilesUnder(b.memDir)) {
     const rel = relative(b.memDir, p).split('\\').join('/');
@@ -457,7 +469,7 @@ export function gatherKnowledge(startDir) {
       description: fm.description || '',
       status: fm.status || '',
       files,
-      stale: tracked.size > 0 && files.some(f => f && !tracked.has(f)),
+      stale: tracked.size > 0 && files.some(anchorIsStale),
     });
   }
 

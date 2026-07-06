@@ -1,10 +1,13 @@
 # Chunks
 
-* [Schema: tests + commits fields](schema-tests-commits.md) - ✅ done · small · New tests/tests_status/commits frontmatter and the index badge format
-* [Dev bind host for Docker](expose-bind-host.md) - ✅ done · small · ITERATOR_HOST=0.0.0.0 support; default port becomes 7777
-* [Red mode for iterator-test](test-red-mode.md) - ✅ done · medium · depends: schema-tests-commits · Contract-based failing tests for pending chunks, committed + recorded
-* [Green gate for iterator-implement](implement-green-gate.md) - ✅ done · medium · depends: schema-tests-commits · Tests as the implementation goal; test badge in the commit-mode UI
-* [Review committed chunks](review-committed-diffs.md) - ✅ done · small · depends: schema-tests-commits · Diff from recorded commits / Chunk trailer when the tree is clean
-* [Hub dashboard UI](hub-dashboard-ui.md) - ✅ done · medium · depends: schema-tests-commits · skills/iterator server: cards, badges, graph, empty state
-* [Hub dispatch skill](hub-dispatch.md) - ✅ done · medium · depends: hub-dashboard-ui, test-red-mode, implement-green-gate, review-committed-diffs · SKILL.md routing actions into the existing flows
-* [Docs refresh](docs-refresh.md) - ✅ done · small · depends: hub-dispatch, expose-bind-host · README + ARCHITECTURE for the six-skill flow
+* [Schema: tests + commits fields](schema-tests-commits.md) - ✅ done · small · Add tests, tests_status, and commits frontmatter to the Chunk schema and define the test badge in chunks/index.md.
+* [Dev bind host for Docker](expose-bind-host.md) - ✅ done · small · ITERATOR_HOST env var lets the shared server bind 0.0.0.0 for Docker sandboxes, and the default port moves from 8888 to 7777.
+* [Red mode for iterator-test](test-red-mode.md) - ✅ done · medium · depends: schema-tests-commits · iterator-test writes intentionally-failing contract tests for pending chunks, commits them, and records tests/tests_status/commits in the chunk file.
+* [Green gate for iterator-implement](implement-green-gate.md) - ✅ done · medium · depends: schema-tests-commits · iterator-implement runs a chunk's tests as its goal, only offers Accept-and-commit when green, shows a test badge in the commit-mode UI, and records the implement commit.
+* [Review committed chunks](review-committed-diffs.md) - ✅ done · small · depends: schema-tests-commits · iterator-review builds the diff from recorded commits (or the Chunk trailer) when the working tree is clean and the chunk is done.
+* [Hub dashboard UI](hub-dashboard-ui.md) - ✅ done · medium · depends: schema-tests-commits · New skills/iterator/server.mjs renders the plan + chunk dashboard (cards, badges, dependency graph, action buttons) and emits one action payload.
+* [Hub dispatch skill](hub-dispatch.md) - ✅ done · medium · depends: hub-dashboard-ui, test-red-mode, implement-green-gate, review-committed-diffs · skills/iterator/SKILL.md reads the bundle, opens the dashboard, and routes the chosen action into the existing per-step flows, reopening the hub afterwards.
+* [Docs refresh](docs-refresh.md) - ✅ done · small · depends: hub-dispatch, expose-bind-host · README and ARCHITECTURE describe the six-skill flow with the hub, red/green testing, commit tracking, and the Docker bind option.
+* [OKF gather staleness and range accuracy](okf-gather-staleness-range.md) - ✅ done · small · Make Knowledge staleness honor glob anchors and make /okf-memorize ignore memory-only bookkeeping commits.
+* [OKF writer invariants](okf-writer-invariants.md) - ⬜ pending · small · Enforce apply-review pointer and knowledge-area invariants so memory approvals cannot skip future memorize coverage or create unsupported areas.
+* [Commit review memory-card readability](commit-memory-reviewability.md) - ⬜ pending · medium · depends: okf-writer-invariants, okf-gather-staleness-range · Make commit-mode memory proposals readable enough for human approval and refresh the README documentation for the safer OKF flow.

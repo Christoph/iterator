@@ -369,6 +369,30 @@ test('gather range reports the commits since a valid pointer', () => {
   }
 });
 
+test('gather range ignores memory-only bookkeeping commits', () => {
+  const root = mkdtempSync(join(tmpdir(), 'iterator-gather-'));
+  try {
+    git(root, 'init', '-q');
+    writeFileSync(join(root, 'a'), 'a\n');
+    git(root, 'add', '.');
+    git(root, 'commit', '-qm', 'base');
+    const base = git(root, 'rev-parse', 'HEAD');
+    mkdirSync(join(root, 'memory'), { recursive: true });
+    writeFileSync(join(root, 'memory', 'index.md'),
+      `---\nokf_version: "0.1"\nlast_memorized_commit: ${base}\n---\n# Memory\n`);
+    git(root, 'add', '.');
+    git(root, 'commit', '-qm', 'chore(memory): record pointer');
+
+    const r = gatherRange(root);
+    assert.equal(r.baseValid, true);
+    assert.equal(r.effectiveBase, base);
+    assert.equal(r.commitCount, 0);
+    assert.equal(r.nothingToMemorize, true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('gather range flags an invalid pointer without a usable fallback', () => {
   const root = mkdtempSync(join(tmpdir(), 'iterator-gather-'));
   try {
@@ -402,6 +426,8 @@ function makeKnowledgeFixture() {
     '---\ntype: Pitfall\ntitle: Gone anchor\ndescription: Anchored to a deleted file.\nfiles:\n  - src/deleted.ts\n---\nbody\n');
   writeFileSync(join(root, 'memory', 'pitfalls', 'live-anchor.md'),
     '---\ntype: Pitfall\ntitle: Live anchor\ndescription: Anchored to a tracked file.\nfiles:\n  - src/config.ts\n---\nbody\n');
+  writeFileSync(join(root, 'memory', 'pitfalls', 'glob-anchor.md'),
+    '---\ntype: Pitfall\ntitle: Glob anchor\ndescription: Anchored to tracked TypeScript files.\nfiles:\n  - src/*.ts\n---\nbody\n');
   writeFileSync(join(root, 'memory', 'design.md'),
     '---\ntype: Design\ntitle: Design parameters\ndescription: Dark, dense, mono.\n---\n# Direction\nd\n');
   return root;
@@ -417,11 +443,11 @@ test('gather knowledge reports areas, concepts, staleness, and the design card',
     assert.equal(p.memory.okfVersion, '0.1');
     assert.ok(p.memory.lastMemorizedCommit);
     // work-owned files (plan.md, chunks/, design.md) are not knowledge concepts
-    assert.equal(p.memory.conceptCount, 2);
+    assert.equal(p.memory.conceptCount, 3);
     assert.equal(p.memory.staleCount, 1);
     assert.equal(p.memory.unmemorizedCommitCount, 0);
     assert.equal(p.areas.length, 5);
-    assert.equal(p.areas.find(a => a.id === 'pitfalls').count, 2);
+    assert.equal(p.areas.find(a => a.id === 'pitfalls').count, 3);
     assert.equal(p.areas.find(a => a.id === 'pitfalls').title, 'Pitfalls');
 
     const gone = p.memories.find(m => m.id === 'pitfalls/gone-anchor');
@@ -429,6 +455,7 @@ test('gather knowledge reports areas, concepts, staleness, and the design card',
     assert.equal(gone.area, 'pitfalls');
     assert.deepEqual(gone.files, ['src/deleted.ts']);
     assert.equal(p.memories.find(m => m.id === 'pitfalls/live-anchor').stale, false);
+    assert.equal(p.memories.find(m => m.id === 'pitfalls/glob-anchor').stale, false);
     assert.ok(!p.memories.some(m => m.id.startsWith('chunks/')), 'chunks are work-side');
 
     assert.deepEqual(p.design,

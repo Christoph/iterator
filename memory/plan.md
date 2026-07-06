@@ -79,11 +79,14 @@ all without abandoning the standalone-skill portability story.
 
 # Chunks
 
-* [Schema: tests + commits fields](/chunks/schema-tests-commits.md) - New chunk frontmatter fields and index badge format
-* [Dev bind host for Docker](/chunks/expose-bind-host.md) - ITERATOR_HOST=0.0.0.0 support; default port becomes 7777
-* [Red mode for iterator-test](/chunks/test-red-mode.md) - Contract-based failing tests for pending chunks, committed + recorded
-* [Green gate for iterator-implement](/chunks/implement-green-gate.md) - Tests as the implementation goal; test badge in the commit-mode UI
-* [Review committed chunks](/chunks/review-committed-diffs.md) - Diff from recorded commits / Chunk trailer when the tree is clean
-* [Hub dashboard UI](/chunks/hub-dashboard-ui.md) - skills/iterator server: cards, badges, graph, empty state
-* [Hub dispatch skill](/chunks/hub-dispatch.md) - SKILL.md routing actions into the existing flows
-* [Docs refresh](/chunks/docs-refresh.md) - README + ARCHITECTURE for the six-skill flow
+* [Schema: tests + commits fields](/chunks/schema-tests-commits.md) - Add tests, tests_status, and commits frontmatter to the Chunk schema and define the test badge in chunks/index.md.
+* [Dev bind host for Docker](/chunks/expose-bind-host.md) - ITERATOR_HOST env var lets the shared server bind 0.0.0.0 for Docker sandboxes, and the default port moves from 8888 to 7777.
+* [Red mode for iterator-test](/chunks/test-red-mode.md) - iterator-test writes intentionally-failing contract tests for pending chunks, commits them, and records tests/tests_status/commits in the chunk file.
+* [Green gate for iterator-implement](/chunks/implement-green-gate.md) - iterator-implement runs a chunk's tests as its goal, only offers Accept-and-commit when green, shows a test badge in the commit-mode UI, and records the implement commit.
+* [Review committed chunks](/chunks/review-committed-diffs.md) - iterator-review builds the diff from recorded commits (or the Chunk trailer) when the working tree is clean and the chunk is done.
+* [Hub dashboard UI](/chunks/hub-dashboard-ui.md) - New skills/iterator/server.mjs renders the plan + chunk dashboard (cards, badges, dependency graph, action buttons) and emits one action payload.
+* [Hub dispatch skill](/chunks/hub-dispatch.md) - skills/iterator/SKILL.md reads the bundle, opens the dashboard, and routes the chosen action into the existing per-step flows, reopening the hub afterwards.
+* [Docs refresh](/chunks/docs-refresh.md) - README and ARCHITECTURE describe the six-skill flow with the hub, red/green testing, commit tracking, and the Docker bind option.
+* [OKF gather staleness and range accuracy](/chunks/okf-gather-staleness-range.md) - Make Knowledge staleness honor glob anchors and make /okf-memorize ignore memory-only bookkeeping commits.
+* [OKF writer invariants](/chunks/okf-writer-invariants.md) - Enforce apply-review pointer and knowledge-area invariants so memory approvals cannot skip future memorize coverage or create unsupported areas.
+* [Commit review memory-card readability](/chunks/commit-memory-reviewability.md) - Make commit-mode memory proposals readable enough for human approval and refresh the README documentation for the safer OKF flow.

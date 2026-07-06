@@ -1,6 +1,8 @@
 # iterator update log
 
 ## 2026-07-06
+* **Implementation**: Committed chunk(okf-gather-staleness-range) on branch iterator/okf-gather-staleness-range.
+* **Update**: Added corrective chunks for OKF writer/gather invariants and commit-review memory readability.
 * **Initialization**: Set last_memorized_commit to 308b031eeaa0.
 * **Creation**: Memorized [Remote browser access](/setup/remote-browser-access.md).
 * **Creation**: Memorized [Install and command surface](/setup/install-and-command-surface.md).
