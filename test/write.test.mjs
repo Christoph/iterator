@@ -540,3 +540,129 @@ test('memorize op with only advanceTo works in an okf-only bundle (no plan)', ()
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+// ---------------------------------------------------------------------------
+// deterministic result processing (accept-commit / record-review)
+
+const WAVE_CHUNKS_OP = {
+  op: 'chunks',
+  chunks: [
+    { name: 'chunk-a', title: 'Chunk A', description: 'First independent chunk', files: ['src/a.ts'], dependsOn: [], size: 'small' },
+    { name: 'chunk-b', title: 'Chunk B', description: 'Second independent chunk', files: ['src/b.ts'], dependsOn: [], size: 'small' },
+  ],
+};
+
+/** Plan + two independent chunks, committed on the default branch. */
+function makeWaveRepo() {
+  const root = makeRepo();
+  git(root, 'config', 'user.email', 't@t');
+  git(root, 'config', 'user.name', 't');
+  applyOp(PLAN_OP, root);
+  applyOp(WAVE_CHUNKS_OP, root);
+  mkdirSync(join(root, 'src'), { recursive: true });
+  writeFileSync(join(root, 'src', 'base.ts'), 'export {};\n');
+  git(root, 'add', '.');
+  git(root, 'commit', '-qm', 'init');
+  // The implemented wave: one new file per chunk, staged like the review saw it.
+  writeFileSync(join(root, 'src', 'a.ts'), 'export const a = 1;\n');
+  writeFileSync(join(root, 'src', 'b.ts'), 'export const b = 1;\n');
+  git(root, 'add', 'src/a.ts', 'src/b.ts');
+  return root;
+}
+
+test('accept-commit lands the wave: branch safety, per-chunk commits, done flips, shas, memory', () => {
+  const root = makeWaveRepo();
+  try {
+    const res = applyOp({
+      op: 'accept-commit',
+      chunks: ['chunk-a', { slug: 'chunk-b', testsStatus: 'green', summary: 'custom summary' }],
+      memory: {
+        proposals: [
+          { action: 'create', area: 'patterns', slug: 'kept', type: 'Pattern', title: 'Kept', description: 'd', body: 'b' },
+          { action: 'create', area: 'patterns', slug: 'dropped', type: 'Pattern', title: 'Dropped', description: 'd', body: 'b' },
+        ],
+        accepted: ['patterns/kept'],
+      },
+      advance: true,
+    }, root);
+
+    assert.match(res.branch, /^iterator\/chunk-a$/, 'moved off the default branch');
+    assert.equal(git(root, 'rev-parse', '--abbrev-ref', 'HEAD'), res.branch);
+    assert.equal(res.committed.length, 2);
+    assert.deepEqual(res.uncommitted, []);
+
+    // One commit per chunk with the trailer; bookkeeping commit on top.
+    const log = git(root, 'log', '--format=%s');
+    assert.match(log, /chore\(iterator\): record chunk commits and memory updates/);
+    assert.match(log, /chunk\(chunk-a\): Chunk A/);
+    assert.match(log, /chunk\(chunk-b\): custom summary/);
+    assert.equal(git(root, 'log', '--format=%H', '--grep', '^Chunk: chunk-a$'), res.committed[0].sha);
+
+    // Bundle state: done, tests_status, recorded shas.
+    const a = frontmatter(read(root, 'chunks', 'chunk-a.md'));
+    const bFm = frontmatter(read(root, 'chunks', 'chunk-b.md'));
+    assert.equal(a.status, 'done');
+    assert.equal(bFm.status, 'done');
+    assert.equal(bFm.tests_status, 'green');
+    assert.match(read(root, 'chunks', 'chunk-a.md'), new RegExp(`sha: ${res.committed[0].sha}`));
+
+    // Memory verdicts: accepted card written, skipped card dropped, pointer advanced.
+    assert.ok(existsSync(join(root, 'memory', 'patterns', 'kept.md')));
+    assert.ok(!existsSync(join(root, 'memory', 'patterns', 'dropped.md')));
+    assert.match(read(root, 'index.md'), new RegExp(`last_memorized_commit: ${res.committed[1].sha}`));
+
+    assert.equal(git(root, 'status', '--porcelain'), '', 'working tree is clean after the op');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('accept-commit validates chunks and dependencies, and skips already-done chunks on rerun', () => {
+  const root = makeWaveRepo();
+  try {
+    assert.throws(() => applyOp({ op: 'accept-commit', chunks: ['nope'] }, root), /no chunk 'nope'/);
+    assert.throws(() => applyOp({ op: 'accept-commit', chunks: [] }, root), /non-empty chunks list/);
+
+    applyOp({
+      op: 'chunks',
+      chunks: [{ name: 'dependent', title: 'Dependent', description: 'd', files: ['src/d.ts'], dependsOn: ['chunk-a'], size: 'small' }],
+    }, root);
+    assert.throws(() => applyOp({ op: 'accept-commit', chunks: ['dependent'] }, root), /waiting on: chunk-a/);
+
+    applyOp({ op: 'accept-commit', chunks: ['chunk-a'] }, root);
+    // Rerun with a done chunk in the list: resumable, not an error.
+    const res = applyOp({ type: 'accept-commit', chunk: 'chunk-a', chunks: ['chunk-a', 'chunk-b'] }, root);
+    assert.deepEqual(res.skipped, ['chunk-a']);
+    assert.deepEqual(res.committed.map(c => c.chunk), ['chunk-b']);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('record-review consumes the review-feedback payload verbatim', () => {
+  const root = makeWaveRepo();
+  try {
+    const res = applyOp({
+      type: 'review-feedback',
+      branch: 'test',
+      features: [
+        { name: 'chunk-a', status: 'approved', note: null },
+        { name: 'chunk-b', status: 'changes', note: 'tighten error handling' },
+        { name: 'uncategorized', status: 'question', note: 'ignored' },
+      ],
+      lineComments: [{ chunk: 'chunk-a', file: 'src/a.ts', comment: 'why?' }],
+    }, root);
+    assert.deepEqual(res.recorded, ['chunk-a', 'chunk-b']);
+    assert.equal(res.lineComments, 1);
+
+    const a = read(root, 'chunks', 'chunk-a.md');
+    assert.match(a, /\* \*\*Approved\*\* — no changes requested/);
+    assert.equal(frontmatter(a).reviewed, '2026-07-06');
+    assert.match(read(root, 'chunks', 'chunk-b.md'), /\* \*\*Needs changes\*\* — tighten error handling/);
+    assert.match(read(root, 'log.md'), /\*\*Review\*\*: Reviewed \[Chunk A\]\(\/chunks\/chunk-a\.md\); approved\./);
+
+    assert.throws(() => applyOp({ type: 'review-feedback', features: [] }, root), /needs features/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

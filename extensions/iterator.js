@@ -240,11 +240,15 @@ export default function iteratorExtension(pi) {
 			"(apply a chunk UI result verbatim: spread the result object in, e.g. " +
 			"{op:'adjustments', ...uiResult}; accept:true or type:'plan-approved' promotes drafts to pending), " +
 			"memorize (okf-memory shared bundle: create/update/delete knowledge concepts in " +
-			"architecture/decisions/patterns/pitfalls/setup and/or advance last_memorized_commit).",
+			"architecture/decisions/patterns/pitfalls/setup and/or advance last_memorized_commit), " +
+			"accept-commit (process the review UI's accept result end to end: branch safety, " +
+			"per-chunk commits with trailers, done flips, sha recording, memory verdicts, pointer " +
+			"advance — pass the UI result plus per-chunk testsStatus/summary and advance:true|false), " +
+			"record-review (pipe a review-feedback UI result verbatim to record statuses/notes).",
 		parameters: Type.Object(
 			{
 				op: Type.Union(
-					["plan", "chunks", "design", "update-chunk", "adjustments", "memorize"].map((s) => Type.Literal(s)),
+					["plan", "chunks", "design", "update-chunk", "adjustments", "memorize", "accept-commit", "record-review"].map((s) => Type.Literal(s)),
 					{ description: "Writer operation." },
 				),
 			},

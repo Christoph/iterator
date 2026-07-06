@@ -107,29 +107,24 @@ The server prints `{ "type": "review-feedback", ... }`, `{ "type": "cancel" }`, 
 
 For `cancel` / `timeout`: stop and report that the review ended without changes.
 
-For `review-feedback`, for each entry in `features[]` (each is a reviewed
-chunk), record the outcome through the bundle writer — it refreshes
-`reviewed`/`timestamp`, appends the note under `# Review` (newest first, never
-overwriting history), regenerates the index, and prepends the log entry:
+For `review-feedback`, recording is fully deterministic — pipe the server's
+output **verbatim** into the bundle writer. It maps each `features[]` entry to
+its chunk, refreshes `reviewed`/`timestamp`, appends the status line under
+`# Review` (newest first, never overwriting history — `approved` →
+`* **Approved** — <note>`, `changes` → `* **Needs changes** — <note>`,
+`question` → `* **Question** — <note>`), regenerates the index, and prepends
+the log entries:
 
 ```sh
 node <skill-dir>/../iterator/write.mjs << 'REVIEW_WRITE'
-{
-  "op": "update-chunk",
-  "chunk": "<slug>",
-  "appendReview": "* **Approved** — <note or \"no changes requested\">",
-  "log": "**Review**: Reviewed [<Title>](/chunks/<slug>.md); <approved / N changes requested>."
-}
+<the review-feedback JSON line, unchanged>
 REVIEW_WRITE
 ```
 
-The review line by status: `approved` → `* **Approved** — <note>`; `changes` →
-`* **Needs changes** — <note>` (and address the note); `question` → answer
-inline for the user, then record `* **Question** — <note> → <answer>`.
-**Do not** set `status: done` (the writer flips status only when explicitly
-asked — never ask it to here).
-
-For each `lineComments[]` entry: explain or fix (ask before changing code).
+It never sets `status: done`. What remains for you is the semantic residue:
+address every `changes` note, answer every `question` inline for the user,
+and for each `lineComments[]` entry explain or fix (ask before changing
+code).
 
 Only the reviewed chunk file(s) plus the generated files should change (the
 writer guarantees this). Report which chunks were

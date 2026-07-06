@@ -378,8 +378,12 @@ export function gatherMemorize(startDir) {
   const base = rootFm.last_memorized_commit || null;
   const baseValid = !!base &&
     git(['rev-parse', '--verify', '--quiet', `${base}^{commit}`], b.root) !== '';
+  // Commits that touch only the bundle (bookkeeping like sha recording or
+  // memory writes) are definitionally not memorizable — exclude them so the
+  // pending range reflects real work only.
+  const pathspec = isAbsolute(b.memName) ? [] : ['--', '.', `:(exclude)${b.memName}`];
   const pending = (baseValid && head)
-    ? git(['log', '--format=%H%x09%s', `${base}..HEAD`], b.root)
+    ? git(['log', '--format=%H%x09%s', `${base}..HEAD`, ...pathspec], b.root)
       .split('\n').filter(Boolean)
       .map(l => { const [sha, ...s] = l.split('\t'); return { sha, subject: s.join('\t') }; })
     : [];

@@ -166,66 +166,43 @@ the tab sends `{ "type": "cancel" }`; a 2h idle sends `{ "type": "timeout" }`.
 ### 5. Process the result
 
 - `{ "type": "accept-commit", "chunks": [...], "memory": {...} }` → the wave
-  is accepted (older UIs send only `"chunk"` — treat it as a one-chunk list):
-  1. **Branch safety:** if the current branch is the default (`main`/`master`),
-     create and switch to a working branch first — never commit to the default
-     branch.
-  2. **Per chunk, in the review payload's order** — flip it through the
-     bundle writer, stage exactly its files, and commit:
+  is accepted (older UIs send only `"chunk"` — the writer treats it as a
+  one-chunk list). **The entire acceptance is one deterministic write** —
+  branch safety, per-chunk staging and `chunk(<slug>)` commits with `Chunk:`
+  trailers, `status: done` flips, commit-sha recording, memory-card
+  application, pointer advance, and the bookkeeping commit all happen inside
+  the writer. Pipe the UI result in, augmented with three fields you own:
 
-     ```sh
-     node <skill-dir>/../iterator/write.mjs << 'DONE_WRITE'
-     {
-       "op": "update-chunk",
-       "chunk": "<slug>",
-       "set": { "status": "done", "tests_status": "<red|green>" },
-       "log": "**Implementation**: Committed chunk(<slug>) on branch <branch>."
-     }
-     DONE_WRITE
-     ```
+  ```sh
+  node <skill-dir>/../iterator/write.mjs << 'ACCEPT_WRITE'
+  {
+    "op": "accept-commit",
+    "chunks": [
+      { "slug": "<slug>", "testsStatus": "<red|green>", "summary": "<short summary>" }
+    ],
+    "memory": { "proposals": [ <your step-3 cards> ], "accepted": <the UI result's memory.accepted> },
+    "advance": true
+  }
+  ACCEPT_WRITE
+  ```
 
-     Include `tests_status` only when the chunk has tests: the color of the
-     last real run (normally `red → green`; keep `red` if the user accepted
-     with red tests — `status` and `tests_status` are independent by design).
-     Then `git add` the files the review payload mapped to this chunk (plus
-     any new files you created for it that ended up uncategorized) **together
-     with** the `memory/` bundle changes, and commit:
+  Per chunk: `testsStatus` only when it has tests — the color of the last
+  real run (normally `red → green`; keep `red` if the user accepted with red
+  tests); `summary` is your one-line commit summary (defaults to the chunk
+  title). `memory.proposals` are the full cards from step 3; the writer keeps
+  only the ones in `accepted` and drops the toggled-off rest. Set
+  `"advance": true` **only** when step 3's payload had `baseValid: true` and
+  you evaluated all `pendingCommits` (pointer rule: never advance past
+  commits nobody looked at — if `pendingCount` was > 20, set it `false` and
+  tell the user `/okf-memorize` has a backlog). `advance` with no cards is
+  correct — "nothing worth memorizing" also means the pointer is up to date.
 
-     ```
-     chunk(<slug>): <short summary>
-
-     Chunk: <slug>
-     ```
-
-     (The `Chunk: <slug>` trailer lets tooling find every commit for a chunk.)
-  3. **Record the commits and apply the memory verdicts in one bookkeeping
-     write.** For each committed chunk pipe
-     `{ "op": "update-chunk", "chunk": "<slug>", "appendCommit": { "sha": "<sha>", "kind": "implement" } }`
-     into the writer (a commit cannot contain its own sha; the trailer keeps
-     the chunk findable meanwhile — see `memory/format.md`). Then, when the
-     bundle is okf-shared, apply the user's memory decisions:
-
-     ```sh
-     node <skill-dir>/../iterator/write.mjs << 'MEM_WRITE'
-     {
-       "op": "memorize",
-       "memories": [ <the proposal cards the user left toggled on> ],
-       "advanceTo": "<git rev-parse HEAD>"
-     }
-     MEM_WRITE
-     ```
-
-     Skipped cards are dropped. Include `advanceTo` **only** when step 3's
-     payload had `baseValid: true` and you actually evaluated all
-     `pendingCommits` (pointer rule: never advance past commits nobody
-     looked at — if `pendingCount` was > 20, omit `advanceTo` and tell the
-     user `/okf-memorize` has a backlog). With no accepted cards, still send
-     the op with just `advanceTo` — "nothing worth memorizing" also means
-     the pointer is up to date. Commit these bundle changes as
-     `chore(iterator): record chunk commits and memory updates`.
-  4. Report what was committed (and which memories were written/skipped),
-     then offer to continue with the next dependency-ready wave (loop to
-     step 1).
+  The writer is resumable (already-done chunks are skipped) and returns
+  `{ branch, committed: [{chunk, sha}], skipped, uncommitted, memorize }` —
+  if `uncommitted` lists files, they matched no accepted chunk; tell the user
+  instead of force-committing them. Report what was committed (and which
+  memories were written/skipped), then offer to continue with the next
+  dependency-ready wave (loop to step 1).
 
 - `{ "type": "review-feedback", "features": [...], "lineComments": [...] }` →
   revise the implementation per the feedback (per-chunk notes/status and line

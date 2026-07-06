@@ -32,6 +32,13 @@
  *                 (architecture/decisions/patterns/pitfalls/setup areas in the
  *                 shared bundle), regenerate their area indexes, and/or
  *                 advance `last_memorized_commit` in the root index
+ *   accept-commit process the review UI's accept-commit result end to end:
+ *                 branch safety, per-chunk staging + chunk(<slug>) commits,
+ *                 done flips, sha recording, okf memory verdicts, pointer
+ *                 advance, bookkeeping commit (the UI result pipes verbatim)
+ *   record-review record a standalone review's outcome from the UI's
+ *                 review-feedback payload verbatim (statuses + notes; line
+ *                 comments stay with the model)
  *
  * Every op updates timestamps (override with $ITERATOR_NOW for tests),
  * regenerates memory/chunks/index.md + the plan `# Chunks` section +
@@ -39,13 +46,14 @@
  * {"ok":true,...}; on any validation error prints {"ok":false,"error":...}
  * and exits 1 without writing.
  */
+import { execFileSync } from 'node:child_process';
 import {
   copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync,
   rmSync, writeFileSync,
 } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { frontmatter, listy, loadBundle, sections } from './gather.mjs';
+import { frontmatter, gatherReview, listy, loadBundle, sections } from './gather.mjs';
 
 const nowIso = () => process.env.ITERATOR_NOW || new Date().toISOString();
 const today = () => nowIso().slice(0, 10);
@@ -592,6 +600,143 @@ function applyAdjustments(payload, root) {
 }
 
 // ---------------------------------------------------------------------------
+// op: accept-commit / record-review (deterministic result processing — the
+// UI's output pipes in and every mechanical consequence happens in code)
+
+/** git for write ops: throws a readable error instead of returning ''. */
+function gitW(args, cwd) {
+  try {
+    return execFileSync('git', args, {
+      cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim();
+  } catch (e) {
+    fail(`git ${args.join(' ')} failed: ${String(e.stderr || e.message || '').trim()}`);
+  }
+}
+
+const hasStaged = (root) => {
+  try {
+    execFileSync('git', ['diff', '--cached', '--quiet'], { cwd: root, stdio: 'ignore' });
+    return false;
+  } catch {
+    return true;
+  }
+};
+
+/**
+ * Process the review UI's `accept-commit` result end to end: branch safety,
+ * per-chunk staging (the same diff→chunk mapping the review showed), one
+ * `chunk(<slug>)` commit per chunk with a `Chunk:` trailer, `status: done`
+ * flips, commit-sha recording, okf-memory verdict application, and an
+ * optional `last_memorized_commit` advance — then one bookkeeping commit.
+ * Resumable: chunks already done are skipped, so a rerun after a mid-way
+ * failure completes the remainder.
+ */
+function acceptCommit(payload, root) {
+  const b = loadBundle(root);
+  const entries = listy(payload.chunks || payload.chunk)
+    .map(c => (typeof c === 'string' ? { slug: c } : c));
+  if (!entries.length) fail('accept-commit needs a non-empty chunks list');
+
+  const bySlug = new Map(b.chunks.map(c => [c.slug, c]));
+  const done = new Set(b.chunks.filter(c => c.fm.status === 'done').map(c => c.slug));
+  for (const e of entries) {
+    const c = bySlug.get(e.slug) || fail(`no chunk '${e.slug || ''}'`);
+    if (c.fm.status === 'done') continue; // already landed — resumable rerun
+    if ((c.fm.status || 'pending') !== 'pending') fail(`chunk '${e.slug}' is ${c.fm.status}, not pending`);
+    const waiting = listy(c.fm.depends_on).filter(d => !done.has(d));
+    if (waiting.length) fail(`chunk '${e.slug}' is waiting on: ${waiting.join(', ')}`);
+  }
+
+  // Branch safety: never commit to the default branch.
+  let branch = gitW(['rev-parse', '--abbrev-ref', 'HEAD'], b.root);
+  if (branch === 'main' || branch === 'master') {
+    branch = `iterator/${entries[0].slug}`;
+    gitW(['checkout', '-b', branch], b.root);
+  }
+
+  // Stage exactly what the review showed: the diff mapped chunk-by-chunk.
+  const review = gatherReview(root, {});
+  const filesFor = new Map(review.chunks.map(rc => [rc.name, rc.files.map(f => f.path)]));
+  const memStageable = !isAbsolute(b.memName);
+
+  const committed = [];
+  const skipped = [];
+  for (const e of entries) {
+    if (bySlug.get(e.slug).fm.status === 'done') { skipped.push(e.slug); continue; }
+    const set = { status: 'done' };
+    if (e.testsStatus && e.testsStatus !== 'none') set.tests_status = e.testsStatus;
+    updateChunk({
+      chunk: e.slug, set,
+      log: `**Implementation**: Committed chunk(${e.slug}) on branch ${branch}.`,
+    }, root);
+    const paths = filesFor.get(e.slug) || [];
+    gitW(['add', '-A', '--', ...paths, ...(memStageable ? [b.memName] : [])], b.root);
+    const c = bySlug.get(e.slug);
+    const summary = e.summary || c.fm.title || c.fm.description || e.slug;
+    gitW(['commit', '-m', `chunk(${e.slug}): ${summary}\n\nChunk: ${e.slug}`], b.root);
+    committed.push({ chunk: e.slug, sha: gitW(['rev-parse', 'HEAD'], b.root) });
+  }
+
+  // A commit cannot contain its own sha — record them all afterwards.
+  for (const { chunk, sha } of committed) {
+    updateChunk({ chunk, appendCommit: { sha, kind: 'implement' } }, root);
+  }
+
+  // okf-memory: apply the user's card decisions and advance the pointer to
+  // the last chunk commit (`advance: true` — the skill asserts the pointer
+  // rules). The writes land in the bookkeeping commit, which touches only
+  // the bundle and is therefore excluded from the memorize pending range.
+  let memorize = null;
+  const lastSha = committed.length ? committed[committed.length - 1].sha : null;
+  const mem = payload.memory || {};
+  const acceptedIds = mem.accepted ? new Set(listy(mem.accepted)) : null;
+  const memories = listy(mem.proposals)
+    .filter(p => !acceptedIds || acceptedIds.has(`${p.area}/${p.slug}`));
+  const advanceTo = payload.advance && lastSha ? lastSha : undefined;
+  if (memories.length || advanceTo) {
+    memorize = writeMemorize({ memories, advanceTo }, root);
+  }
+
+  if (committed.length && memStageable) {
+    gitW(['add', '-A', '--', b.memName], b.root);
+    if (hasStaged(b.root)) {
+      gitW(['commit', '-m', 'chore(iterator): record chunk commits and memory updates'], b.root);
+    }
+  }
+
+  return {
+    op: 'accept-commit', branch, committed, skipped,
+    uncommitted: (review.uncategorized || []).map(f => f.path),
+    memorize,
+  };
+}
+
+/**
+ * Record a standalone review's outcome — accepts the review UI's
+ * `review-feedback` payload verbatim. Line comments stay with the model
+ * (they are semantic); everything recordable is written here.
+ */
+function recordReview(payload, root) {
+  const b = loadBundle(root);
+  const feats = listy(payload.features).filter(f => f.name && f.name !== 'uncategorized');
+  if (!feats.length) fail('record-review needs features (pipe the review-feedback payload in)');
+  const LEAD = { approved: 'Approved', changes: 'Needs changes', question: 'Question' };
+  const recorded = [];
+  for (const f of feats) {
+    const c = b.chunks.find(x => x.slug === f.name) || fail(`no chunk '${f.name}'`);
+    const lead = LEAD[f.status] || 'Note';
+    updateChunk({
+      chunk: f.name,
+      appendReview: `* **${lead}** — ${f.note || 'no changes requested'}`,
+      log: `**Review**: Reviewed [${c.fm.title || f.name}](/chunks/${f.name}.md); ${f.status || 'note'}.`,
+    }, root);
+    recorded.push(f.name);
+  }
+  return { op: 'record-review', recorded, lineComments: listy(payload.lineComments).length };
+}
+
+// ---------------------------------------------------------------------------
 // op: memorize (okf-memory knowledge areas — shared-bundle integration)
 
 /** The okf-memory knowledge areas: dir → [index title, default description]. */
@@ -759,9 +904,15 @@ function writeMemorize(payload, root) {
 
 export function applyOp(payload, root) {
   const op = payload.op
-    || (['plan-adjustments', 'plan-approved'].includes(payload.type) ? 'adjustments' : null);
-  const ops = { plan: writePlan, chunks: writeChunks, design: writeDesign, 'update-chunk': updateChunk, adjustments: applyAdjustments, memorize: writeMemorize };
-  if (!ops[op]) fail(`unknown op '${payload.op || payload.type || ''}' (plan|chunks|design|update-chunk|adjustments|memorize)`);
+    || (['plan-adjustments', 'plan-approved'].includes(payload.type) ? 'adjustments'
+      : payload.type === 'accept-commit' ? 'accept-commit'
+        : payload.type === 'review-feedback' ? 'record-review' : null);
+  const ops = {
+    plan: writePlan, chunks: writeChunks, design: writeDesign,
+    'update-chunk': updateChunk, adjustments: applyAdjustments,
+    memorize: writeMemorize, 'accept-commit': acceptCommit, 'record-review': recordReview,
+  };
+  if (!ops[op]) fail(`unknown op '${payload.op || payload.type || ''}' (plan|chunks|design|update-chunk|adjustments|memorize|accept-commit|record-review)`);
   return ops[op](payload, root);
 }
 

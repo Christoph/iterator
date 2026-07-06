@@ -15,8 +15,9 @@ This skill folder also owns the shared tooling every step skill calls:
 `server.mjs`, the **single UI server for every step** (the browser control
 plane); `gather.mjs`, the deterministic state gatherer
 (`--step hub|plan|chunk|implement|memorize|test|review`); and `write.mjs`, the
-deterministic bundle writer (ops `plan|chunks|design|update-chunk|adjustments|memorize`
-on stdin). The bundle can be shared with **okf-memory**: the writer preserves
+deterministic bundle writer (ops `plan|chunks|design|update-chunk|adjustments|memorize|accept-commit|record-review`
+on stdin — UI results pipe in verbatim; every mechanical consequence of a
+user decision happens in code, never in the model). The bundle can be shared with **okf-memory**: the writer preserves
 the root index's okf metadata (`last_memorized_commit`, area links), and the
 `memorize` step/op let `/iterator-implement` keep the knowledge areas current
 as chunks land. The step skills are logic-only: they gather via script, add the
