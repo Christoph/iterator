@@ -4,7 +4,10 @@
  * snippets, drag-to-move files, and Split/Merge round-trips.
  *
  *   input:  { step:"chunk", branch, plan, chunks:[ {name,description,implementationNotes,
- *             files,dependsOn,size,status,snippets} ] }
+ *             files,dependsOn,size,status,snippets,
+ *             memories,                      // writer-computed relevant memory ids
+ *             conflicts} ],                  // [{decision,note}] decision conflicts
+ *             decisions:[{id,title,description,path}] }  // concepts chunks are checked against
  *           status may be "draft" — the chunker writes proposals to the
  *           bundle first, so this view is always rendered from disk (gather
  *           --step chunk); the model never pipes chunk bodies through.
@@ -172,6 +175,7 @@ function makeCard(c){
       '<span class="chip '+sizeClass(c)+'">'+sizeLabel(c)+'</span>'+
       (done?'<span class="donechip">✓ done</span>':'')+
       (c.status==='draft'?'<span class="chip cy"><i class="sdot"></i>draft</span>':'')+
+      ((c.conflicts&&c.conflicts.length)?'<span class="chip cr" title="'+esc(c.conflicts.map(x=>x.decision+(x.note?': '+x.note:'')).join('\\n'))+'">\\u26a0 conflicts with '+esc(c.conflicts.map(x=>x.decision).join(', '))+'</span>':'')+
     '</div><div class="card-btns">'+
       (done?'':'<button class="cb split">Split</button>'+
       '<button class="cb merge'+(isSel?' merge-sel':'')+'">'+(isSel?'Cancel':'Merge with…')+'</button>')+
@@ -182,6 +186,7 @@ function makeCard(c){
       (c.implementationNotes?'<div class="lbl">Implementation notes</div><div class="notes">'+esc(c.implementationNotes)+'</div>':'')+
       '<div class="lbl">Depends on</div>'+deps+
       (snippets?'<div class="lbl">Relevant snippets</div>'+snippets:'')+
+      ((c.memories&&c.memories.length)?'<div class="lbl">Relevant memories</div><div class="files">'+c.memories.map(m=>'<span class="fchip" title="The implementer reads this concept before coding">'+esc(m)+'</span>').join('')+'</div>':'')+
       (files?'<div class="lbl">Files</div><div class="files">'+files+'</div>':'')+
       (done?'':'<div class="lbl">Comment</div><textarea class="cmt" placeholder="Comment on this chunk for Claude…">'+esc(S.comments[c.name]||'')+'</textarea>')+
     '</div>';

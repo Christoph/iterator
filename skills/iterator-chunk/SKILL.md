@@ -39,7 +39,9 @@ node <skill-dir>/../iterator/gather.mjs --step plan    # plan sections, when you
 Do **not** read bundle files yourself. **Preserve any chunk with
 `status: done`** — the writer refuses to rewrite them; build around them.
 The payload's `architecture` list is the project's recorded subsystem seams
-(`{ id, title, description, files }` per concept).
+(`{ id, title, description, files }` per concept), and its `decisions` list
+is the project's recorded decision concepts — every chunk must be checked
+against them (step 2).
 
 ### 2. Analyze the plan into chunks
 
@@ -78,6 +80,14 @@ Split the whole plan (using `ARCHITECTURE.md` for context):
   one concept's territory beats one straddling two), and seed each chunk's
   `files` from the matching concept's anchors. Read a concept's file only
   when its one-line description isn't enough.
+- **Check every chunk against the recorded `decisions`.** When a chunk's
+  approach contradicts a decision concept (read the concept's file when the
+  one-liner is ambiguous), set `"conflicts": [{ "decision": "<area>/<slug>",
+  "note": "<what contradicts and why>" }]` on that chunk in the write — it
+  renders as a red flag on the hub/chunk views so the human decides before
+  implementation. Never silently override a recorded decision. (The writer
+  computes each chunk's `memories:` reading list automatically at write
+  time — you don't set it.)
 
 ### 3. Write the proposal as drafts, then open the UI
 

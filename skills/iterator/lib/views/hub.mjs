@@ -9,11 +9,19 @@
  *   input:  { step:"hub", branch,
  *             plan: { title, status } | null,      // null = no bundle yet
  *             progress: { done, total },
+ *             knowledgeInitialized,                // memory/ knowledge side exists
+ *             dirty: { count, files },             // working-tree files outside the bundle
  *             chunks: [ { name, title, description, status, size,
  *                         testsStatus,                  // none | red | green
- *                         dependsOn, hasDiff, hasCommits } ] }
+ *                         dependsOn, hasDiff, hasCommits,
+ *                         conflicts } ] }               // # of flagged decision conflicts
+ *             retired: [ { name, title, created } ]   // archived plans, newest first
  *   output: one JSON line to stdout —
- *     { type:"action", action:"plan"|"chunk"|"test"|"implement"|"review", chunk:"<slug>"|null }
+ *     { type:"action", action:"plan"|"chunk"|"test"|"implement"|"review"|"okf-init"
+ *                             |"view-archive"        // chunk = archive name for view-archive
+ *                             |"auto-implement",     // run the whole loop agent-driven
+ *       chunk:"<slug>"|null,
+ *       prompt:"<typed plan goal>"|null }          // hero goal box, plan/okf-init only
  *     plus the shared { type:"cancel" } / { type:"timeout" }.
  */
 import { renderPage } from '../ui.mjs';
@@ -65,6 +73,12 @@ button.act.primary-act:active:not(:disabled){transform:translateY(1px)}
 .hero svg{display:block;margin:0 auto var(--sp-4);opacity:.85}
 .hero h2{color:var(--text);font-family:var(--font-display);font-size:var(--fs-xl);margin-bottom:var(--sp-2)}
 .hero p{font-size:var(--fs-sm);margin-bottom:var(--sp-5);line-height:1.6}
+.hero textarea.goal{display:block;width:100%;max-width:560px;margin:0 auto var(--sp-4);padding:10px 12px;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);color:var(--text);
+  font-size:var(--fs-sm);font-family:inherit;resize:vertical;min-height:72px;outline:none;line-height:1.5;text-align:left}
+.hero textarea.goal:focus{border-color:var(--accent)}
+.hero .btns-center{display:flex;gap:var(--sp-2);justify-content:center;flex-wrap:wrap}
+.hero .initnote{font-size:var(--fs-xs);color:var(--dot-yellow);margin-bottom:var(--sp-3)}
 .sdot{display:inline-block;width:8px;height:8px;border-radius:50%;background:currentColor;margin-right:4px;vertical-align:1px}
 .st{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:0}
 .st.done{background:var(--dot-green)}
@@ -110,12 +124,33 @@ function render(){
         '<circle cx="54" cy="38" r="12" stroke="var(--accent)" stroke-width="2"/>'+
         '<path d="M49 38 l4 4 l7 -8" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'+
       '</svg>'+
-      '<h2>No plan yet</h2><p>iterator keeps its state in a memory/ bundle in your repo.<br>Start by turning a goal into a reviewable plan.</p>';
+      '<h2>No plan yet</h2><p>iterator keeps its state in a memory/ bundle in your repo.<br>Type a goal and start turning it into a reviewable plan.</p>';
+    const goal = document.createElement('textarea');
+    goal.className = 'goal';
+    goal.placeholder = 'What are you building and why? (1\\u20133 sentences \\u2014 optional, saves a question round)';
+    hero.appendChild(goal);
+    const btns = document.createElement('div'); btns.className = 'btns-center';
+    // Knowledge side missing → initializing memory first is the primary path
+    // (soft gate: "Create plan" still works and the goal rides along either way).
+    if(!D.knowledgeInitialized){
+      const note = document.createElement('div');
+      note.className = 'initnote';
+      note.textContent = '\\u26a0 Project memory is not initialized yet \\u2014 initialize it first so plans and chunks can load relevant knowledge.';
+      hero.insertBefore(note, goal);
+      const init = document.createElement('button');
+      init.className = 'act primary-act'; init.textContent = 'Initialize memory';
+      init.addEventListener('click', () =>
+        post({ type:'action', action:'okf-init', chunk:null, prompt: goal.value.trim() || null }, 'Starting /okf-init'));
+      btns.appendChild(init);
+    }
     const b = document.createElement('button');
-    b.className = 'act primary-act'; b.textContent = 'Create plan';
-    b.addEventListener('click', () => action('plan', null, 'Starting /iterator-plan'));
-    hero.appendChild(b);
+    b.className = 'act' + (D.knowledgeInitialized ? ' primary-act' : ''); b.textContent = 'Create plan';
+    b.addEventListener('click', () =>
+      post({ type:'action', action:'plan', chunk:null, prompt: goal.value.trim() || null }, 'Starting /iterator-plan'));
+    btns.appendChild(b);
+    hero.appendChild(btns);
     w.appendChild(hero);
+    renderRetired(w);
     return;
   }
 
@@ -135,6 +170,25 @@ function render(){
   rechunk.addEventListener('click', () => action('chunk', null, 'Starting /iterator-chunk'));
   bar.insertBefore(rechunk, bar.querySelector('.pbar'));
   bar.insertBefore(revise, rechunk);
+  // Auto mode: once the chunk set is approved (pending chunks exist), the
+  // whole test → implement → review loop can run agent-driven.
+  const pendingReady = CH.some(c => c.status==='pending');
+  if(pendingReady){
+    const auto = document.createElement('button');
+    auto.className = 'act primary-act';
+    auto.textContent = 'Implement all (auto)';
+    auto.title = 'Run test \\u2192 implement \\u2192 review for every chunk automatically; a reviewer agent stands in for you until escalation';
+    auto.addEventListener('click', () => action('auto-implement', null, 'Starting auto mode'));
+    bar.insertBefore(auto, bar.querySelector('.pbar'));
+  }
+  // Tight git flow: surface working-tree dirt so leftovers never linger silently.
+  if(D.dirty && D.dirty.count){
+    const dw = document.createElement('span');
+    dw.className = 'chip cy';
+    dw.textContent = '\\u26a0 ' + D.dirty.count + ' uncommitted file' + (D.dirty.count!==1?'s':'');
+    dw.title = (D.dirty.files||[]).join('\\n');
+    bar.insertBefore(dw, bar.querySelector('.pbar'));
+  }
   // Every chunk done → the plan is finished work: offer condensing it into a
   // decisions/ concept and archiving the chunk files (write.mjs retire-plan).
   if(total > 0 && done === total){
@@ -166,6 +220,29 @@ function render(){
     return;
   }
   CH.forEach(c => w.appendChild(makeCard(c)));
+  renderRetired(w);
+}
+
+// Retired plans: read-only history browser (view-archive opens the archive view).
+function renderRetired(w){
+  const R = D.retired || [];
+  if(!R.length) return;
+  const t = document.createElement('div'); t.className='sec-title'; t.textContent='Retired plans';
+  w.appendChild(t);
+  R.forEach(r => {
+    const card = document.createElement('div');
+    card.className = 'card done';
+    card.innerHTML = '<div class="ch"><span class="cn">'+esc(r.title||r.name)+'</span>'+
+      '<span class="chip cmut">'+esc(r.name)+'</span>'+
+      (r.created?'<span class="chip cg">retired · created '+esc(r.created)+'</span>':'<span class="chip cg">retired</span>')+'</div>';
+    const btns = document.createElement('div'); btns.className='btns';
+    const open = document.createElement('button');
+    open.className = 'act'; open.textContent = 'Read through';
+    open.addEventListener('click', () => action('view-archive', r.name, 'Opening retired plan'));
+    btns.appendChild(open);
+    card.appendChild(btns);
+    w.appendChild(card);
+  });
 }
 
 function makeCard(c){
@@ -177,7 +254,8 @@ function makeCard(c){
   card.innerHTML =
     '<div class="ch"><span class="cn">'+icon+esc(c.title||c.name)+'</span>'+
       '<span class="chip cmut">'+esc(c.name)+'</span>'+
-      (draft?'<span class="chip cy">draft</span>':'')+sizeChip(c)+testBadge(c)+'</div>'+
+      (draft?'<span class="chip cy">draft</span>':'')+sizeChip(c)+testBadge(c)+
+      (c.conflicts?'<span class="chip cr" title="This chunk contradicts a project decision — check its Decision conflicts section">\\u26a0 '+c.conflicts+' decision conflict'+(c.conflicts!==1?'s':'')+'</span>':'')+'</div>'+
     '<div class="cdesc">'+esc(c.description||'')+'</div>'+
     ((c.dependsOn&&c.dependsOn.length)?'<div class="deps">depends on '+c.dependsOn.map(d=>'<code>'+esc(d)+'</code>').join(' ')+'</div>':'');
 

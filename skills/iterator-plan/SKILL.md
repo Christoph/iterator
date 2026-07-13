@@ -19,6 +19,19 @@ starting new work with iterator. If the user's message contains a plan-review
 result payload from a previous session (`plan-approved` / `plan-feedback` /
 `cancel` / `timeout`), process it per step 4 first.
 
+## Asking the user
+
+Every question in this skill goes to the **browser question view first** so a
+user watching the dashboard never misses a prompt stuck in the terminal: pipe
+`{ "step": "question", "title": "<header>", "question": "...", "options":
+[{"label": "...", "description": "..."}], "allowFreeText": true }` into
+`node <skill-dir>/../iterator/server.mjs` (pi mode: `iterator_ui` step
+`question` with those fields in `extra`) and read the one-line
+`{ "type": "answer", "choice", "text" }` result. While it is open, print one
+terminal line: "Question waiting in the browser dashboard." Fall back to
+terminal `AskUserQuestion` only when the server/dashboard is unavailable —
+the option sets below apply to whichever surface asks.
+
 ## Steps
 
 ### 1. Check existing state
@@ -28,25 +41,43 @@ node <skill-dir>/../iterator/gather.mjs --step plan
 ```
 
 It reports whether a plan `exists` (with its sections pre-parsed for
-revising) and whether `legacy` `PLAN.md`/`CHUNKS.md` files exist — do **not**
-read bundle files or run git yourself.
+revising), whether `legacy` `PLAN.md`/`CHUNKS.md` files exist, whether the
+knowledge side is set up (`knowledgeInitialized`), and the project's design
+params path (`designFile`) — do **not** read bundle files or run git
+yourself.
 
-**If `exists`**, use `AskUserQuestion` (header `Plan`): "Use the existing
-plan" (skip to step 3 with the gathered sections pre-filled) vs. "Create a
-new plan" (continue, overwriting on approval).
+**If the invocation already carries the goal** (e.g. `/iterator-plan — <goal>`
+from the dashboard's goal box, or the user's message states what to build),
+ask nothing: skip straight to step 2's silent checks with that goal. A
+carried goal always means "create a new plan", even when one `exists`.
+
+**If `exists` and no goal was carried**, use one `AskUserQuestion` round
+(header `Plan`): "Use the existing plan" (skip to step 3 with the gathered
+sections pre-filled) vs. "Create a new plan" — remind the user they can pick
+**Other and type the new goal directly** to skip the follow-up question.
+
+**If `knowledgeInitialized` is false**, recommend running `/okf-init` first
+so chunks and implementers get relevant memories (soft gate — offer it, and
+continue into planning afterward with the same goal; if the user declines,
+proceed and note the writer will record a warning).
 
 **If `legacy` files exist but no bundle**, offer a one-time migration with
 `AskUserQuestion` (header `Migrate`): "Migrate into memory/ bundle" (parse
 the old files into `plan.md` + one chunk file each) vs. "Start fresh". Never
 silently delete the legacy files.
 
-### 2. Ask for the goal
+### 2. Ask for the goal (only when still unknown)
 
-Planning happens **before** code is written. Use `AskUserQuestion` for a
-single free-text question: *"What are you building and why? (1–3 sentences)"*
-(header `Goal`). Then silently read `ARCHITECTURE.md` if present; only raise
-a follow-up if the goal clearly diverges from documented architecture or
-implies a new dependency / product-fit question worth confirming.
+Planning happens **before** code is written. If no goal was carried by the
+invocation or typed into a previous question's Other field, use
+`AskUserQuestion` for a single free-text question: *"What are you building
+and why? (1–3 sentences)"* (header `Goal`). Then silently read
+`ARCHITECTURE.md` if present; only raise a follow-up if the goal clearly
+diverges from documented architecture or implies a new dependency /
+product-fit question worth confirming. If the plan touches UI and
+`designFile` is set, read it and let the plan reference the project's design
+params; if it is null, note that `/iterator-design` should run before
+implementation styles anything.
 
 ### 3. Draft the plan and open the review UI
 
@@ -55,13 +86,19 @@ server gathers the base payload itself and merges your draft (`extra`) on
 top. (The server ships with the `/iterator` hub skill; if that folder is
 missing, tell the user to install the full iterator plugin and stop.)
 
+`dependencies` lists **only new external packages, libraries, crates, or
+services the plan requires** — `"<name> <version?> — <why>"`, e.g.
+`"axum 0.7 — HTTP server"`. It is **never** a todo/task list (work items
+belong in the sections and later in chunks). Use an empty list when the plan
+needs nothing new.
+
 ```sh
 node <skill-dir>/../iterator/server.mjs << 'PLAN_DATA'
 { "gather": true, "step": "plan",
   "extra": {
     "title": "<plan title>",
     "plan": { "goal": "...", "architecture": "...", "keyDecisions": "...", "productFit": "..." },
-    "dependencies": ["<pkg-or-service> — <why>"] } }
+    "dependencies": ["<new-external-pkg-or-service> — <why>"] } }
 PLAN_DATA
 ```
 
@@ -85,12 +122,21 @@ OKF conformance; a re-plan preserves the existing `# Chunks` section):
 node <skill-dir>/../iterator/write.mjs << 'PLAN_WRITE'
 { "op": "plan", "title": "<plan title>", "description": "<one-line summary>",
   "sections": { "goal": "...", "architecture": "...", "keyDecisions": "...", "productFit": "..." },
-  "dependencies": ["<pkg> — <why>"] }
+  "dependencies": ["<new-external-pkg> — <why>"] }
 PLAN_WRITE
 ```
 
 On `{ "ok": false, "error": ..., "hint": ... }` fix the payload and re-pipe
-(`--schema plan` prints the shape) — never write bundle files by hand.
+(`--schema plan` prints the shape) — never write bundle files by hand. Relay
+any `warnings` in the result to the user (todo-shaped dependencies,
+uninitialized knowledge memory).
+
+The writer also handles **branch-per-plan** (settings): approving on
+main/master creates `iterator/<plan-slug>` — by default in a **separate git
+worktree** (`result.worktree`; the current checkout stays put, the bundle is
+copied over). Relay `result.note` verbatim when present: the user must know
+where the work now lives. With `worktree_per_plan: off` the branch is checked
+out in place (`result.branch`).
 
 ### 6. Continue
 
