@@ -48,25 +48,34 @@ import {
 } from "../lib/guardrails.mjs";
 import {
 	actionToCommand,
+	attributionFromInput,
+	AUTO_PHASE_FOR_STEP,
 	bundleExists,
 	chunksDirEntries,
 	composeAmbientContext,
 	extractPathsFromBash,
 	footerText,
 	mergePayload,
+	nextAutoAction,
 	projectRoot,
+	roleModelSpec,
 	runJson,
 	scriptPath,
 	shouldNudge,
+	usageRowFromMessage,
 } from "../lib/pi-tools.mjs";
 import { createSessionServer } from "../lib/session-server.mjs";
 import { render as chunkView } from "../lib/views/chunk.mjs";
 import { render as hubView } from "../lib/views/hub.mjs";
 import { render as knowledgeView } from "../lib/views/knowledge.mjs";
 import { render as memoryReviewView } from "../lib/views/memory-review.mjs";
+import { render as archiveView } from "../lib/views/archive.mjs";
 import { render as planView } from "../lib/views/plan.mjs";
+import { render as questionView } from "../lib/views/question.mjs";
 import { render as reviewView } from "../lib/views/review.mjs";
+import { render as settingsView } from "../lib/views/settings.mjs";
 import { render as testView } from "../lib/views/test.mjs";
+import { render as usageView } from "../lib/views/usage.mjs";
 
 const VIEWS = {
 	hub: hubView,
@@ -76,10 +85,14 @@ const VIEWS = {
 	review: reviewView,
 	knowledge: knowledgeView,
 	"memory-review": memoryReviewView,
+	settings: settingsView,
+	question: questionView,
+	usage: usageView,
+	archive: archiveView,
 };
 
-const GATHER_STEPS = ["hub", "plan", "chunk", "implement", "memorize", "range", "knowledge", "test", "review"];
-const UI_STEPS = ["hub", "plan", "chunk", "test", "review", "knowledge", "memory-review"];
+const GATHER_STEPS = ["hub", "plan", "chunk", "implement", "memorize", "range", "session", "settings", "usage", "archive", "knowledge", "test", "review"];
+const UI_STEPS = ["hub", "plan", "chunk", "test", "review", "knowledge", "memory-review", "settings", "question", "usage", "archive"];
 
 const COMMANDS = [
 	{
@@ -140,6 +153,14 @@ const asError = (msg) => ({ content: [{ type: "text", text: String(msg) }], isEr
 
 export default function iteratorExtension(pi) {
 	let session = null;
+
+	// Latest lifecycle ctx — server callbacks (control strip, unsolicited
+	// settings saves) run outside a tool call and need cwd/ui/abort from it.
+	let lastCtx = null;
+	const rememberCtx = (ctx) => {
+		if (ctx) lastCtx = ctx;
+	};
+	const ctxCwd = () => lastCtx?.cwd || process.cwd();
 
 	// Repo-relative paths the agent touched recently (LRU, newest last) — the
 	// anchor set for ambient knowledge injection.
@@ -212,30 +233,293 @@ export default function iteratorExtension(pi) {
 		}
 	};
 
-	/** Refresh the idle dashboard tabs (no pending round). */
-	const refreshHub = async (cwd) => {
-		if (!session || !session.isRunning() || session.hasPending()) return;
+	/** Push the control-strip status (plan/branch/auto state) to the shell. */
+	const pushStatus = async (cwd) => {
+		if (!session || !session.isRunning()) return;
 		try {
-			// Knowledge first: with the Work tab active its refresh is stored
-			// silently, so the hub view stays what the user ends up watching.
-			const knowledge = await gatherPayload(cwd, "knowledge");
-			session.showView({ step: "knowledge", render: () => VIEWS.knowledge(knowledge) });
-			const { hub } = await gatherSession(cwd);
-			session.showView({ step: "hub", render: () => VIEWS.hub(hub) });
+			const { hub, settings, state } = await gatherSession(cwd);
+			session.setStatus({
+				plan: hub?.plan?.title || null,
+				branch: hub?.branch || null,
+				mode: settings?.auto_mode === "on" ? state?.mode || "manual" : "manual",
+				paused: !!state?.paused,
+				phase: state?.phase || "idle",
+			});
 		} catch {
 			/* a broken bundle read must never take pi down */
 		}
 	};
 
+	/** Refresh the idle dashboard tabs (no pending round). */
+	const refreshHub = async (cwd) => {
+		if (!session || !session.isRunning() || session.hasPending()) return;
+		try {
+			// Inactive tabs first: their refreshes are stored silently, so the
+			// hub view stays what the user ends up watching.
+			const knowledge = await gatherPayload(cwd, "knowledge");
+			session.showView({ step: "knowledge", render: () => VIEWS.knowledge(knowledge) });
+			const usage = await gatherPayload(cwd, "usage");
+			session.showView({ step: "usage", render: () => VIEWS.usage(usage) });
+			const { hub } = await gatherSession(cwd);
+			session.showView({ step: "hub", render: () => VIEWS.hub(hub) });
+			await pushStatus(cwd);
+		} catch {
+			/* a broken bundle read must never take pi down */
+		}
+	};
+
+	/** The pi model registry as settings-view dropdown entries (or null). */
+	const modelOptions = () => {
+		try {
+			const models = lastCtx?.modelRegistry?.getAll?.() || [];
+			const out = models.map((m) => ({
+				id: `${m.provider}/${m.id}`,
+				label: `${m.provider}/${m.id}`,
+			}));
+			return out.length ? out : null;
+		} catch {
+			return null;
+		}
+	};
+
+	/** Deterministically write the settings op and refresh the dashboard. */
+	const saveSettings = async (values) => {
+		const cwd = ctxCwd();
+		try {
+			const result = await runJson(scriptPath("write"), [], {
+				cwd,
+				stdin: JSON.stringify({ op: "settings", values }),
+			});
+			invalidateSession();
+			if (lastCtx?.hasUI) {
+				lastCtx.ui.notify(
+					`iterator: settings saved (${Object.keys(result.changed || values).join(", ")})`,
+					"info",
+				);
+			}
+			await refreshHub(cwd);
+		} catch (e) {
+			if (lastCtx?.hasUI) lastCtx.ui.notify(`iterator: settings not saved — ${e.message}`, "error");
+		}
+	};
+
+	/** Show the settings view as an idle dashboard page (unsolicited round). */
+	const openSettings = async () => {
+		const cwd = ctxCwd();
+		try {
+			const payload = await gatherPayload(cwd, "settings");
+			const models = modelOptions();
+			session.showView({
+				step: "settings",
+				render: () => VIEWS.settings(models ? { ...payload, models } : payload),
+			});
+		} catch (e) {
+			if (lastCtx?.hasUI) lastCtx.ui.notify(`iterator: ${e.message}`, "error");
+		}
+	};
+
+	/** Deterministically write the state op (pause/continue bookkeeping). */
+	const writeState = async (set) => {
+		const cwd = ctxCwd();
+		const result = await runJson(scriptPath("write"), [], {
+			cwd,
+			stdin: JSON.stringify({ op: "state", set }),
+		});
+		invalidateSession();
+		return result;
+	};
+
+	/** Control-strip actions — deterministic, never a model turn. */
+	const onControl = async (input) => {
+		const cwd = ctxCwd();
+		try {
+			if (input.action === "open-settings") {
+				await openSettings();
+			} else if (input.action === "pause") {
+				await writeState({ paused: true });
+				// Stop the in-flight stream too — state is saved after each step,
+				// so Continue simply picks the flow back up.
+				try { lastCtx?.abort?.(); } catch {}
+				await restoreModel();
+				if (lastCtx?.hasUI) lastCtx.ui.notify("iterator: paused — press Continue in the dashboard to resume", "info");
+				await pushStatus(cwd);
+			} else if (input.action === "continue") {
+				await writeState({ paused: false });
+				if (lastCtx?.hasUI) lastCtx.ui.notify("iterator: continuing", "info");
+				await pushStatus(cwd);
+				resumeAuto(cwd); // no-op unless auto mode has work to pick up
+			}
+		} catch (e) {
+			if (lastCtx?.hasUI) lastCtx.ui.notify(`iterator: ${e.message}`, "error");
+		}
+	};
+
+	// ---------------------------------------------------------------------
+	// Auto mode driver: nextAutoAction (pure, lib/pi-tools.mjs) decides;
+	// this glue writes state, switches the role model/thinking, and
+	// dispatches the command as a new turn. Runs after every agent_end while
+	// state.mode === 'auto' (and after chunk approval / the hub auto button).
+
+	const AUTO_MAX_STEPS = 60; // per-session circuit breaker
+	let autoSteps = 0;
+	let preAutoModel = null; // the user's model before the first role switch
+
+	const notifyUi = (msg, level = "info") => {
+		if (lastCtx?.hasUI) lastCtx.ui.notify(`iterator: ${msg}`, level);
+	};
+
+	/** Apply a role's model/thinking overrides; remember the user's model once. */
+	const applyRole = async (role, settings) => {
+		const spec = roleModelSpec(settings, role);
+		try {
+			if (spec.model) {
+				const slash = spec.model.indexOf("/");
+				const provider = spec.model.slice(0, slash);
+				const id = spec.model.slice(slash + 1);
+				const m = lastCtx?.modelRegistry?.find?.(provider, id);
+				if (m) {
+					if (!preAutoModel) preAutoModel = lastCtx?.model || null;
+					const ok = await pi.setModel(m);
+					if (!ok) notifyUi(`no API key for ${spec.model} — staying on the active model`, "warning");
+				} else {
+					notifyUi(`unknown model ${spec.model} for ${role} — staying on the active model`, "warning");
+				}
+			}
+			if (spec.thinking) pi.setThinkingLevel(spec.thinking);
+		} catch (e) {
+			notifyUi(`could not switch model/thinking for ${role}: ${e.message}`, "warning");
+		}
+	};
+
+	/** Restore the user's pre-auto model on done/escalate/pause. */
+	const restoreModel = async () => {
+		if (!preAutoModel) return;
+		const m = preAutoModel;
+		preAutoModel = null;
+		try {
+			await pi.setModel(m);
+		} catch {
+			/* the user can switch back manually */
+		}
+	};
+
+	/** One driver step: decide → bookkeep → dispatch (or finish/escalate). */
+	const kickAuto = async (cwd) => {
+		if (!bundleExists(cwd)) return;
+		try {
+			const sess = await gatherSession(cwd);
+			const action = nextAutoAction(sess, sess.settings, sess.state);
+			if (!action) return;
+
+			if (action.done) {
+				await writeState({ phase: "done", active_chunk: null });
+				autoSteps = 0;
+				await restoreModel();
+				notifyUi(
+					sess.settings?.auto_retire_prompt === "on"
+						? "auto mode: plan complete — every chunk landed. Consider retiring the plan from the dashboard."
+						: "auto mode: plan complete — every chunk landed.",
+				);
+				await refreshHub(cwd);
+				return;
+			}
+			if (action.escalate) {
+				await writeState({ phase: "escalated", paused: true });
+				autoSteps = 0;
+				await restoreModel();
+				notifyUi(`auto mode needs you: ${action.reason}`, "warning");
+				await refreshHub(cwd);
+				return;
+			}
+			if (++autoSteps > AUTO_MAX_STEPS) {
+				await writeState({ phase: "escalated", paused: true });
+				autoSteps = 0;
+				await restoreModel();
+				notifyUi(`auto mode circuit breaker: ${AUTO_MAX_STEPS} steps in one session — pausing for a human look`, "warning");
+				await refreshHub(cwd);
+				return;
+			}
+
+			if (action.strike) {
+				await runJson(scriptPath("write"), [], {
+					cwd,
+					stdin: JSON.stringify({ op: "state", strike: action.strike }),
+				});
+				invalidateSession();
+			}
+			await writeState({
+				phase: AUTO_PHASE_FOR_STEP[action.step] || "implementing",
+				active_chunk: action.chunk || null,
+			});
+			await applyRole(action.role, sess.settings);
+			attribution = { step: action.step, chunk: action.chunk || null };
+			const p = sess.hub?.progress || {};
+			session?.showWorking(
+				`Auto: ${action.step} ${action.chunk || ""} (${p.done ?? 0}/${p.total ?? 0} done)…`,
+			);
+			await pushStatus(cwd);
+			pi.sendUserMessage(action.cmd);
+		} catch (e) {
+			notifyUi(`auto mode stopped: ${e.message}`, "error");
+		}
+	};
+
+	/** Flip into auto mode (chunk approval with auto_mode:on, or the hub button). */
+	const startAuto = async (cwd) => {
+		await writeState({ mode: "auto", paused: false, phase: "implementing" });
+		autoSteps = 0;
+		await pushStatus(cwd);
+		await kickAuto(cwd);
+	};
+
+	const resumeAuto = (cwd) => void kickAuto(cwd);
+
+	/** Open one retired plan read-only on the Work tab (deterministic). */
+	const openArchive = async (target) => {
+		const cwd = ctxCwd();
+		try {
+			const payload = await gatherPayload(cwd, "archive", target);
+			session.showView({ step: "archive", render: () => VIEWS.archive(payload) });
+		} catch (e) {
+			if (lastCtx?.hasUI) lastCtx.ui.notify(`iterator: ${e.message}`, "error");
+		}
+	};
+
 	const ensureServer = async (ctx) => {
+		rememberCtx(ctx);
 		if (!session) {
 			session = createSessionServer({
 				onUnsolicited: (result) => {
+					// Deterministic dashboard navigation/actions — no model turn.
+					if (result?.type === "settings" && result.values) {
+						void saveSettings(result.values);
+						return;
+					}
+					if (result?.type === "action" && result.action === "open-settings") {
+						void openSettings();
+						return;
+					}
+					if (result?.type === "action" && result.action === "view-archive") {
+						void openArchive(result.chunk);
+						return;
+					}
+					if (result?.type === "action" && result.action === "hub") {
+						void refreshHub(ctxCwd());
+						return;
+					}
+					// Hub "Implement all (auto)" button: flip into auto mode for
+					// this run without touching the global auto_mode setting.
+					if (result?.type === "action" && result.action === "auto-implement") {
+						session.showWorking("Auto mode: starting…");
+						void startAuto(ctxCwd());
+						return;
+					}
 					const cmd = actionToCommand(result);
 					if (!cmd) return;
 					session.showWorking(`Dispatched ${cmd} — Claude is working…`);
 					pi.sendUserMessage(cmd);
 				},
+				onControl,
 			});
 		}
 		if (!session.isRunning()) await session.start();
@@ -263,6 +547,20 @@ export default function iteratorExtension(pi) {
 			},
 		});
 	}
+
+	pi.registerCommand("iterator-settings", {
+		description:
+			"Open the project settings (auto mode, per-role models, git flow) in the dashboard.",
+		handler: async (_args, ctx) => {
+			rememberCtx(ctx);
+			try {
+				await ensureServer(ctx);
+				await openSettings();
+			} catch (e) {
+				if (ctx.hasUI) ctx.ui.notify(`iterator: ${e.message}`, "error");
+			}
+		},
+	});
 
 	pi.registerCommand("iterator-next", {
 		description: "Implement the next dependency-ready chunk, no questions asked.",
@@ -360,12 +658,14 @@ export default function iteratorExtension(pi) {
 			"record-review (pipe a review-feedback UI result verbatim to record statuses/notes), " +
 			"refresh-format (recopy templates/format.md over the bundle's stale copy), " +
 			"retire-plan (condense a finished plan into a decisions/ concept and archive its " +
-			"chunks — pass concept:{slug,title,description,body}). For okf memory reviews " +
-			"prefer the schema-tight okf_write tool over op apply-review here.",
+			"chunks — pass concept:{slug,title,description,body}), settings (merge project " +
+			"settings into memory/settings.md — pass values:{...}; --schema settings lists the " +
+			"keys), state (machine runtime state in memory/state.md: set/strike/clearStrike). " +
+			"For okf memory reviews prefer the schema-tight okf_write tool over op apply-review here.",
 		parameters: Type.Object(
 			{
 				op: Type.Union(
-					["plan", "chunks", "design", "update-chunk", "adjustments", "memorize", "apply-review", "refresh-format", "retire-plan", "accept-commit", "record-review"].map((s) => Type.Literal(s)),
+					["plan", "chunks", "design", "settings", "state", "update-chunk", "adjustments", "memorize", "apply-review", "refresh-format", "retire-plan", "accept-commit", "record-review"].map((s) => Type.Literal(s)),
 					{ description: "Writer operation." },
 				),
 			},
@@ -373,12 +673,29 @@ export default function iteratorExtension(pi) {
 		),
 		async execute(_id, params, _signal, _onUpdate, ctx) {
 			try {
+				rememberCtx(ctx);
 				const result = await runJson(scriptPath("write"), [], {
 					cwd: ctx.cwd,
 					stdin: JSON.stringify(params),
 				});
 				invalidateSession(); // the bundle just changed under the snapshot
 			void refreshStatus(ctx); // writes move the footer's numbers
+				// Issue 5: auto mode starts right after the chunk set is approved
+				// (adjustments accept / plan-approved) when the setting is on.
+				const approved =
+					(params.op === "adjustments" || params.type === "plan-approved") &&
+					(params.accept === true || params.type === "plan-approved");
+				if (approved) {
+					try {
+						const { settings, state } = await gatherSession(ctx.cwd);
+						if (settings?.auto_mode === "on" && state?.mode !== "auto") {
+							notifyUi("auto mode: chunk set approved — driving test → implement → review automatically");
+							void startAuto(ctx.cwd);
+						}
+					} catch {
+						/* never block the write result on the driver */
+					}
+				}
 				return asText(result);
 			} catch (e) {
 				return asError(e.message);
@@ -474,12 +791,28 @@ export default function iteratorExtension(pi) {
 				await ensureServer(ctx);
 				// memory-review has no gather step of its own: the cards are
 				// agent-drafted (extra.memories); areas/branch come from the
-				// knowledge payload.
+				// knowledge payload. question is fully agent-authored (extra).
 				const gathered = params.step === "memory-review"
 					? (({ branch, project, bundlePath, areas }) =>
 						({ step: "memory-review", branch, project, bundlePath, areas }))(
 						await gatherPayload(ctx.cwd, "knowledge"))
-					: await gatherPayload(ctx.cwd, params.step, params.chunk);
+					: params.step === "question"
+						? { step: "question", branch: (await gatherSession(ctx.cwd))?.hub?.branch }
+						: await gatherPayload(ctx.cwd, params.step, params.chunk);
+				// Deterministic zero-change guard: never open a review on nothing.
+				if (params.step === "review" && gathered.hasChanges === false) {
+					return asText({
+						type: "no-changes",
+						report: "Nothing to review — the chosen scope has no diff and no recorded commits. Relay the progress summary instead of opening a review.",
+						progress: gathered.progress || null,
+					});
+				}
+				// The settings form upgrades its model fields to dropdowns when the
+				// registry rides along.
+				if (params.step === "settings") {
+					const models = modelOptions();
+					if (models) gathered.models = models;
+				}
 				const payload = mergePayload(gathered, params.extra);
 				const result = await session.showStep({
 					step: params.step,
@@ -500,6 +833,7 @@ export default function iteratorExtension(pi) {
 	// re-derives flow state mid-conversation.
 
 	pi.on("before_agent_start", async (_event, ctx) => {
+		rememberCtx(ctx);
 		try {
 			if (!bundleExists(ctx.cwd)) return undefined;
 			const { hub, implement } = await gatherSession(ctx.cwd);
@@ -528,13 +862,61 @@ export default function iteratorExtension(pi) {
 	});
 
 	// ---------------------------------------------------------------------
+	// Token-usage ledger: every assistant turn's tokens are buffered with the
+	// current flow attribution and flushed once per agent loop into
+	// memory/usage.md (writer op `usage`). usage_ledger: off skips the write.
+
+	let attribution = null; // { step, chunk } | null — sticky until the flow changes
+	let usageBuffer = [];
+
+	pi.on("input", async (event) => {
+		const a = attributionFromInput(event.text);
+		if (a) attribution = a;
+	});
+
+	pi.on("turn_end", async (event, ctx) => {
+		rememberCtx(ctx);
+		const row = usageRowFromMessage(event.message, attribution);
+		if (row) usageBuffer.push(row);
+	});
+
+	const flushUsage = async (cwd) => {
+		if (!usageBuffer.length || !bundleExists(cwd)) return;
+		const rows = usageBuffer;
+		usageBuffer = [];
+		try {
+			const { settings } = await gatherSession(cwd);
+			if (settings?.usage_ledger === "off") return;
+			await runJson(scriptPath("write"), [], {
+				cwd,
+				stdin: JSON.stringify({ op: "usage", rows }),
+			});
+			invalidateSession(); // usage.md just changed under the snapshot
+		} catch {
+			/* a ledger failure must never take pi down */
+		}
+	};
+
+	// ---------------------------------------------------------------------
 	// Session lifecycle: dashboard up while a bundle exists, down with pi.
 
 	pi.on("session_start", async (_event, ctx) => {
+		rememberCtx(ctx);
 		await refreshStatus(ctx);
 		if (!bundleExists(ctx.cwd)) return; // start lazily on first use instead
 		try {
 			await ensureServer(ctx);
+			// An auto run interrupted by a restart never resumes by surprise:
+			// pause it and let the human press Continue in the dashboard.
+			const { state } = await gatherSession(ctx.cwd);
+			if (
+				state?.mode === "auto" &&
+				!state.paused &&
+				["testing", "implementing", "reviewing"].includes(state.phase)
+			) {
+				await writeState({ paused: true });
+				if (ctx.hasUI) ctx.ui.notify("iterator: an auto-mode run was interrupted — press Continue in the dashboard to resume", "info");
+			}
 			await refreshHub(ctx.cwd);
 		} catch (e) {
 			if (ctx.hasUI) ctx.ui.notify(`iterator: dashboard failed to start: ${e.message}`, "warning");
@@ -547,15 +929,21 @@ export default function iteratorExtension(pi) {
 
 	// Keep the idle dashboard + footer current so they reflect reality.
 	pi.on("agent_end", async (_event, ctx) => {
+		rememberCtx(ctx);
 		invalidateSession(); // the turn may have changed files/commits
+		await flushUsage(ctx.cwd);
 		await refreshHub(ctx.cwd);
 		await refreshStatus(ctx);
+		// The auto-mode loop advances exactly here: one decision per finished
+		// agent loop (no-op unless state.mode === 'auto' and not paused).
+		await kickAuto(ctx.cwd);
 	});
 
 	// ---------------------------------------------------------------------
 	// Guardrails: protect writer-owned bundle state against direct edits.
 
 	pi.on("tool_call", async (event, ctx) => {
+		rememberCtx(ctx);
 		if (event.toolName === "write" || event.toolName === "edit") {
 			const path = event.input?.path;
 			rememberFile(ctx.cwd, path);

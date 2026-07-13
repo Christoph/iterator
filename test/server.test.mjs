@@ -669,16 +669,19 @@ test("knowledge view renders memory state, areas, concepts, design, and actions"
 	const io = await startServer(fixture("knowledge"));
 	const page = await (await fetch(io.url)).text();
 	assert.match(page, /Memory status/);
-	assert.match(page, /Knowledge areas/);
-	assert.match(page, /All memories/);
-	assert.match(page, /Safe browser rendering/);
+	assert.match(page, /Knowledge browser/);
+	assert.match(page, /id="rail"/, "area nav rail present");
+	assert.match(page, /id="browser"/, "client-rendered concept browser");
+	assert.match(page, /Search concepts/, "live search input");
+	assert.match(page, /Safe browser rendering/, "concept data embedded for the browser");
+	assert.match(page, /pitfalls\/gone-anchor/, "concept ids embedded");
 	assert.match(page, /data-action="update-memory"/);
-	assert.match(page, /data-target="pitfalls\/gone-anchor"/);
 	assert.match(page, /badge-stale/);
 	assert.match(page, /Design parameters/, "design.md card present");
 	assert.match(page, /data-action="refresh-format"/, "formatStale affordance");
 	assert.match(page, /data-action="okf-memorize"/);
 	assert.match(page, /Draft memory from prompt/);
+	assert.match(page, /data-drawer/, "read-in-place concept drawer");
 	assert.doesNotMatch(
 		page,
 		/data-action="okf-init"/,
@@ -861,4 +864,39 @@ test("one-command request form gathers in-process and cancel carries a report", 
 		if (io && io.child.exitCode == null) io.child.kill();
 		rmSync(dir, { recursive: true, force: true });
 	}
+});
+
+test("review with hasChanges:false prints no-changes and never opens a server", async () => {
+	const child = spawn(process.execPath, [SERVER], {
+		env: {
+			...process.env,
+			ITERATOR_NO_OPEN: "1",
+			ITERATOR_PORT: "0",
+			ITERATOR_REGISTRY: join(tmpdir(), `iterator-test-${randomUUID()}.json`),
+		},
+	});
+	CHILDREN.add(child);
+	child.on("exit", () => CHILDREN.delete(child));
+	let stdout = "",
+		stderr = "";
+	child.stdout.on("data", (d) => (stdout += d));
+	child.stderr.on("data", (d) => (stderr += d));
+	child.stdin.write(
+		JSON.stringify({
+			step: "review",
+			branch: "main",
+			hasChanges: false,
+			progress: { done: 1, total: 2 },
+			chunks: [],
+			uncategorized: [],
+		}),
+	);
+	child.stdin.end();
+	const code = await waitExit(child);
+	assert.equal(code, 0);
+	const out = parseJson(stdout.trim());
+	assert.equal(out.type, "no-changes");
+	assert.match(out.report, /Nothing to review/);
+	assert.deepEqual(out.progress, { done: 1, total: 2 });
+	assert.doesNotMatch(stderr, /listening/, "no server was started");
 });

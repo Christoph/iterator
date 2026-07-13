@@ -1498,7 +1498,16 @@ test("accept-commit includes untracked files matching the chunk and never unrela
 		git(root, "reset");
 		writeFileSync(join(root, "src", "unrelated.txt"), "stray\n");
 
-		const res = applyOp({ op: "accept-commit", chunks: ["chunk-a"] }, root);
+		// The stray must carry an explicit disposition (block_commit_on_leftovers
+		// defaults to on) — 'skip' keeps it out of the commit.
+		const res = applyOp(
+			{
+				op: "accept-commit",
+				chunks: ["chunk-a"],
+				uncategorized: [{ path: "src/unrelated.txt", chunk: "skip" }],
+			},
+			root,
+		);
 		const shown = git(
 			root,
 			"show",
@@ -1537,7 +1546,15 @@ test("accept-commit refuses to stage the whole tree when a chunk matches nothing
 		applyOp(PLAN_OP, root);
 		applyOp(WAVE_CHUNKS_OP, root);
 		assert.throws(
-			() => applyOp({ op: "accept-commit", chunks: ["chunk-a"] }, root),
+			() =>
+				applyOp(
+					{
+						op: "accept-commit",
+						chunks: ["chunk-a"],
+						uncategorized: [{ path: "src/innocent.txt", chunk: "skip" }],
+					},
+					root,
+				),
 			/nothing to stage/,
 		);
 		const staged = git(root, "diff", "--cached", "--name-only");
@@ -1695,6 +1712,361 @@ test("chunks op warns about globs that match nothing in the repo", () => {
 			{ chunk: "typo-chunk", globs: ["src/doesnotexist/**"] },
 		]);
 		assert.equal(res.validation.ok, true);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("plan op warns on todo-shaped dependencies and uninitialized knowledge", () => {
+	const root = makeRepo();
+	try {
+		const res = applyOp(
+			{
+				...PLAN_OP,
+				dependencies: [
+					"jsonwebtoken — token signing/verification",
+					"add axum routes",
+					"no-why-separator",
+				],
+			},
+			root,
+		);
+		assert.equal(res.warnings.length, 3, "2 dep lints + knowledge warning");
+		assert.match(res.warnings[0], /add axum routes/);
+		assert.match(res.warnings[1], /no-why-separator/);
+		assert.match(res.warnings[2], /okf-init/);
+
+		// Knowledge side present → only real dep lints remain.
+		mkdirSync(join(root, "memory", "architecture"), { recursive: true });
+		const res2 = applyOp(PLAN_OP, root);
+		assert.equal(res2.warnings, undefined, "clean deps + knowledge → none");
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("settings op writes, merges partially, and validates", () => {
+	const root = makeRepo();
+	try {
+		const res = applyOp(
+			{ op: "settings", values: { auto_mode: "on", max_review_iterations: 5 } },
+			root,
+		);
+		assert.equal(res.op, "settings");
+		assert.deepEqual(res.changed, { auto_mode: "on", max_review_iterations: 5 });
+		let fm = frontmatter(read(root, "settings.md"));
+		assert.equal(fm.type, "Settings");
+		assert.equal(fm.auto_mode, "on");
+		assert.equal(fm.max_review_iterations, "5");
+
+		// Partial merge: a later save keeps earlier keys.
+		applyOp({ op: "settings", values: { reviewer_model: "anthropic/claude-opus-4-8" } }, root);
+		fm = frontmatter(read(root, "settings.md"));
+		assert.equal(fm.auto_mode, "on", "earlier key survived the merge");
+		assert.equal(fm.reviewer_model, "anthropic/claude-opus-4-8");
+
+		// The root index lists settings.md.
+		assert.match(read(root, "index.md"), /\[Settings\]\(settings\.md\)/);
+
+		assert.throws(() => applyOp({ op: "settings", values: { nope: 1 } }, root), /unknown setting/);
+		assert.throws(() => applyOp({ op: "settings", values: { auto_mode: "sometimes" } }, root), /not one of/);
+		assert.throws(() => applyOp({ op: "settings", values: {} }, root), /needs values/);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("state op tracks mode/phase/pause and strike bookkeeping", () => {
+	const root = makeRepo();
+	try {
+		let res = applyOp(
+			{ op: "state", set: { mode: "auto", phase: "implementing", active_chunk: "auth" } },
+			root,
+		);
+		assert.equal(res.op, "state");
+		assert.equal(res.state.mode, "auto");
+		assert.equal(res.state.phase, "implementing");
+		assert.equal(res.state.active_chunk, "auth");
+		assert.equal(res.state.paused, false);
+
+		res = applyOp({ op: "state", strike: "auth" }, root);
+		res = applyOp({ op: "state", strike: "auth" }, root);
+		assert.deepEqual(res.state.strikes, { auth: 2 });
+
+		res = applyOp({ op: "state", set: { paused: true }, clearStrike: "auth" }, root);
+		assert.equal(res.state.paused, true);
+		assert.deepEqual(res.state.strikes, {});
+
+		const fm = frontmatter(read(root, "state.md"));
+		assert.equal(fm.type, "State");
+		assert.equal(fm.paused, "true");
+
+		assert.throws(() => applyOp({ op: "state", set: { phase: "flying" } }, root), /invalid phase/);
+		assert.throws(() => applyOp({ op: "state", set: { mode: "yolo" } }, root), /invalid mode/);
+		assert.throws(() => applyOp({ op: "state", set: { paused: "yes" } }, root), /boolean/);
+		assert.throws(() => applyOp({ op: "state" }, root), /needs set/);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("accept-commit enforces uncategorized dispositions (block, skip, assign)", () => {
+	const root = makeWaveRepo();
+	try {
+		writeFileSync(join(root, "src", "stray.txt"), "stray\n");
+
+		// Undisposed leftover + block_commit_on_leftovers on (default) → fail
+		// BEFORE any commit or branch creation.
+		assert.throws(
+			() => applyOp({ op: "accept-commit", chunks: ["chunk-a"] }, root),
+			/uncommitted leftovers: src\/stray\.txt/,
+		);
+		assert.equal(
+			git(root, "rev-parse", "--abbrev-ref", "HEAD"),
+			git(root, "symbolic-ref", "--short", "HEAD"),
+		);
+		assert.throws(
+			() =>
+				applyOp(
+					{
+						op: "accept-commit",
+						chunks: ["chunk-a"],
+						uncategorized: [{ path: "src/stray.txt", chunk: "no-such-chunk" }],
+					},
+					root,
+				),
+			/unknown chunk 'no-such-chunk'/,
+		);
+
+		// Assigning the stray to chunk-a lands it in chunk-a's commit; the
+		// result reports the truthful post-commit leftovers.
+		const res = applyOp(
+			{
+				op: "accept-commit",
+				chunks: ["chunk-a"],
+				uncategorized: [{ path: "src/stray.txt", chunk: "chunk-a" }],
+			},
+			root,
+		);
+		const shown = git(root, "show", "--name-only", "--format=", res.committed[0].sha)
+			.split("\n")
+			.filter(Boolean);
+		assert.ok(shown.includes("src/stray.txt"), "assigned stray committed with the chunk");
+		assert.deepEqual(res.uncommitted, []);
+		// b.ts is still staged for the other (unaccepted) chunk → a leftover.
+		assert.ok(res.leftovers.includes("src/b.ts"), "leftovers reports remaining dirt");
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("accept-commit with block off returns undisposed files instead of failing", () => {
+	const root = makeWaveRepo();
+	try {
+		applyOp({ op: "settings", values: { block_commit_on_leftovers: "off" } }, root);
+		writeFileSync(join(root, "src", "stray.txt"), "stray\n");
+		const res = applyOp({ op: "accept-commit", chunks: ["chunk-a"] }, root);
+		assert.ok(res.uncommitted.includes("src/stray.txt"));
+		assert.ok(res.leftovers.includes("src/stray.txt"));
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("chunks op stores writer-computed memories and model-flagged conflicts", () => {
+	const root = makeRepo();
+	try {
+		applyOp(PLAN_OP, root);
+		// A knowledge concept anchored to the chunk's files.
+		mkdirSync(join(root, "memory", "patterns"), { recursive: true });
+		writeFileSync(
+			join(root, "memory", "patterns", "middleware.md"),
+			'---\ntype: Pattern\ntitle: Middleware pattern\ndescription: d\nfiles: ["src/auth/*.ts"]\n---\n\nbody\n',
+		);
+		const res = applyOp(
+			{
+				op: "chunks",
+				chunks: [
+					{
+						name: "auth-middleware",
+						description: "JWT middleware",
+						files: ["src/auth/*.ts"],
+						conflicts: [
+							{ decision: "decisions/no-external-auth", note: "uses jsonwebtoken" },
+						],
+					},
+				],
+			},
+			root,
+		);
+		assert.equal(res.op, "chunks");
+		const raw = read(root, "chunks", "auth-middleware.md");
+		const fm = frontmatter(raw);
+		assert.deepEqual(fm.memories, ["patterns/middleware"], "anchor match stored");
+		assert.match(String(fm.conflicts), /no-external-auth/);
+		assert.match(raw, /# Decision conflicts/);
+		assert.match(raw, /uses jsonwebtoken/);
+
+		assert.throws(
+			() =>
+				applyOp(
+					{
+						op: "chunks",
+						chunks: [{ name: "x", description: "d", files: [], conflicts: [{}] }],
+					},
+					root,
+				),
+			/conflicts entries need/,
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("usage op merges increment rows into per-step × model aggregates", () => {
+	const root = makeRepo();
+	try {
+		applyOp(
+			{
+				op: "usage",
+				rows: [
+					{ step: "implement", chunk: "auth", provider: "openai", model: "gpt-5.5", input: 100, output: 50, cacheRead: 20, cacheWrite: 5 },
+					{ step: "implement", provider: "openai", model: "gpt-5.5", input: 10, output: 5 },
+				],
+			},
+			root,
+		);
+		const res = applyOp(
+			{
+				op: "usage",
+				rows: [
+					{ step: "review", chunk: "auth", provider: "anthropic", model: "claude-opus-4-8", input: 7, output: 3 },
+				],
+			},
+			root,
+		);
+		assert.deepEqual(res.grand, { input: 117, output: 58, cacheRead: 20, cacheWrite: 5, turns: 3 });
+
+		const raw = read(root, "usage.md");
+		const fm = frontmatter(raw);
+		assert.equal(fm.type, "Usage");
+		const totals = JSON.parse(fm.totals);
+		assert.equal(totals.steps.implement["openai/gpt-5.5"].input, 110);
+		assert.equal(totals.steps.implement["openai/gpt-5.5"].turns, 2);
+		assert.equal(totals.steps.review["anthropic/claude-opus-4-8"].output, 3);
+		assert.equal(totals.chunks.auth.input, 107, "chunk rollup spans steps");
+		assert.match(raw, /\| openai\/gpt-5\.5 \| 110 \| 55 \| 20 \| 5 \| 2 \|/);
+
+		assert.throws(() => applyOp({ op: "usage", rows: [] }, root), /non-empty rows/);
+		assert.throws(
+			() => applyOp({ op: "usage", rows: [{ step: "x", input: -1 }] }, root),
+			/non-negative/,
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("retire-plan archives the usage ledger and keeps totals in the decision", () => {
+	const root = makeRepo();
+	try {
+		applyOp(PLAN_OP, root);
+		applyOp(CHUNKS_OP, root);
+		applyOp({ op: "update-chunk", chunk: "config-module", set: { status: "done" } }, root);
+		applyOp({ op: "update-chunk", chunk: "auth-middleware", set: { status: "done" } }, root);
+		applyOp(
+			{ op: "usage", rows: [{ step: "implement", provider: "openai", model: "gpt-5.5", input: 500, output: 200 }] },
+			root,
+		);
+		const res = applyOp(
+			{
+				op: "retire-plan",
+				concept: { slug: "jwt-auth", title: "JWT auth", description: "d", body: "b" },
+			},
+			root,
+		);
+		assert.ok(res.archivedFiles.includes("usage.md"), "ledger rides into the archive");
+		assert.ok(!existsSync(join(root, "memory", "usage.md")), "fresh ledger for the next plan");
+		const archived = readFileSync(
+			join(root, "memory", res.archived, "usage.md"),
+			"utf8",
+		);
+		assert.match(archived, /500/);
+		assert.match(
+			read(root, "decisions", "jwt-auth.md"),
+			/Token usage: 500 in \/ 200 out/,
+			"totals survive in the decision concept",
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("record-review tags agent reviews with reviewer and model", () => {
+	const root = makeRepo();
+	try {
+		applyOp(PLAN_OP, root);
+		applyOp(CHUNKS_OP, root);
+		applyOp(
+			{
+				op: "record-review",
+				by: "agent",
+				model: "anthropic/claude-opus-4-8",
+				features: [{ name: "config-module", status: "changes", note: "missing env validation" }],
+			},
+			root,
+		);
+		const raw = read(root, "chunks", "config-module.md");
+		assert.match(raw, /\*\*Needs changes\*\* _\(agent review: anthropic\/claude-opus-4-8\)_ — missing env validation/);
+		assert.match(read(root, "log.md"), /changes \(agent\)/);
+
+		assert.throws(
+			() => applyOp({ op: "record-review", by: "robot", features: [{ name: "config-module", status: "approved" }] }, root),
+			/invalid by/,
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("plan approval on main creates the plan branch (worktree by default, in place when off)", () => {
+	const root = makeRepo();
+	try {
+		git(root, "config", "user.email", "t@t");
+		git(root, "config", "user.name", "t");
+		git(root, "checkout", "-qb", "main");
+		writeFileSync(join(root, ".keep"), "");
+		git(root, "add", ".keep");
+		git(root, "commit", "-qm", "init");
+
+		// Default: worktree_per_plan on → branch lands in a separate worktree,
+		// the current checkout stays on main, and the bundle is copied over.
+		const res = applyOp(PLAN_OP, root);
+		assert.equal(res.branch, "iterator/add-jwt-auth");
+		assert.ok(res.worktree, "worktree path reported");
+		assert.equal(git(root, "rev-parse", "--abbrev-ref", "HEAD"), "main");
+		assert.ok(existsSync(join(res.worktree, "memory", "plan.md")), "bundle copied into the worktree");
+		assert.match(read(root, "plan.md"), /branch: iterator\/add-jwt-auth/);
+		assert.match(read(root, "plan.md"), /worktree: /);
+		git(root, "worktree", "remove", "--force", res.worktree);
+
+		// worktree off → plain checkout -b in place.
+		git(root, "checkout", "-q", "main");
+		git(root, "branch", "-qD", "iterator/add-jwt-auth");
+		applyOp({ op: "settings", values: { worktree_per_plan: "off" } }, root);
+		git(root, "add", "-A");
+		git(root, "commit", "-qm", "settings");
+		const res2 = applyOp(PLAN_OP, root);
+		assert.equal(res2.branch, "iterator/add-jwt-auth");
+		assert.equal(res2.worktree, undefined);
+		assert.equal(git(root, "rev-parse", "--abbrev-ref", "HEAD"), "iterator/add-jwt-auth");
+
+		// branch_per_plan off → nothing moves.
+		git(root, "checkout", "-q", "main");
+		applyOp({ op: "settings", values: { branch_per_plan: "off" } }, root);
+		const res3 = applyOp(PLAN_OP, root);
+		assert.equal(res3.branch, undefined);
+		assert.equal(git(root, "rev-parse", "--abbrev-ref", "HEAD"), "main");
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}

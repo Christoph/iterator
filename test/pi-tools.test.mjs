@@ -155,3 +155,131 @@ test('shouldNudge fires once per threshold-multiple and can be disabled', () => 
   assert.equal(shouldNudge(100, 0, 0), false, 'threshold 0 disables');
   assert.equal(shouldNudge(100, 0, NaN), false, 'unparseable env disables');
 });
+
+test('actionToCommand carries a typed plan goal through to the skills', () => {
+  assert.equal(
+    actionToCommand({ type: 'action', action: 'plan', chunk: null, prompt: 'Build a CLI for tides' }),
+    '/skill:iterator-plan — Build a CLI for tides',
+  );
+  assert.equal(
+    actionToCommand({ type: 'action', action: 'okf-init', prompt: 'Build a CLI for tides' }),
+    '/skill:okf-init — when initialization finishes, continue into /skill:iterator-plan — Build a CLI for tides',
+  );
+  // No prompt → unchanged classic forms.
+  assert.equal(actionToCommand({ type: 'action', action: 'plan', chunk: null }), '/skill:iterator-plan');
+  assert.equal(actionToCommand({ type: 'action', action: 'okf-init' }), '/skill:okf-init');
+});
+
+test('attributionFromInput maps flow commands to ledger steps', async () => {
+  const { attributionFromInput } = await import('../lib/pi-tools.mjs');
+  assert.deepEqual(attributionFromInput('/skill:iterator-implement auth-middleware'),
+    { step: 'implement', chunk: 'auth-middleware' });
+  assert.deepEqual(attributionFromInput('/iterator-plan — build a tide CLI'),
+    { step: 'plan', chunk: null });
+  assert.deepEqual(attributionFromInput('/okf-memorize'), { step: 'memory', chunk: null });
+  assert.deepEqual(attributionFromInput('/iterator-next'), { step: 'implement', chunk: null });
+  assert.equal(attributionFromInput('fix the login bug'), null, 'plain prose keeps the previous attribution');
+  assert.equal(attributionFromInput('/help'), null);
+});
+
+test('usageRowFromMessage extracts assistant usage with attribution', async () => {
+  const { usageRowFromMessage } = await import('../lib/pi-tools.mjs');
+  const msg = {
+    role: 'assistant', provider: 'openai', model: 'gpt-5.5',
+    usage: { input: 100, output: 40, cacheRead: 10, cacheWrite: 2 },
+  };
+  assert.deepEqual(usageRowFromMessage(msg, { step: 'review', chunk: 'auth' }), {
+    step: 'review', chunk: 'auth', provider: 'openai', model: 'gpt-5.5',
+    input: 100, output: 40, cacheRead: 10, cacheWrite: 2,
+  });
+  assert.equal(usageRowFromMessage(msg, null).step, 'other');
+  assert.equal(usageRowFromMessage({ role: 'user' }, null), null);
+  assert.equal(usageRowFromMessage({ role: 'assistant' }, null), null, 'no usage → no row');
+});
+
+// ---------------------------------------------------------------------------
+// Auto mode state machine
+
+const { nextAutoAction, roleModelSpec, AUTO_PHASE_FOR_STEP } = await import('../lib/pi-tools.mjs');
+
+const S = (over = {}) => ({
+  auto_mode: 'on', testing_default: 'on', max_review_iterations: 3,
+  block_commit_on_leftovers: 'on', ...over,
+});
+const ST = (over = {}) => ({ mode: 'auto', paused: false, phase: 'implementing', active_chunk: null, strikes: {}, ...over });
+const sess = ({ chunks = [], next = null, drafts = [], stuck = false, done = 0, total = chunks.length } = {}) => ({
+  hub: { plan: { title: 'P' }, progress: { done, total }, chunks },
+  implement: { next, drafts, stuck },
+});
+
+test('nextAutoAction is inert outside active auto mode', () => {
+  const s = sess({ chunks: [{ name: 'a', status: 'pending' }], next: { name: 'a', testsStatus: 'none' } });
+  assert.equal(nextAutoAction(s, S(), ST({ mode: 'manual' })), null);
+  assert.equal(nextAutoAction(s, S(), ST({ paused: true })), null);
+  assert.equal(nextAutoAction({ hub: { plan: null } }, S(), ST()), null, 'no plan');
+});
+
+test('nextAutoAction dispatches test → implement → review from bundle state', () => {
+  const chunk = { name: 'a', status: 'pending', hasDiff: false };
+  // No tests yet + testing on → tester turn.
+  let a = nextAutoAction(sess({ chunks: [chunk], next: { name: 'a', testsStatus: 'none' } }), S(), ST());
+  assert.deepEqual(a, { step: 'test', role: 'tester', chunk: 'a', cmd: '/skill:iterator-test a --auto' });
+  assert.equal(AUTO_PHASE_FOR_STEP[a.step], 'testing');
+  // Tests red, no diff → implementer turn.
+  a = nextAutoAction(sess({ chunks: [chunk], next: { name: 'a', testsStatus: 'red' } }), S(), ST());
+  assert.equal(a.step, 'implement');
+  assert.equal(a.cmd, '/skill:iterator-implement a --auto');
+  // Testing off skips straight to implement.
+  a = nextAutoAction(sess({ chunks: [chunk], next: { name: 'a', testsStatus: 'none' } }), S({ testing_default: 'off' }), ST());
+  assert.equal(a.step, 'implement');
+  // Implementation diff exists → reviewer turn.
+  a = nextAutoAction(sess({ chunks: [{ ...chunk, hasDiff: true }], next: { name: 'a', testsStatus: 'red' } }), S(), ST());
+  assert.deepEqual(a, { step: 'review', role: 'reviewer', chunk: 'a', cmd: '/skill:iterator-review a --agent' });
+});
+
+test('nextAutoAction reads the review verdict from the bundle and strikes', () => {
+  // Review round returned, chunk NOT done → needs-work → strike + rework.
+  const s = sess({ chunks: [{ name: 'a', status: 'pending', hasDiff: true }], next: { name: 'a', testsStatus: 'red' } });
+  let a = nextAutoAction(s, S(), ST({ phase: 'reviewing', active_chunk: 'a' }));
+  assert.equal(a.step, 'implement');
+  assert.equal(a.strike, 'a');
+  // Two prior strikes: the third failure escalates.
+  a = nextAutoAction(s, S(), ST({ phase: 'reviewing', active_chunk: 'a', strikes: { a: 2 } }));
+  assert.equal(a.escalate, true);
+  assert.match(a.reason, /failed agent review 3/);
+  // Chunk done → approved: fall through to the next chunk (none → done).
+  const approved = sess({ chunks: [{ name: 'a', status: 'done' }], next: null, done: 1, total: 1 });
+  a = nextAutoAction(approved, S(), ST({ phase: 'reviewing', active_chunk: 'a' }));
+  assert.deepEqual(a, { done: true });
+});
+
+test('nextAutoAction escalates on conflicts, prior strikes, drafts, and stuck graphs', () => {
+  let a = nextAutoAction(
+    sess({ chunks: [{ name: 'a', status: 'pending' }], next: { name: 'a', testsStatus: 'red', conflicts: [{ decision: 'decisions/no-orm' }] } }),
+    S(), ST(),
+  );
+  assert.equal(a.escalate, true);
+  assert.match(a.reason, /decisions\/no-orm/);
+
+  a = nextAutoAction(
+    sess({ chunks: [{ name: 'a', status: 'pending' }], next: { name: 'a', testsStatus: 'red' } }),
+    S(), ST({ strikes: { a: 3 } }),
+  );
+  assert.equal(a.escalate, true);
+
+  a = nextAutoAction(sess({ chunks: [], next: null, drafts: ['d'] }), S(), ST());
+  assert.match(a.reason, /draft/);
+
+  a = nextAutoAction(sess({ chunks: [{ name: 'a', status: 'pending' }], next: null, stuck: true, total: 1 }), S(), ST());
+  assert.match(a.reason, /cycle or missing/);
+});
+
+test('roleModelSpec resolves overrides and leaves active alone', () => {
+  const settings = {
+    reviewer_model: 'anthropic/claude-opus-4-8', reviewer_thinking: 'high',
+    implementer_model: 'active', implementer_thinking: 'medium',
+  };
+  assert.deepEqual(roleModelSpec(settings, 'reviewer'), { model: 'anthropic/claude-opus-4-8', thinking: 'high' });
+  assert.deepEqual(roleModelSpec(settings, 'implementer'), { model: null, thinking: 'medium' });
+  assert.deepEqual(roleModelSpec({}, 'tester'), { model: null, thinking: null });
+});

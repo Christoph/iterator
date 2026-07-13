@@ -153,9 +153,13 @@ memory/
 ├── format.md         # type: Reference — the metadata schema (copied from templates/)
 ├── plan.md           # type: Plan — the plan concept
 ├── design.md         # optional — type: Design — project design params (/iterator-design)
+├── settings.md       # optional — type: Settings — project settings (op `settings`)
+├── state.md          # optional — type: State — runtime flow state (op `state`)
+├── usage.md          # optional — type: Usage — per-plan token ledger (op `usage`)
 ├── log.md            # OKF §7 update log; skills append entries
 └── chunks/
     ├── index.md      # chunk listing with status, for progressive disclosure
+    ├── archive/      # retired plans (<created>-<slug>/ incl. their usage.md)
     └── <slug>.md     # type: Chunk — one concept per chunk
 ```
 
@@ -181,6 +185,44 @@ Key decisions:
 
 The env var `ITERATOR_MEMORY_DIR` overrides the `memory/` location; it is always
 resolved relative to the git root.
+
+## Settings, runtime state, and the auto-mode driver
+
+`lib/settings.mjs` is the single source of truth for every configurable key
+(kind, enum values, bounds, defaults, UI labels): the writer validates
+against it (op `settings`), `loadBundle()` merges it into always-present
+effective `settings`/`state` objects on every gather, and the settings view
+renders its form from the same table. Machine runtime state (op `state`)
+tracks `mode/paused/phase/active_chunk/strikes` — what makes Pause/Continue
+and cross-session auto-mode resume possible.
+
+**Auto mode** is a deterministic driver, not model prose:
+
+- `nextAutoAction(session, settings, state)` (`lib/pi-tools.mjs`) is a pure
+  function deciding the next dispatch — test → implement → review per chunk,
+  verdicts read from the bundle (an agent review either drove `accept-commit`
+  and flipped the chunk to `done`, or it recorded needs-work), strikes
+  counted per chunk, escalation to the human at `max_review_iterations`,
+  and hard escalations for decision `conflicts`, draft-only sets, and stuck
+  graphs. Exhaustively unit-tested.
+- The pi extension is glue: on every `agent_end` it asks `nextAutoAction`,
+  writes the phase via the `state` op, applies the role's model/thinking
+  (`roleModelSpec` + `pi.setModel`/`pi.setThinkingLevel`, restoring the
+  user's model on done/escalate/pause), and dispatches
+  `/skill:iterator-<step> <chunk> --auto` (review: `--agent`). A per-session
+  circuit breaker caps runaway loops.
+- The skills carry the mode-specific behavior: `--auto` implement/test skip
+  their browser gates; `--agent` review makes the model the reviewer,
+  recording verdicts via `record-review` (`by: 'agent'` + model) and
+  committing through the same `accept-commit` path as a human.
+
+**Token ledger:** the extension buffers every assistant turn's
+`message.usage` (attributed to a flow step via `attributionFromInput`) and
+flushes once per loop through the `usage` op; the Usage tab renders the
+aggregates. **Git flow:** plan approval creates `iterator/<plan-slug>`
+(worktree by default); `accept-commit` resets the index before per-chunk
+staging, requires an explicit disposition for every uncategorized file
+(`block_commit_on_leftovers`), and reports truthful post-commit `leftovers`.
 
 ## Shared UI shell (`lib/`)
 

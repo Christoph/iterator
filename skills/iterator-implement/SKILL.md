@@ -55,12 +55,18 @@ implementation notes, snippets, `ARCHITECTURE.md` (read if present), and
 keep their edits separable.
 
 **Memory first:** before coding a chunk, read the files in its contract's
-`relevantMemories` (each carries the absolute `path` of one knowledge concept
-anchored to the chunk's files) — and ONLY those; never crawl all of
-`memory/`. Treat `pitfalls/*` entries as constraints (a known sharp edge in
-exactly the files you are about to change), `architecture/*` and `patterns/*`
-as how the surrounding code expects to be extended. An empty list means no
-anchored knowledge — proceed normally.
+`relevantMemories` (the chunk's stored `memories:` reading list unioned with
+a fresh anchor match; each entry carries the absolute `path` of one knowledge
+concept) — and ONLY those; never crawl all of `memory/`. Treat `pitfalls/*`
+entries as constraints (a known sharp edge in exactly the files you are about
+to change), `architecture/*` and `patterns/*` as how the surrounding code
+expects to be extended. An empty list means no anchored knowledge — proceed
+normally.
+
+**Decision conflicts:** if a wave chunk's contract carries `conflicts`
+(recorded decision concepts the chunk contradicts), do **not** implement it
+silently — surface the conflict to the user first and let them resolve it
+(change the chunk, or update the decision via `/okf`).
 
 **Design quality:** if any chunk touches frontend/UI surface, follow the
 `/iterator-design` skill while building. The payload's `designFile` tells you
@@ -153,12 +159,17 @@ where the commit decision happens.
   `/okf-memorize` has a backlog). `advance` with no cards is correct —
   "nothing worth memorizing" also means the pointer is up to date.
 
-  The writer is resumable (already-done chunks are skipped). If its result
-  lists `uncommitted` files, they matched no accepted chunk — tell the user
-  instead of force-committing them. Report what was committed (and which
-  memories were written/skipped), then offer the next dependency-ready wave
-  (loop to step 1). If this wave finished the plan, offer **plan retirement**
-  instead (the `/iterator` hub skill's retire flow).
+  The writer is resumable (already-done chunks are skipped). The review UI
+  collects a disposition for every uncategorized file (`uncategorized:
+  [{path, chunk|'skip'}]` in its accept result — pipe it through verbatim);
+  with `block_commit_on_leftovers` on, the writer **fails before committing**
+  if any file is left undisposed — relay its error rather than working around
+  it. Its result reports `uncommitted` (explicit skips) and `leftovers` (what
+  actually remains dirty after the commits) — tell the user about both, never
+  force-commit them. Report what was committed (and which memories were
+  written/skipped), then offer the next dependency-ready wave (loop to
+  step 1). If this wave finished the plan, offer **plan retirement** instead
+  (the `/iterator` hub skill's retire flow).
 
 - `{ "type": "review-feedback", ... }` → revise the implementation per the
   per-chunk notes and line comments, **re-run the affected chunks' tests**
@@ -168,3 +179,21 @@ where the commit decision happens.
 
 - `cancel` / `timeout` → relay the result's `report` and stop without
   committing; the working-tree changes remain for the user to inspect.
+
+## Auto mode (`--auto`)
+
+When invoked as `/iterator-implement <chunk> --auto` (dispatched by the
+auto-mode driver, never by hand):
+
+- Implement **only the named chunk** (not the whole wave). All quality gates
+  above apply unchanged — memory first, design quality, and the green gate.
+- On a rework round the chunk's `# Review` section carries the agent
+  reviewer's notes (newest first) — read them via
+  `gather.mjs --step review --chunk <slug>`'s chunk payload or the chunk
+  contract, and address every point.
+- **Do NOT open the review UI and do NOT commit.** Finish the implementation
+  (tests green when the chunk has tests), then report in one short paragraph
+  what changed and stop — the driver dispatches the agent review as the next
+  turn. If the chunk cannot be finished (tests stuck red, missing
+  precondition), say so plainly and stop; the driver counts the failed review
+  rounds and escalates to the human.

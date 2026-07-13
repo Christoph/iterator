@@ -262,3 +262,14 @@ test('with a resolved root, a project\'s own memory/ subtree is not the bundle',
   );
   assert.equal(verdict, null);
 });
+
+test('runtime docs (settings/state/usage) warn on direct writes and edits', () => {
+  for (const f of ['settings.md', 'state.md', 'usage.md']) {
+    const w = checkWrite({ path: `memory/${f}`, content: '---\ntype: X\n---\n' }, '---\ntype: X\n---\n');
+    assert.ok(w?.warn, `${f} write warns`);
+    assert.match(w.reason, /settings\/state\/usage ops/);
+    const e = checkEdit({ path: `memory/${f}`, oldText: 'a', newText: 'b' }, 'a');
+    assert.ok(e?.warn, `${f} edit warns`);
+  }
+  assert.equal(checkWrite({ path: 'src/settings.md', content: 'x' }, 'x'), null, 'outside the bundle stays free');
+});

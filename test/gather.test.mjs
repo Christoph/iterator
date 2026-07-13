@@ -9,6 +9,7 @@ import {
 	gatherChunk,
 	gatherImplement,
 	gatherKnowledge,
+	gatherPlan,
 	gatherMemorize,
 	gatherRange,
 	gatherReview,
@@ -773,6 +774,198 @@ test("gatherRange advice covers the pointer states in one sentence", () => {
 			'---\nokf_version: "0.1"\n---\n# Memory\n',
 		);
 		assert.match(gatherRange(root).advice, /No last_memorized_commit/);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("plan/hub/review payloads carry designFile and knowledgeInitialized", () => {
+	const root = makeFixture();
+	try {
+		// No knowledge areas, no design.md yet.
+		let plan = gatherPlan(root);
+		assert.equal(plan.designFile, null);
+		assert.equal(plan.knowledgeInitialized, false);
+		assert.equal(gather(root).knowledgeInitialized, false);
+		assert.equal(gatherReview(root).designFile, null);
+
+		writeFileSync(
+			join(root, "memory", "design.md"),
+			"---\ntype: Design\ntitle: Design\n---\n\n# Direction\nd\n",
+		);
+		writeFileSync(
+			join(root, "memory", "index.md"),
+			'---\nokf_version: "0.1"\n---\n# Memory\n',
+		);
+		mkdirSync(join(root, "memory", "architecture"), { recursive: true });
+
+		plan = gatherPlan(root);
+		assert.ok(plan.designFile.endsWith(join("memory", "design.md")));
+		assert.equal(plan.knowledgeInitialized, true);
+		assert.equal(gather(root).knowledgeInitialized, true);
+		assert.ok(
+			gatherReview(root).designFile.endsWith(join("memory", "design.md")),
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("hub without a bundle reports knowledge-init state for the hero", () => {
+	const root = mkdtempSync(join(tmpdir(), "iterator-gather-"));
+	try {
+		git(root, "init", "-q");
+		assert.equal(gather(root).knowledgeInitialized, false);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("review payload carries the deterministic hasChanges flag", () => {
+	const root = makeFixture();
+	try {
+		assert.equal(gatherReview(root).hasChanges, true, "staged diff → changes");
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("hasChanges is false on a clean tree with no recorded commits", () => {
+	const root = mkdtempSync(join(tmpdir(), "iterator-gather-"));
+	try {
+		git(root, "init", "-q");
+		mkdirSync(join(root, "memory", "chunks"), { recursive: true });
+		writeFileSync(
+			join(root, "memory", "chunks", "empty-chunk.md"),
+			'---\ntype: Chunk\ntitle: E\ndescription: d\nstatus: pending\nfiles: ["src/*.ts"]\n---\n',
+		);
+		writeFileSync(join(root, ".keep"), "");
+		git(root, "add", ".keep");
+		git(root, "commit", "-qm", "init");
+		const p = gatherReview(root);
+		assert.equal(p.hasChanges, false);
+		assert.equal(p.chunks.length, 0);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("hub payload reports working-tree dirt outside the bundle", () => {
+	const root = makeFixture();
+	try {
+		const p = gather(root);
+		assert.equal(p.dirty.count, 1, "staged src/auth/index.ts counts");
+		assert.deepEqual(p.dirty.files, ["src/auth/index.ts"]);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("chunk payload surfaces decisions concepts and stored memories/conflicts", () => {
+	const root = makeFixture();
+	try {
+		mkdirSync(join(root, "memory", "decisions"), { recursive: true });
+		writeFileSync(
+			join(root, "memory", "decisions", "no-orm.md"),
+			"---\ntype: Decision\ntitle: No ORM\ndescription: Raw SQL only.\n---\n\nbody\n",
+		);
+		writeFileSync(
+			join(root, "memory", "chunks", "auth-middleware.md"),
+			`---
+type: Chunk
+title: Auth middleware
+description: JWT middleware
+status: pending
+depends_on: [config-module]
+files: ["src/auth/*.ts"]
+memories: [decisions/no-orm]
+conflicts: '[{"decision":"decisions/no-orm","note":"introduces an ORM"}]'
+---
+`,
+		);
+		const p = gatherChunk(root);
+		assert.equal(p.decisions.length, 1);
+		assert.equal(p.decisions[0].id, "decisions/no-orm");
+		const auth = p.chunks.find((c) => c.name === "auth-middleware");
+		assert.deepEqual(auth.memories, ["decisions/no-orm"]);
+		assert.deepEqual(auth.conflicts, [
+			{ decision: "decisions/no-orm", note: "introduces an ORM" },
+		]);
+
+		// Implement contract unions the stored list with the dynamic match.
+		const imp = gatherImplement(root);
+		assert.ok(
+			imp.next.relevantMemories.some((m) => m.id === "decisions/no-orm"),
+			"stored memory id resolved into the contract",
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("gatherUsage and gatherArchive read the ledger and retired plans", async () => {
+	const { applyOp } = await import("../lib/write.mjs");
+	const { gatherUsage, gatherArchive } = await import("../lib/gather.mjs");
+	const root = mkdtempSync(join(tmpdir(), "iterator-gather-"));
+	try {
+		git(root, "init", "-q");
+		// Empty state first.
+		assert.equal(gatherUsage(root).exists, false);
+		assert.deepEqual(gatherArchive(root).archives, []);
+
+		applyOp(
+			{
+				op: "plan",
+				title: "Tiny plan",
+				sections: { goal: "g" },
+			},
+			root,
+		);
+		applyOp(
+			{
+				op: "chunks",
+				chunks: [{ name: "only-chunk", description: "d", files: ["src/x.ts"] }],
+			},
+			root,
+		);
+		applyOp({ op: "update-chunk", chunk: "only-chunk", set: { status: "done" } }, root);
+		applyOp(
+			{ op: "usage", rows: [{ step: "implement", chunk: "only-chunk", provider: "p", model: "m", input: 42, output: 7 }] },
+			root,
+		);
+
+		const u = gatherUsage(root);
+		assert.equal(u.exists, true);
+		assert.equal(u.grand.input, 42);
+		assert.equal(u.totals.chunks["only-chunk"].output, 7);
+
+		applyOp(
+			{
+				op: "retire-plan",
+				concept: { slug: "tiny", title: "Tiny", description: "d", body: "b" },
+			},
+			root,
+		);
+
+		// Hub lists the retired plan; archive gather parses it fully.
+		const { gather } = await import("../lib/gather.mjs");
+		const hub = gather(root);
+		assert.equal(hub.retired.length, 1);
+		assert.equal(hub.retired[0].title, "Tiny plan");
+
+		const list = gatherArchive(root);
+		assert.equal(list.archives.length, 1);
+		assert.equal(list.archives[0].chunks, 1);
+		assert.equal(list.archives[0].usage.input, 42);
+
+		const one = gatherArchive(root, list.archives[0].name);
+		assert.equal(one.title, "Tiny plan");
+		assert.equal(one.chunks[0].name, "only-chunk");
+		assert.equal(one.chunks[0].status, "done");
+		assert.equal(one.usage.grand.input, 42);
+		assert.match(one.sections["Goal"] || "", /g/);
+
+		assert.ok(gatherArchive(root, "nope").error, "bad target reports an error");
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}

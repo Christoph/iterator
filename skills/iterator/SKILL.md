@@ -20,7 +20,7 @@ This skill folder also owns the shared tooling every step skill calls:
   small agent-authored `extra` on top, so most flows need no gather|server
   pipe. Single-instance on a fixed port (default `7777`, `$ITERATOR_PORT`).
 - `gather.mjs` — deterministic state
-  (`--step hub|plan|chunk|implement|memorize|range|knowledge|test|review|session`).
+  (`--step hub|plan|chunk|implement|memorize|range|knowledge|test|review|session|settings|usage|archive`).
 - `write.mjs` — deterministic bundle writer. `--schema` lists ops,
   `--schema <op>` prints an op's payload shape; errors come back as
   `{ok:false, error, hint}` — fix the payload and re-pipe, never write bundle
@@ -66,6 +66,16 @@ invalid by the time it arrives, report why and reopen the dashboard.
 
 `cancel` / `timeout` results carry a human `report` string — relay it, print
 a short state summary (done/total, next ready chunk), and stop.
+
+Two navigation actions stay inside this skill instead of dispatching:
+
+- `{ "action": "view-archive", "chunk": "<archive-name>" }` → open the
+  read-only retired-plan browser:
+  `echo '{"gather":true,"step":"archive","chunk":"<archive-name>"}' | node <skill-dir>/server.mjs`
+  When its result is `{ "action": "hub" }`, reopen the dashboard (step 1).
+- The **token usage** view works the same way when the user asks for it:
+  `echo '{"gather":true,"step":"usage"}' | node <skill-dir>/server.mjs`
+  (read-only; per-step × model token counts for the active plan).
 
 ### 3. Retire the plan (action `retire`, or the user asks)
 

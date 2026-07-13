@@ -248,3 +248,55 @@ test('a legacy one-shot takeover pass leaves the session server alive (mode guar
     await session.stop();
   }
 });
+
+test('POST /control routes control-strip actions to onControl', async () => {
+  const controls = [];
+  const { session, origin } = await startSession({ onControl: (a) => controls.push(a) });
+  try {
+    await fetch(origin + '/control', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'pause' }),
+    });
+    await fetch(origin + '/control', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'open-settings' }),
+    });
+    await sleep(50);
+    assert.deepEqual(controls.map(c => c.action), ['pause', 'open-settings']);
+  } finally {
+    await session.stop();
+  }
+});
+
+test('setStatus broadcasts a status SSE event and replays it to new connections', async () => {
+  const { session, origin } = await startSession();
+  try {
+    session.setStatus({ plan: 'Add JWT auth', branch: 'main', mode: 'auto', paused: false, phase: 'implementing' });
+    // A shell connecting AFTER the status was set still receives it (replay).
+    const events = await new Promise((resolve, reject) => {
+      const out = [];
+      const req = http.get(`${origin}/events`, res => {
+        let buf = '';
+        res.on('data', d => {
+          buf += d;
+          for (const m of buf.matchAll(/event: (\w+)\ndata: (.*)\n/g)) {
+            out.push({ event: m[1], data: JSON.parse(m[2]) });
+          }
+          if (out.length >= 2) { req.destroy(); resolve(out); }
+        });
+      });
+      req.on('error', () => {});
+      setTimeout(() => reject(new Error('no status event')), 3000).unref();
+    });
+    const status = events.find(e => e.event === 'status');
+    assert.ok(status, 'status event replayed on connect');
+    assert.equal(status.data.plan, 'Add JWT auth');
+    assert.equal(status.data.phase, 'implementing');
+
+    const shell = await (await fetch(origin + '/')).text();
+    assert.ok(shell.includes('id="ctl-pause"'), 'shell carries the control strip');
+    assert.ok(shell.includes("'/control'"), 'strip posts to /control');
+  } finally {
+    await session.stop();
+  }
+});

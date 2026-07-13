@@ -37,10 +37,15 @@ test-plan result payload (`test-approved`, `test-feedback`, `cancel`,
 
 Get the chunk list from
 `node <skill-dir>/../iterator/gather.mjs --step hub` (do **not** read bundle
-files yourself). If the user named a chunk, use it. Otherwise use
-`AskUserQuestion` (header `Chunk`) — most-foundational chunks first
-(dependency order), labeled with name and size; a chunk's dependencies should
-already be covered where possible.
+files yourself). If the user named a chunk, use it. Otherwise ask **via the
+browser question view first** (pipe `{ "step": "question", "title": "Chunk",
+"question": "...", "options": [...] }` into
+`node <skill-dir>/../iterator/server.mjs`; pi mode: `iterator_ui` step
+`question`), printing "Question waiting in the browser dashboard." in the
+terminal; fall back to terminal `AskUserQuestion` only when the server is
+unavailable — most-foundational chunks first (dependency order), labeled
+with name and size; a chunk's dependencies should already be covered where
+possible.
 
 ### 2. Gather the contract and derive the test plan
 
@@ -129,3 +134,12 @@ Report which chunk was covered, the file(s) created, the verified color (red:
 "expected to fail — implement drives these green"), any cases intentionally
 left out and why, and whether other chunks still lack tests (offer to
 continue).
+
+## Auto mode (`--auto`)
+
+When invoked as `/iterator-test <chunk> --auto` (dispatched by the auto-mode
+driver): skip the browser test-plan review. Derive the red test plan from the
+chunk contract (step 2), write the failing tests, run them to confirm they
+fail for the right reason, and commit via the `commit-tests` op exactly as in
+the manual flow. Report the test files and the failing output in one short
+paragraph and stop — the driver dispatches the implementation next.

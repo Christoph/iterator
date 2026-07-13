@@ -265,6 +265,39 @@ Knowledge view, runs on the one iterator server.
 - Any agent that supports Agent Skills (Claude Code, opencode, Codex CLI, pi, …)
 - A git repository (the `memory/` bundle is resolved relative to the git root)
 
+## Project settings & feature matrix
+
+Per-project behavior lives in `memory/settings.md`, edited from the dashboard
+(gear icon, or `/iterator-settings` in pi) and written only by the
+deterministic writer (`write.mjs --schema settings` lists every key):
+
+- **auto mode** — after the chunk set is approved (or via the hub's
+  "Implement all (auto)" button), the driver runs test → implement → review
+  automatically; a reviewer agent stands in for you and its verdicts are
+  recorded in each chunk's `# Review` history (tagged `agent review`). After
+  `max_review_iterations` needs-work rounds on the same chunk it pauses and
+  escalates to you. Pause/Continue lives in the dashboard's control strip;
+  state survives restarts (`memory/state.md`).
+- **per-role models & thinking** — planner/implementer/tester/reviewer can
+  each pin a model (`provider/model-id`, default: the active session model)
+  and a thinking level (defaults: planner/reviewer `high`, implementer
+  `medium`, tester `low`).
+- **git flow** — `branch_per_plan` creates `iterator/<plan-slug>` on plan
+  approval, in a separate **git worktree** by default (`worktree_per_plan`);
+  `block_commit_on_leftovers` refuses accept-commit while changed files are
+  neither assigned to a chunk nor explicitly skipped.
+- **token ledger** — `usage_ledger` records per-step × per-model token counts
+  into `memory/usage.md` (the Usage tab); retiring a plan archives the ledger
+  with it and keeps the totals in the retirement decision.
+
+**pi-only features:** auto mode, per-role model/thinking switching, live
+Pause (aborting the in-flight stream), and token capture need the pi
+extension runtime. In plain Agent-Skills mode (Claude Code, opencode, Codex
+CLI) everything else — settings storage, the question view, the zero-change
+review guard, tight-commit dispositions, archive browsing, the Usage view
+over an existing ledger — works unchanged; the pi-only settings are stored
+but inert.
+
 ## Configuration
 
 Every interactive step runs through one tiny local HTTP server (the hub

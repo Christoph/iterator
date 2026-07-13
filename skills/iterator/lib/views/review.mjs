@@ -6,6 +6,7 @@
  *           tests:{status,total,passing},
  *           pitfalls:[{id,title,description,path,matched}]}], uncategorized:[],
  *           pitfalls:[...same, for uncategorized files],
+ *           designFile,             // memory/design.md path | null — UI diffs are checked against it
  *           memory:{proposals:[{action,area,slug,title,description,reason}]} }
  *   pitfalls (optional): pitfall concepts whose files: anchors match the
  *   chunk's changed files — rendered as an amber card in the chunk detail
@@ -22,8 +23,12 @@
  *           lineComments:[{chunk,file,content,type,comment}] }
  *         or (commit mode, no changes) { type:"accept-commit", branch, chunk,
  *           chunks:[every chunk in the wave],
+ *           uncategorized:[{path, chunk:"<slug>"|"skip"}],  // disposition per unmatched file
  *           memory:{accepted:["area/slug"],skipped:[...]} }
  *         plus the shared { type:"cancel" } / { type:"timeout" }.
+ * The payload also carries hasChanges — servers refuse to render when false
+ * (the deterministic zero-change guard); the empty state here is the last
+ * resort only.
  */
 import { renderPage, DIFF_CSS } from "../ui.mjs";
 
@@ -71,6 +76,15 @@ button.ns{background:var(--accent);border-color:var(--accent);color:var(--accent
 .pl{font-family:var(--font-mono);font-size:var(--fs-xs);text-transform:uppercase;color:var(--accent);margin-bottom:4px;letter-spacing:.05em}
 .pitfall .pm{font-size:11.5px;color:var(--text-muted);margin-top:4px}
 .pitfall .pm code{background:var(--code-bg);border-radius:3px;padding:0 4px;font-family:var(--font-mono)}
+.uncbox{background:var(--bg-yellow);border:1px solid var(--dot-yellow);border-radius:4px;
+  padding:10px var(--sp-3);margin:10px 0;font-size:var(--fs-sm)}
+.uncbox .ml{font-family:var(--font-mono);font-size:var(--fs-xs);text-transform:uppercase;
+  color:var(--dot-yellow);margin-bottom:8px;letter-spacing:.05em}
+.uncrow{display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap}
+.uncrow code{background:var(--code-bg);border-radius:3px;padding:1px 6px;font-family:var(--font-mono);font-size:12px}
+.uncrow select{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);
+  color:var(--text);font-size:12px;padding:3px 8px;outline:none}
+.uncrow select:focus{border-color:var(--accent)}
 .sbtns{display:inline-flex;gap:0;margin-bottom:var(--sp-5);border:1px solid var(--border);
   border-radius:var(--radius-sm);overflow:hidden}
 button.sb{font-size:var(--fs-sm);padding:4px var(--sp-3);border:none;border-right:1px solid var(--border);
@@ -159,12 +173,20 @@ const MODE = D.mode || 'review';
 // captured at save time so comments survive switching chunks (same
 // file/hunk/line indexes exist in every chunk's diff).
 // memSkip: indexes of memory proposals the user toggled OFF (default: apply).
-const S = { active: null, statuses: {}, notes: {}, comments: {}, memSkip: {} };
+// unc: path -> disposition ('skip' | chunk slug) for uncategorized files —
+// in commit mode every uncategorized file needs one before Accept.
+const S = { active: null, statuses: {}, notes: {}, comments: {}, memSkip: {}, unc: {} };
 const MEM = (D.memory && D.memory.proposals) || [];
 
 renderSidebar();
 const first = (D.chunks||[])[0] || (D.uncategorized && D.uncategorized.length ? {name:'__unc__'} : null);
 if(first) selectFeature(first.name);
+else {
+  // Defensive empty state — the zero-change guard upstream should make this
+  // unreachable; never show an empty review as if it were reviewable.
+  document.getElementById('detail').innerHTML =
+    '<div class="empty"><h3>Nothing to review</h3><p>No diff and no recorded commits for this scope.</p></div>';
+}
 refresh();
 
 function renderSidebar(){
@@ -178,6 +200,13 @@ function renderSidebar(){
     b.textContent = 'No chunks — run /iterator-plan first';
     sb.appendChild(b);
   }
+  // Design-params state: UI-touching diffs are reviewed against memory/design.md.
+  const dc = document.createElement('div');
+  dc.style.cssText = 'font-size:11px;padding:6px 12px;border-bottom:1px solid var(--border);color:'+
+    (D.designFile ? 'var(--dot-green)' : 'var(--text-muted)');
+  dc.textContent = D.designFile ? '\\u25c6 design params attached' : '\\u25c7 no design params (/iterator-design)';
+  dc.title = D.designFile || 'UI-touching changes should be checked against memory/design.md';
+  sb.appendChild(dc);
   if(feats.length){
     const l = document.createElement('div'); l.className='sec-label'; l.textContent='Chunks'; sb.appendChild(l);
     feats.forEach(f => sb.appendChild(makeFI(f)));
@@ -295,6 +324,7 @@ function selectFeature(name){
   detail.innerHTML = memoryPanelHtml() +
     '<div class="fh"><div class="ftitle">'+(name==='__unc__'?'Uncategorized':esc(name))+'</div>'+
       '<div class="fdesc">'+esc(feat.description||'')+'</div>'+
+      (name==='__unc__' && MODE==='commit' ? uncDispositionHtml() : '')+
       '<button class="note-btn" id="note-btn">'+(note?'Edit note':'+ Add chunk note')+'</button>'+
       '<div class="note-area '+(note?'open':'')+'" id="note-area">'+
         '<textarea id="note-ta" placeholder="Note about this chunk…">'+esc(note)+'</textarea>'+
@@ -324,7 +354,36 @@ function selectFeature(name){
   document.getElementById('note-save').onclick = () => saveNote(name);
   detail.querySelectorAll('.sb').forEach(b => b.onclick = () => setSt(name, b.dataset.st));
   renderMemoryBodies();
+  wireUncSelects();
   renderHunks(feat);
+}
+// Commit mode: every uncategorized file must be assigned to a chunk or
+// explicitly skipped before Accept — silent leftovers are the git-flow gap.
+function uncDispositionHtml(){
+  const files = (D.uncategorized||[]).map(f=>f.path);
+  if(!files.length) return '';
+  const names = (D.chunks||[]).map(f=>f.name).filter(n=>n!=='__unc__');
+  return '<div class="uncbox"><div class="ml">These files matched no chunk — decide what happens to each on commit:</div>'+
+    files.map(p => {
+      const cur = S.unc[p] || '';
+      return '<div class="uncrow"><code>'+esc(p)+'</code><select data-unc="'+esc(p)+'">'+
+        '<option value=""'+(cur===''?' selected':'')+'>— choose —</option>'+
+        '<option value="skip"'+(cur==='skip'?' selected':'')+'>leave uncommitted (skip)</option>'+
+        names.map(n=>'<option value="'+esc(n)+'"'+(cur===n?' selected':'')+'>commit with '+esc(n)+'</option>').join('')+
+      '</select></div>';
+    }).join('')+'</div>';
+}
+function wireUncSelects(){
+  document.querySelectorAll('[data-unc]').forEach(sel => {
+    sel.addEventListener('change', () => {
+      if(sel.value) S.unc[sel.dataset.unc] = sel.value; else delete S.unc[sel.dataset.unc];
+      refresh();
+    });
+  });
+}
+function undisposedUnc(){
+  if(MODE!=='commit') return [];
+  return (D.uncategorized||[]).map(f=>f.path).filter(p=>!S.unc[p]);
 }
 function renderHunks(feat){
   const container = document.getElementById('hunks');
@@ -431,8 +490,16 @@ function toggleFb(){ const p=document.getElementById('fbpanel'); const t=documen
 function hasChanges(){ const o=buildFeedbackObj(); return o.features.length>0 || o.lineComments.length>0; }
 function onPrimary(){
   if(MODE==='commit' && !hasChanges()){
+    const missing = undisposedUnc();
+    if(missing.length){
+      selectFeature('__unc__');
+      alert('Decide what happens to each uncategorized file before committing:\\n' + missing.join('\\n'));
+      return;
+    }
     const names = (D.chunks||[]).map(f=>f.name);
     const out = { type:'accept-commit', branch: D.branch||'HEAD', chunk: names[0], chunks: names };
+    const unc = Object.entries(S.unc).map(([path, chunk]) => ({ path, chunk }));
+    if(unc.length) out.uncategorized = unc;
     if(MEM.length) out.memory = memDecisions();
     post(out, 'Accepted — Claude is committing');
     return;
