@@ -6,61 +6,44 @@ description: Break an approved plan into small, dependency-ordered chunks — on
 # iterator-chunk
 
 The second step of the iterator flow: **plan → chunk → implement → review**.
-Splits the approved plan (`memory/plan.md`) into meaningful, connected **chunks**
-in dependency order, writing **one OKF file per chunk** at
-`memory/chunks/<slug>.md`. Chunks are then built one at a time by
-`/iterator-implement`.
+Splits the approved plan into meaningful, connected **chunks** in dependency
+order — one OKF file per chunk at `memory/chunks/<slug>.md` (schema in
+`memory/format.md`). The chunk **slug** is the chunk's identity: its concept
+ID, its `depends_on` key, and its commit-message name.
 
-The breakdown is **draft-first**: you write the proposal to the bundle as
-`status: draft` chunks immediately, and the UI renders from disk. You never
-hold or re-emit chunk bodies — the bundle is the single copy. Accepting the
-set in the UI promotes every draft to `pending`.
+The breakdown is **draft-first**: write the proposal to the bundle as
+`status: draft` chunks immediately; the UI renders from disk. You never hold
+or re-emit chunk bodies — the bundle is the single copy. Accepting the set
+promotes every draft to `pending`.
 
-See `memory/format.md` for the chunk schema. The chunk **slug** (kebab-case
-filename without `.md`) is the chunk's identity: its OKF concept ID, its
-`depends_on` key, and its commit-message name.
-
-**pi mode:** if the tools `iterator_gather` / `iterator_write` / `iterator_ui`
-are available, use them instead of the shell pipelines below — same payloads,
-same rules. `iterator_ui { step: "chunk" }` gathers the chunk state itself
-(never pass chunks to it); `iterator_write` replaces the write.mjs heredocs.
+**pi mode:** see `<skill-dir>/../iterator/PI.md`.
 
 ## When to use this skill
 
-When the user types `/iterator-chunk`, right after `/iterator-plan` approves a
-plan (auto-continued), or to re-chunk / adjust an existing breakdown.
-
-If `memory/plan.md` does not exist, tell the user to run `/iterator-plan` first
-and stop.
-
-If the user's message contains a chunk-UI result payload (`plan-adjustments`,
-`split-request`, `merge-request`, `plan-approved`, `cancel`, `timeout`), process
-it per step 4.
+When the user types `/iterator-chunk`, right after `/iterator-plan` approves
+a plan (auto-continued), or to re-chunk / adjust an existing breakdown. If
+`memory/plan.md` does not exist, tell the user to run `/iterator-plan` first
+and stop. If the user's message contains a chunk-UI result payload
+(`plan-adjustments`, `split-request`, `merge-request`, `plan-approved`,
+`cancel`, `timeout`), process it per step 4.
 
 ## Steps
 
 ### 1. Load the plan and any existing chunks
-
-Both are scripted — do **not** read bundle files yourself:
 
 ```sh
 node <skill-dir>/../iterator/gather.mjs --step chunk   # existing chunks, UI-shaped
 node <skill-dir>/../iterator/gather.mjs --step plan    # plan sections, when you need the text
 ```
 
-`--step chunk` prints `{ plan: <title>, chunks: [...], architecture: [...] }`
-with every existing chunk already in the UI payload shape (notes, snippets,
-files, dependsOn, status — including any `draft` leftovers from an
-interrupted run). **Preserve any chunk with `status: done`** — the bundle
-writer refuses to rewrite them, so build your breakdown around them.
-`architecture` lists the bundle's architecture concepts (`{ id, title,
-description, files }`) — the project's real subsystem seams with their
-`files:` anchors.
+Do **not** read bundle files yourself. **Preserve any chunk with
+`status: done`** — the writer refuses to rewrite them; build around them.
+The payload's `architecture` list is the project's recorded subsystem seams
+(`{ id, title, description, files }` per concept).
 
 ### 2. Analyze the plan into chunks
 
-Split the whole plan (using `ARCHITECTURE.md` for context) into meaningful,
-connected chunks:
+Split the whole plan (using `ARCHITECTURE.md` for context):
 
 - **Chunk by feature.** Each chunk is **one user-visible capability or
   behavior** — a vertical slice that can be implemented, tested, and reviewed
@@ -72,132 +55,77 @@ connected chunks:
 - **A chunk contains its own tests.** The reviewer must see the tests next to
   the logic they cover — include the chunk's (expected) test file paths in
   its `files`. Never make a separate "write tests for X" chunk.
-- **Size is a judgment call, not a count.** Set `size` to how big the feature
-  feels: `small` (one focused change), `medium` (a feature touching a few
-  files), `large` (a feature you already suspect is really two). `large` gets
-  a ⚠️ in the UIs — prefer splitting it into two real features first. When in
-  doubt between two small chunks and one medium, go bigger: too many tiny
-  chunks is the common failure mode, and each one costs a full
-  test/implement/review round. The reviewability backstop is the review UI
-  itself, which warns on the **actual** diff size.
-- **Comment and doc changes ride along.** Doc updates and comments belong in
-  the same chunk as the code they describe (review counts only code lines) —
-  never split a chunk because of comments/docs.
-- Record **dependencies** (`depends_on`, chunk slugs). Order dependency-first;
-  the graph MUST be acyclic and every `depends_on` entry must reference an
-  existing chunk.
-- For each chunk gather **relevant snippets** — the most useful illustrative
-  parts (interfaces, key functions, call sites), **not** full implementations —
-  enough that an implementer can build it from the notes + snippets +
+- **Size is a judgment call, not a count.** `small` (one focused change),
+  `medium` (a feature touching a few files), `large` (a feature you already
+  suspect is really two — prefer splitting it into two real features first).
+  When in doubt between two small chunks and one medium, go bigger: too many
+  tiny chunks is the common failure mode, and each one costs a full
+  test/implement/review round. The reviewability backstop is the review UI,
+  which warns on the **actual** diff size.
+- **Comment and doc changes ride along** with the code they describe (review
+  counts only code lines) — never split a chunk because of comments/docs.
+- Record **dependencies** (`depends_on`, chunk slugs). Order
+  dependency-first; the graph must be acyclic and every entry must reference
+  an existing chunk.
+- Gather **relevant snippets** per chunk — the most useful illustrative parts
+  (interfaces, key functions, call sites), **not** full implementations —
+  enough that an implementer can build from notes + snippets +
   `ARCHITECTURE.md`.
-- Assign the `files` each chunk owns (paths or simple globs), including the
-  test files it will add or touch.
-- **Cut along the recorded architecture.** When the gather payload's
-  `architecture` list is non-empty, prefer chunk boundaries that follow those
-  subsystem seams (a chunk inside one concept's territory beats one straddling
-  two), and seed each chunk's `files` from the matching concept's anchors —
-  they name where that subsystem actually lives, so the review's diff→chunk
-  mapping and the implementer's `relevantMemories` both stay accurate. Read a
-  concept's file (its `id` under `memory/`) only when its one-line description
-  isn't enough.
+- Assign the `files` each chunk owns (paths or simple globs), including its
+  test files.
+- **Cut along the recorded architecture.** When `architecture` is non-empty,
+  prefer chunk boundaries that follow those subsystem seams (a chunk inside
+  one concept's territory beats one straddling two), and seed each chunk's
+  `files` from the matching concept's anchors. Read a concept's file only
+  when its one-line description isn't enough.
 
 ### 3. Write the proposal as drafts, then open the UI
 
-First write the breakdown through the bundle writer with `"status": "draft"`
-on every new/changed chunk (full op reference in step 5):
+Write the breakdown through the writer with `"status": "draft"` on every
+new/changed chunk (`--schema chunks` prints the full shape):
 
 ```sh
 node <skill-dir>/../iterator/write.mjs << 'CHUNKS_WRITE'
-{
-  "op": "chunks",
+{ "op": "chunks",
   "chunks": [
-    {
-      "name": "auth-middleware",
-      "title": "Auth middleware",
-      "description": "JWT middleware for protected routes",
-      "status": "draft",
+    { "name": "auth-middleware", "title": "Auth middleware",
+      "description": "JWT middleware for protected routes", "status": "draft",
       "implementationNotes": "Verify token from the config secret.",
-      "files": ["src/auth.ts"],
-      "dependsOn": ["config-module"],
-      "size": "small",
+      "files": ["src/auth.ts"], "dependsOn": ["config-module"], "size": "small",
       "snippets": [{ "lang": "ts", "code": "export function requireAuth(){ /* ... */ }" }],
-      "blastRadius": "All routes behind the auth guard."
-    }
-  ],
-  "deletes": []
-}
+      "blastRadius": "All routes behind the auth guard." } ],
+  "deletes": [] }
 CHUNKS_WRITE
 ```
+
+The writer validates before writing (acyclic graph, existing `depends_on`
+targets, valid size, done chunks untouched) and on failure writes **nothing**
+— fix the breakdown and re-pipe. Watch `warnings.unmatchedGlobs` in its
+result: a chunk glob matching no files usually means a typo'd path.
 
 Then open the UI **from disk** — no hand-authored chunk payload, ever:
 
 ```sh
-node <skill-dir>/../iterator/gather.mjs --step chunk | node <skill-dir>/../iterator/server.mjs
+echo '{"gather":true,"step":"chunk"}' | node <skill-dir>/../iterator/server.mjs
 ```
 
-The UI shows chunk cards (drafts badged 📝), a dependency **graph
-visualization** (with cycle warning), snippets, per-chunk comments,
-drag-to-move files between chunks, and **Split** / **Merge** buttons. Header
-controls follow the shared pattern (**Accept** / **Cancel** / **Send review**).
+### 4. Process the server output (one JSON line)
 
-### 4. Process the server output
-
-- `{ "type": "plan-approved" }` → the breakdown is accepted. Pipe the line
-  **verbatim** into the writer — it promotes every draft to `pending`:
-
-  ```sh
-  node <skill-dir>/../iterator/write.mjs << 'APPROVED'
-  <the plan-approved JSON line, unchanged>
-  APPROVED
-  ```
-
-  Then tell the user they can run `/iterator-implement` (or `/iterator-next`
-  in pi) to build chunks in dependency order.
-- `{ "type": "plan-adjustments", "moves": [...], "renames": [...], "descUpdates": [...], "comments": [...] }`
-  → the mechanical edits are applied by the writer — pipe the server's output
-  line **verbatim** into it (same heredoc pattern). It applies moves, renames
-  (including `depends_on` and link rewiring), and description updates, and
-  regenerates the indexes. You only act on the `comments[]` (semantic
-  feedback) — update the affected draft chunks via another `chunks` op. Then
-  reopen the UI (step 3's gather-pipe; chunks stay draft until accepted).
-- `{ "type": "split-request", "chunk": "<slug>", "content": "..." }` → split that
-  chunk into right-sized sub-chunks with clear slugs and correct `depends_on`
-  (semantic work — yours), then write drafts via step 5 with the new chunks in
-  `chunks` and the old slug in `deletes`. Reopen the UI.
-- `{ "type": "merge-request", "chunks": ["a","b"] }` → merge them meaningfully
-  into one chunk with a clear slug; write via step 5 with the merged draft in
-  `chunks`, both old slugs in `deletes`, and any `depends_on` that pointed at
-  either old slug redirected to the new one. Reopen the UI.
-- `{ "type": "cancel" }` or `{ "type": "timeout" }` → stop; report that chunking
-  was cancelled. Draft chunks stay on disk as drafts (visible on the hub, not
-  implementable) — a later `/iterator-chunk` run picks them up.
-
-### 5. The chunks write op (reference)
-
-The writer owns frontmatter, timestamps, dependency-order (topological)
-indexes, the plan `# Chunks` section, the log entry, and OKF conformance, and
-it **validates before writing**: an acyclic graph, every `depends_on`
-referencing an existing chunk, a valid `size` (`small|medium|large`), and
-done chunks left untouched.
-
-On a validation failure it prints `{ "ok": false, "error": ... }` and writes
-**nothing** — fix the breakdown (or reopen the UI so the user can fix the
-cycle) rather than writing files by hand.
-
-## Shared UI behavior
-
-Same header/theme/cancel/timeout behavior as the other iterator UIs; the
-primary button reads **Accept** with no changes and flips to **Send review**
-once you move a file, rename a chunk, edit a description, or add a comment. The
-graph shows a cycle warning that blocks a clean accept until dependencies are
-fixed.
-
-## Relationship to the other skills
-
-- `/iterator-plan` produces `memory/plan.md`; accepting a plan auto-continues
-  here.
-- `/iterator-chunk` writes `memory/chunks/<slug>.md` as drafts + regenerates
-  the indexes; accepting promotes drafts to pending (this skill).
-- `/iterator-implement` builds pending chunks in dependency order and owns the
-  `done` state; `/iterator-review` reviews a chunk's diff; `/iterator-test`
-  writes its tests.
+- `{ "type": "plan-approved" }` → pipe the line **verbatim** into
+  `node <skill-dir>/../iterator/write.mjs` — it promotes every draft to
+  `pending`. Then tell the user to run `/iterator-implement`.
+- `{ "type": "plan-adjustments", ... }` → pipe the line **verbatim** into the
+  writer — it applies moves, renames (incl. `depends_on` rewiring), and
+  description updates. You only act on `comments[]` (semantic feedback):
+  update the affected drafts via another `chunks` op, then reopen the UI.
+- `{ "type": "split-request", "chunk": "<slug>", "content": "..." }` → split
+  that chunk into right-sized sub-chunks with clear slugs and correct
+  `depends_on` (semantic work — yours), write drafts via step 3 with the old
+  slug in `deletes`. Reopen the UI.
+- `{ "type": "merge-request", "chunks": ["a","b"] }` → merge them
+  meaningfully into one chunk; write via step 3 with both old slugs in
+  `deletes` and any `depends_on` that pointed at either redirected to the new
+  slug. Reopen the UI.
+- `cancel` / `timeout` → relay the result's `report` and stop. Drafts stay on
+  disk (visible on the hub, not implementable) — a later `/iterator-chunk`
+  run picks them up.

@@ -96,7 +96,13 @@ The browser is the control plane, but some decisions are one keypress:
 - `/iterator` without a browser (SSH session, no forward): render the
   dashboard as a TUI widget from the same hub payload.
 
-## 7. Server applies mechanical UI results itself
+## 7. Server applies mechanical UI results itself — 🟡 partial
+
+(shipped: memory-review with `apply: true` is applied by the writer before
+the result reaches the agent, results carry `applied` + `summary`; the
+one-command form `{"gather":true,"step":…}` gathers in-process so the bash
+path is a single pipe; hub/knowledge action results carry the owning `skill`.
+Remaining: chunk `plan-adjustments` still round-trips through the agent.)
 
 `write.mjs` already accepts the chunk UI's `plan-adjustments` output verbatim.
 Next step: the *server* invokes the writer directly for purely-mechanical
@@ -106,7 +112,11 @@ agent's loop shrinks to: draft text → user interacts → react to comments.
 Combined with §3 the UI becomes self-service for everything that doesn't need
 the model.
 
-## 8. `iterator_validate` / OKF lint
+## 8. `iterator_validate` / OKF lint — 🟡 partial
+
+(shipped: `validateBundle` runs after **every** writer op and its result
+rides along as `{validation}`; the guardrails hook (§4) covers direct edits.
+Remaining: a standalone lint CLI/tool for hand edits outside a writer op.)
 
 A `validate` op (or standalone `validate.mjs`): frontmatter parseable +
 non-empty `type`, acyclic `depends_on` referencing real files, bundle-absolute

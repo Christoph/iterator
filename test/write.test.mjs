@@ -11,8 +11,8 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { applyOp, topoSort, setFmKeys } from "../skills/iterator/write.mjs";
-import { frontmatter, gather, loadBundle } from "../skills/iterator/gather.mjs";
+import { applyOp, topoSort, setFmKeys } from "../lib/write.mjs";
+import { frontmatter, gather, loadBundle } from "../lib/gather.mjs";
 
 process.env.ITERATOR_NOW = "2026-07-06T12:00:00Z";
 
@@ -800,8 +800,11 @@ test("memorize op validates areas, slugs, actions, and the pointer", () => {
 			() => applyOp(create({ area: "nope" }), root),
 			/unknown area/,
 		);
+		// Fixable slugs are auto-normalized (reported), unrepairable ones fail.
+		const norm = applyOp(create({ slug: "Bad Slug" }), root);
+		assert.deepEqual(norm.normalized, [{ from: "Bad Slug", to: "bad-slug" }]);
 		assert.throws(
-			() => applyOp(create({ slug: "Bad Slug" }), root),
+			() => applyOp(create({ slug: "!!!" }), root),
 			/invalid slug/,
 		);
 		assert.throws(
@@ -1482,6 +1485,216 @@ test("retire-plan validates the concept and honors force for unfinished plans", 
 		);
 		assert.equal(res.concept, "decisions/abandoned");
 		assert.ok(!existsSync(join(root, "memory", "plan.md")));
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("accept-commit includes untracked files matching the chunk and never unrelated ones", () => {
+	const root = makeWaveRepo();
+	try {
+		// a.ts/b.ts were staged by makeWaveRepo; add a brand-new UNSTAGED file
+		// for chunk-a's glob and one unrelated stray.
+		git(root, "reset");
+		writeFileSync(join(root, "src", "unrelated.txt"), "stray\n");
+
+		const res = applyOp({ op: "accept-commit", chunks: ["chunk-a"] }, root);
+		const shown = git(
+			root,
+			"show",
+			"--name-only",
+			"--format=",
+			res.committed[0].sha,
+		)
+			.split("\n")
+			.filter(Boolean);
+		assert.ok(shown.includes("src/a.ts"), "untracked chunk file committed");
+		assert.ok(
+			!shown.includes("src/unrelated.txt"),
+			"unrelated stray stays out of the chunk commit",
+		);
+		assert.ok(
+			!shown.includes("src/b.ts"),
+			"other chunk's file stays out of the chunk commit",
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("accept-commit refuses to stage the whole tree when a chunk matches nothing", () => {
+	const root = makeWaveRepo();
+	const memAbs = mkdtempSync(join(tmpdir(), "iterator-absmem-"));
+	try {
+		// Absolute bundle dir → memory/ is not stageable; chunk-a's diff exists
+		// but chunk-b... give chunk-a no matching changes at all by resetting
+		// and removing its file.
+		git(root, "reset");
+		rmSync(join(root, "src", "a.ts"));
+		writeFileSync(join(root, "src", "innocent.txt"), "must never be committed\n");
+		process.env.ITERATOR_MEMORY_DIR = memAbs;
+		// Rebuild an absolute-dir bundle so the op can load chunks from it.
+		applyOp(PLAN_OP, root);
+		applyOp(WAVE_CHUNKS_OP, root);
+		assert.throws(
+			() => applyOp({ op: "accept-commit", chunks: ["chunk-a"] }, root),
+			/nothing to stage/,
+		);
+		const staged = git(root, "diff", "--cached", "--name-only");
+		assert.ok(
+			!staged.includes("innocent.txt"),
+			"empty pathspec must not stage the tree",
+		);
+	} finally {
+		delete process.env.ITERATOR_MEMORY_DIR;
+		rmSync(root, { recursive: true, force: true });
+		rmSync(memAbs, { recursive: true, force: true });
+	}
+});
+
+test("adjustments validates the whole batch before writing anything", () => {
+	const root = makeRepo();
+	try {
+		applyOp(PLAN_OP, root);
+		applyOp(WAVE_CHUNKS_OP, root);
+		const before = read(root, "chunks", "chunk-a.md");
+		assert.throws(
+			() =>
+				applyOp(
+					{
+						op: "adjustments",
+						moves: [{ file: "src/a.ts", from: "chunk-a", to: "chunk-b" }],
+						renames: [{ from: "nope", to: "new-name" }],
+					},
+					root,
+				),
+			/rename: no chunk 'nope'/,
+		);
+		assert.equal(
+			read(root, "chunks", "chunk-a.md"),
+			before,
+			"a failing batch must leave earlier items unapplied",
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("memorize resolves advanceTo HEAD and advance:true to the real sha", () => {
+	const root = makeWaveRepo();
+	try {
+		git(root, "commit", "-qm", "work");
+		const head = git(root, "rev-parse", "HEAD");
+		const res = applyOp({ op: "memorize", advanceTo: "HEAD" }, root);
+		assert.equal(res.advancedTo, head);
+		assert.match(read(root, "index.md"), new RegExp(`last_memorized_commit: ${head}`));
+		const res2 = applyOp({ op: "memorize", advance: true }, root);
+		assert.equal(res2.advancedTo, head);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("chunks op auto-normalizes fixable slugs and reports the repair", () => {
+	const root = makeRepo();
+	try {
+		applyOp(PLAN_OP, root);
+		const res = applyOp(
+			{
+				op: "chunks",
+				chunks: [
+					{ name: "Config Module!", description: "d", files: ["src/c.ts"] },
+					{
+						name: "auth-middleware",
+						description: "d",
+						files: ["src/a.ts"],
+						dependsOn: ["Config Module!"],
+					},
+				],
+			},
+			root,
+		);
+		assert.deepEqual(res.normalized, [
+			{ from: "Config Module!", to: "config-module" },
+		]);
+		const fm = frontmatter(read(root, "chunks", "auth-middleware.md"));
+		assert.deepEqual(fm.depends_on, ["config-module"]);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("commit-tests commits test files with trailer, records status and sha", () => {
+	const root = makeWaveRepo();
+	try {
+		git(root, "reset");
+		mkdirSync(join(root, "test"), { recursive: true });
+		writeFileSync(join(root, "test", "a.test.ts"), "assert(true);\n");
+		const res = applyOp(
+			{ op: "commit-tests", chunk: "chunk-a", files: ["test/a.test.ts"] },
+			root,
+		);
+		assert.equal(res.testsStatus, "red", "pending chunk defaults to red");
+		assert.match(res.branch, /^iterator\/chunk-a$/, "moved off main");
+		const subject = git(root, "log", "--format=%s%n%b", "-1", res.sha);
+		assert.match(subject, /test\(chunk-a\):/);
+		assert.match(
+			git(root, "log", "--format=%B", "-1", res.sha),
+			/Chunk: chunk-a/,
+		);
+		const fm = frontmatter(read(root, "chunks", "chunk-a.md"));
+		assert.deepEqual(fm.tests, ["test/a.test.ts"]);
+		assert.equal(fm.tests_status, "red");
+		assert.match(
+			read(root, "chunks", "chunk-a.md"),
+			new RegExp(`sha: ${res.sha}[\\s\\S]*kind: test`),
+		);
+		assert.match(git(root, "log", "--format=%s"), /chore\(iterator\): record test commit/);
+		assert.equal(res.validation.ok, true, "every op result carries validation");
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("extensions op writes the contract file and links it from the root index", () => {
+	const root = makeRepo();
+	try {
+		applyOp(PLAN_OP, root);
+		const res = applyOp(
+			{ op: "extensions", preamble: "This project is a Node CLI." },
+			root,
+		);
+		assert.deepEqual(res.written, ["EXTENSIONS.md", "index.md", "log.md"]);
+		const doc = read(root, "EXTENSIONS.md");
+		assert.match(doc, /type: Reference/);
+		assert.match(doc, /This project is a Node CLI\./);
+		assert.match(doc, /progressive disclosure/);
+		assert.match(read(root, "index.md"), /\[Extension contract\]\(EXTENSIONS\.md\)/);
+		// Idempotent: a second run must not duplicate the index link.
+		applyOp({ op: "extensions" }, root);
+		const links = read(root, "index.md").match(/EXTENSIONS\.md/g);
+		assert.equal(links.length, 1);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("chunks op warns about globs that match nothing in the repo", () => {
+	const root = makeWaveRepo();
+	try {
+		const res = applyOp(
+			{
+				op: "chunks",
+				chunks: [
+					{ name: "typo-chunk", description: "d", files: ["src/doesnotexist/**"] },
+				],
+			},
+			root,
+		);
+		assert.deepEqual(res.warnings.unmatchedGlobs, [
+			{ chunk: "typo-chunk", globs: ["src/doesnotexist/**"] },
+		]);
+		assert.equal(res.validation.ok, true);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}

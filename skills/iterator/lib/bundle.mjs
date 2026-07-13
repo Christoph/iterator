@@ -13,16 +13,58 @@
 import {
   existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync,
 } from 'node:fs';
-import { basename, extname, join, relative } from 'node:path';
+import { basename, dirname, extname, join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export const nowIso = () => process.env.ITERATOR_NOW || new Date().toISOString();
 export const today = () => nowIso().slice(0, 10);
 
+/**
+ * Locate a shipped template, working from both layouts this file lives in:
+ * repo-root lib/ (template at ../templates/) and the synced
+ * skills/iterator/lib/ copy (sibling skill at ../../iterator-plan/templates/,
+ * full checkout at ../../../templates/). Returns null when not found.
+ */
+export function resolveTemplate(name = 'format.md') {
+  const here = dirname(fileURLToPath(import.meta.url));
+  return [
+    join(here, '..', 'templates', name),
+    join(here, '..', '..', 'iterator-plan', 'templates', name),
+    join(here, '..', '..', '..', 'templates', name),
+  ].find(existsSync) || null;
+}
+
 /** Coerce a frontmatter value to a list (absent → [], scalar → [scalar]). */
 export const listy = (v) => (Array.isArray(v) ? v : v ? [v] : []);
 
-const unquote = (s) =>
-  (/^".*"$/.test(s) || /^'.*'$/.test(s)) ? s.slice(1, -1) : s;
+// Inverse of fmScalar's quoting: double-quoted values are JSON (so escapes
+// like \" round-trip instead of compounding), single-quoted values use
+// YAML's '' escape. Unparseable quoting falls back to a bare strip.
+const unquote = (s) => {
+  if (/^".*"$/.test(s)) {
+    try { return JSON.parse(s); } catch { return s.slice(1, -1); }
+  }
+  if (/^'.*'$/.test(s)) return s.slice(1, -1).replaceAll("''", "'");
+  return s;
+};
+
+/** Split an inline list body on top-level commas only (quote-aware). */
+function splitInlineList(s) {
+  const items = [];
+  let cur = '', q = null;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (q) {
+      cur += ch;
+      if (q === '"' && ch === '\\') { cur += s[++i] ?? ''; continue; }
+      if (ch === q) q = null;
+    } else if (ch === '"' || ch === "'") { q = ch; cur += ch; }
+    else if (ch === ',') { items.push(cur); cur = ''; }
+    else cur += ch;
+  }
+  items.push(cur);
+  return items.map(x => unquote(x.trim())).filter(Boolean);
+}
 
 /**
  * Minimal YAML frontmatter parser for the bundle's schema (see format.md):
@@ -54,8 +96,7 @@ export function frontmatter(text, { strict = false } = {}) {
       const val = kv[2].trim();
       if (val === '') fm[key] = null; // may be followed by a block list
       else if (val.startsWith('[') && val.endsWith(']')) {
-        fm[key] = val.slice(1, -1).split(',')
-          .map(s => unquote(s.trim())).filter(Boolean);
+        fm[key] = splitInlineList(val.slice(1, -1));
       } else fm[key] = unquote(val);
       continue;
     }
@@ -66,8 +107,12 @@ export function frontmatter(text, { strict = false } = {}) {
         fm[key].push(unquote(item[1].trim()));
         continue;
       }
+      // Continuation keys fold ONLY into a list item that is itself a
+      // mapping start (`- sha: …` + `kind:`/`date:` lines — the commits
+      // shape); folding into a plain string item would corrupt it silently.
       const cont = line.match(/^\s+([A-Za-z0-9_-]+)\s*:\s*(.*)$/);
-      if (cont && Array.isArray(fm[key]) && fm[key].length) {
+      if (cont && Array.isArray(fm[key]) && fm[key].length &&
+          /^[A-Za-z0-9_-]+:\s/.test(String(fm[key][fm[key].length - 1]))) {
         fm[key][fm[key].length - 1] += `, ${cont[1]}: ${cont[2]}`;
         continue;
       }
@@ -192,7 +237,9 @@ export function setFmKeys(fm, obj) {
     if (v === undefined) continue;
     const line = `${k}: ${formatFmValue(k, v)}`;
     const re = new RegExp(`^${k}:.*$`, 'm');
-    out = re.test(out) ? out.replace(re, line) : `${out.replace(/\s*$/, '')}\n${line}`;
+    // Replacer function: a value containing `$&`/`$'` must never be treated
+    // as a replacement pattern (it would splice the old line into itself).
+    out = re.test(out) ? out.replace(re, () => line) : `${out.replace(/\s*$/, '')}\n${line}`;
   }
   return out;
 }

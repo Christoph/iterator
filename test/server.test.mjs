@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -26,6 +26,13 @@ function parseJson(text) {
 	}
 }
 
+// Every spawned server, so a test that fails mid-flight can't leak a child
+// that idles for 2h and keeps the runner alive.
+const CHILDREN = new Set();
+after(() => {
+	for (const child of CHILDREN) if (child.exitCode == null) child.kill();
+});
+
 function startServer(payload, extraEnv = {}) {
 	return new Promise((resolve, reject) => {
 		const child = spawn(process.execPath, [SERVER], {
@@ -39,6 +46,8 @@ function startServer(payload, extraEnv = {}) {
 				...extraEnv,
 			},
 		});
+		CHILDREN.add(child);
+		child.on("exit", () => CHILDREN.delete(child));
 		let stderr = "",
 			stdout = "";
 		const io = { child, url: null, stdout: () => stdout, stderr: () => stderr };
@@ -76,6 +85,13 @@ const waitExit = (child) =>
 		if (child.exitCode != null) r(child.exitCode);
 	});
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// What a cancelled plan-step server prints: since the server owns the human
+// cancel summaries (P9), the line carries the step's report alongside type.
+const PLAN_CANCEL_LINE = {
+	type: "cancel",
+	report: "User cancelled the plan review. Write nothing and stop this flow.",
+};
 
 const PLAN_PAYLOAD = {
 	step: "plan",
@@ -161,7 +177,7 @@ test('beacon /cancel with no reload emits {"type":"cancel"} after the grace peri
 	const io = await startServer(PLAN_PAYLOAD);
 	await fetch(io.url.origin + "/cancel", { method: "POST" });
 	await waitExit(io.child);
-	assert.deepEqual(parseJson(io.stdout()), { type: "cancel" });
+	assert.deepEqual(parseJson(io.stdout()), PLAN_CANCEL_LINE);
 });
 
 test("explicit Cancel (/cancel?now=1) cancels immediately", async () => {
@@ -173,7 +189,7 @@ test("explicit Cancel (/cancel?now=1) cancels immediately", async () => {
 		Date.now() - t0 < CANCEL_GRACE_MS,
 		"must not wait for the grace period",
 	);
-	assert.deepEqual(parseJson(io.stdout()), { type: "cancel" });
+	assert.deepEqual(parseJson(io.stdout()), PLAN_CANCEL_LINE);
 });
 
 test("a /cancel carrying a previous run's id is ignored (stale-tab guard)", async () => {
@@ -215,7 +231,7 @@ test('SIGTERM resolves the contract with {"type":"cancel"} and exit 0', async ()
 	io.child.kill("SIGTERM");
 	const code = await waitExit(io.child);
 	assert.equal(code, 0);
-	assert.deepEqual(parseJson(io.stdout()), { type: "cancel" });
+	assert.deepEqual(parseJson(io.stdout()), PLAN_CANCEL_LINE);
 });
 
 test("a new server takes over the fixed port from a lingering one", async () => {
@@ -231,7 +247,7 @@ test("a new server takes over the fixed port from a lingering one", async () => 
 	assert.equal(codeA, 0);
 	assert.deepEqual(
 		parseJson(a.stdout()),
-		{ type: "cancel" },
+		PLAN_CANCEL_LINE,
 		"evicted server must resolve as cancel",
 	);
 	assert.equal(
@@ -681,7 +697,8 @@ test("knowledge view renders memory state, areas, concepts, design, and actions"
 	});
 	const code = await waitExit(io.child);
 	assert.equal(code, 0);
-	assert.equal(io.stdout().trim(), JSON.stringify(payload));
+	// The server dispatches action results: update-memory belongs to /okf.
+	assert.deepEqual(parseJson(io.stdout().trim()), { ...payload, skill: "okf" });
 });
 
 test("memorize review renders conflicts, range, and grouped cards", async () => {
@@ -807,5 +824,41 @@ test("memory-review with apply:true applies review-approved via the writer", asy
 		);
 	} finally {
 		rmSync(repo, { recursive: true, force: true });
+	}
+});
+
+test("POST /submit with a non-JSON body emits a JSON error line, never garbage", async () => {
+	const io = await startServer(PLAN_PAYLOAD);
+	await fetch(io.url.origin + "/submit", {
+		method: "POST",
+		body: "this is not json {{{",
+	});
+	const code = await waitExit(io.child);
+	assert.equal(code, 0);
+	const line = JSON.parse(io.stdout().trim());
+	assert.equal(line.type, "error");
+	assert.match(line.error, /malformed/);
+});
+
+test("one-command request form gathers in-process and cancel carries a report", async () => {
+	// A bare temp git repo: hub gathers plan:null; the served page must exist
+	// and explicit cancel must carry the step's human report.
+	const { mkdtempSync, rmSync } = await import("node:fs");
+	const { execFileSync } = await import("node:child_process");
+	const dir = mkdtempSync(join(tmpdir(), "iterator-onecmd-"));
+	execFileSync("git", ["init", "-q"], { cwd: dir });
+	let io;
+	try {
+		io = await startServer({ gather: true, step: "hub", project: dir });
+		const page = await (await fetch(io.url)).text();
+		assert.ok(page.includes("const D = "));
+		await fetch(io.url.origin + "/cancel?now=1", { method: "POST" });
+		await waitExit(io.child);
+		const line = parseJson(io.stdout().trim());
+		assert.equal(line.type, "cancel");
+		assert.match(line.report, /dashboard/);
+	} finally {
+		if (io && io.child.exitCode == null) io.child.kill();
+		rmSync(dir, { recursive: true, force: true });
 	}
 });

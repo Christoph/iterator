@@ -325,8 +325,10 @@ reach the port can answer as you).
 
 ## How it works
 
-1. A skill builds a JSON payload (with a `step` field picking the view) and
-   pipes it to `skills/iterator/server.mjs` via a heredoc — nothing is written
+1. A skill pipes a JSON payload to `skills/iterator/server.mjs` — usually the
+   one-command form `{"gather":true,"step":"<step>", …}` (the server gathers
+   the step's state itself and merges the skill's small `extra` on top); a
+   fully-gathered payload with a `step` field works too. Nothing is written
    to `/tmp`.
 2. The server shuts down any lingering iterator server, binds the fixed port,
    serves a self-contained page (data embedded inline and safely escaped), and

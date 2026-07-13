@@ -24,6 +24,10 @@ const VIEWS = ['hub', 'plan', 'chunk', 'test', 'review', 'knowledge', 'memory-re
 /** [source, destination] pairs, relative to the repo root. */
 export const COPIES = [
   ['lib/bundle.mjs', 'skills/iterator/lib/bundle.mjs'],
+  ['lib/git.mjs', 'skills/iterator/lib/git.mjs'],
+  ['lib/gather.mjs', 'skills/iterator/lib/gather.mjs'],
+  ['lib/write.mjs', 'skills/iterator/lib/write.mjs'],
+  ['lib/app.mjs', 'skills/iterator/lib/app.mjs'],
   ['lib/server.mjs', 'skills/iterator/lib/server.mjs'],
   ['lib/ui.mjs', 'skills/iterator/lib/ui.mjs'],
   ...VIEWS.map((v) => [`lib/views/${v}.mjs`, `skills/iterator/lib/views/${v}.mjs`]),

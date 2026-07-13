@@ -5,143 +5,82 @@ description: Open a chunk-grouped code review in the browser. Reads memory/chunk
 
 # iterator-review
 
-Opens a chunk-grouped diff viewer in the browser. Chunks come from the `memory/`
-bundle (`memory/chunks/<slug>.md`), not raw file paths, so related changes across
-several files are reviewed together with dependency/blast-radius context.
+Opens a chunk-grouped diff viewer in the browser. Chunks come from the
+`memory/` bundle, not raw file paths, so related changes across several files
+are reviewed together with dependency/blast-radius context. Used two ways:
+by `/iterator-implement` automatically in commit mode (that flow is described
+there), and **standalone** — this skill, which first asks which chunk to
+review. Review records outcomes into the chunk file (`reviewed:` date + notes
+under `# Review`); it **never** sets `status: done`.
 
-This skill is used two ways:
-- **By `/iterator-implement`** — automatically, in commit mode, to review the
-  chunk just built (that flow is described in `/iterator-implement`).
-- **Standalone** — the developer runs `/iterator-review`; it first asks which
-  chunk to review against.
+The gathered payload also carries **pitfall cards**: `pitfalls/` concepts
+whose `files:` anchors match a chunk's changed files render as a warning next
+to that chunk. Before accepting such a chunk, read the pitfall's concept file
+(its `path`) and verify the diff against it; mention the verdict ("pitfall X
+checked — not triggered / fixed / still applies") in the chunk's review note.
 
-Review records outcomes into the chunk file (`reviewed:` date + notes under
-`# Review`). It **never** sets `status: done` — that stays owned by
-`/iterator-implement`.
+Size verdicts are computed from the **actual** diff and count **code lines
+only** (comment/doc changes are shown but excluded). When a chunk's real diff
+blows past the warning, its feature boundary was too broad — worth noting for
+the next chunking pass. A chunk's test files are grouped with it, so tests
+are always reviewed next to the logic they cover.
+
+**pi mode:** see `<skill-dir>/../iterator/PI.md`.
 
 ## When to use this skill
 
-When the user types `/iterator-review`, asks to review local changes, or wants
-to review a specific chunk.
-
-If `memory/chunks/` has no chunk files, tell the user: "No chunks found. Run
-`/iterator-plan` → `/iterator-chunk` first." and stop.
-
-If the user's message contains feedback JSON (`"type": "review-feedback"`) from a
-previous session, process it (step 4) before re-running.
-
-**pi mode:** if the tools `iterator_gather` / `iterator_write` / `iterator_ui`
-are available, use them instead of the shell pipelines below.
-`iterator_ui { step: "review", chunk: "<slug>" }` gathers the diff payload
-itself (pass no diff data); `iterator_write` replaces the write.mjs heredocs.
-Steps, payloads, and rules are unchanged.
-
-The gathered payload also carries **pitfall cards**: `pitfalls/` concepts
-whose `files:` anchors match a chunk's changed files render as an amber
-warning next to that chunk (⚠ on the sidebar row). Before accepting such a
-chunk, read the pitfall's concept file (its `path`) and verify the diff
-against it; mention the verdict ("pitfall X checked — not triggered / fixed /
-still applies") in the chunk's review note.
-
-Size verdicts (complexity dot, over-limit warning) are computed from the
-**actual** diff and count **code lines only**: comment and doc changes are
-shown with the chunk but excluded. When a chunk's real diff blows past the
-warning, that's a sign its feature boundary was too broad — worth noting for
-the next chunking pass. A chunk's test files are grouped with it (via its
-`files` globs or `tests` entries), so tests are always reviewed next to the
-logic they cover.
+When the user types `/iterator-review`, asks to review local changes, or
+wants to review a specific chunk. If `memory/chunks/` has no chunk files,
+tell the user: "No chunks found. Run `/iterator-plan` → `/iterator-chunk`
+first." and stop. If the user's message contains
+`{ "type": "review-feedback", ... }` from a previous session, process it
+(step 3) first.
 
 ## Steps
 
-### 1. Load the chunk state
-
-Scripted — do **not** read bundle files yourself:
+### 1. Choose which chunk(s) to review
 
 ```sh
 node <skill-dir>/../iterator/gather.mjs --step hub
 ```
 
 gives the ordered chunk list with status, test badges, and per-chunk
-`hasDiff`/`hasCommits` (which is exactly what decides reviewability).
+`hasDiff`/`hasCommits` — exactly what decides reviewability. Do **not** read
+bundle files yourself.
 
-### 2. Choose which chunk(s) to review
+- If the user named a chunk, review that one.
+- Otherwise use `AskUserQuestion` (header `Chunk`): pending chunks first in
+  dependency order, then done chunks (reviewable from their recorded
+  commits), plus an **"All pending"** option.
 
-- If invoked by `/iterator-implement` (or the user named a chunk), review that
-  chunk.
-- **Standalone with no chunk specified:** use `AskUserQuestion` (header `Chunk`)
-  to ask which chunk to review — list **pending chunks first, in dependency
-  order**, then done chunks (reviewable from their commits — see step 3), plus
-  an **"All pending"** option.
-
-Report the current state before opening the browser: total chunks, how many
-done, how many remain, and which chunk(s) are being reviewed.
-
-### 3. Build the payload and open the server
-
-The entire review payload is computed by script — the git diff parsed into
-hunks, each changed file mapped to the first chunk whose `files` globs match
-(unmatched → **Uncategorized**), per-chunk stats (added/removed; complexity
-green ≤ 100, yellow 101–200, red > 200), plan title, and progress. For a
-**done** chunk with a clean working tree it automatically rebuilds the diff
-from the chunk's recorded commits (validated shas, falling back to the
-`Chunk: <slug>` trailer), excluding the bundle's own `memory/` paths.
-
-Pipe it straight into the shared UI server (both ship with the `/iterator` hub
-skill, a sibling folder):
+If the chosen scope has neither a diff nor commits, don't open the browser —
+report the progress summary instead. Otherwise report the current state
+(done/total, which chunk(s) are being reviewed) and open the review:
 
 ```sh
-node <skill-dir>/../iterator/gather.mjs --step review --chunk <slug> \
-  | node <skill-dir>/../iterator/server.mjs
+echo '{"gather":true,"step":"review","chunk":"<slug>"}' | node <skill-dir>/../iterator/server.mjs
 ```
 
-Omit `--chunk` to review everything with a diff ("All pending"). If the
-printed payload has empty `chunks[].files` and `uncategorized` (no working-tree
-diff and no resolvable commits), don't open the browser — show the progress
-summary from `--step hub` instead.
+Omit `"chunk"` to review everything with a diff. The gather maps the diff to
+chunks by their `files` globs (unmatched → Uncategorized); for a **done**
+chunk with a clean working tree it rebuilds the diff from the chunk's
+recorded commits (falling back to the `Chunk: <slug>` trailer).
 
-The server starts on **port 7777** (or `$ITERATOR_PORT`; fixed — a lingering
-iterator server from an earlier run is replaced), opens the browser, and
-blocks. The UI shows a chunk sidebar (colored by
-complexity), the selected chunk's diff grouped by file, per-chunk status buttons
-(Approved / Needs Changes / Question), chunk notes, and line-level comments.
-Header controls: **Accept** / **Cancel** / **Send review**; a closed tab sends
-`{ "type": "cancel" }`, a 2h idle sends `{ "type": "timeout" }`.
+### 2. Process the output (one JSON line)
 
-### 4. Process the output and record the outcome
+For `cancel` / `timeout`: relay the result's `report` and stop.
 
-The server prints `{ "type": "review-feedback", ... }`, `{ "type": "cancel" }`, or
-`{ "type": "timeout" }`.
+For `{ "type": "review-feedback", ... }`: recording is fully deterministic —
+pipe the line **verbatim** into `node <skill-dir>/../iterator/write.mjs`. It
+maps each `features[]` entry to its chunk, refreshes `reviewed`/`timestamp`,
+appends the status line under `# Review` (newest first, never overwriting
+history), regenerates the index, and prepends the log entries. It never sets
+`status: done`.
 
-For `cancel` / `timeout`: stop and report that the review ended without changes.
+### 3. The semantic residue (yours)
 
-For `review-feedback`, recording is fully deterministic — pipe the server's
-output **verbatim** into the bundle writer. It maps each `features[]` entry to
-its chunk, refreshes `reviewed`/`timestamp`, appends the status line under
-`# Review` (newest first, never overwriting history — `approved` →
-`* **Approved** — <note>`, `changes` → `* **Needs changes** — <note>`,
-`question` → `* **Question** — <note>`), regenerates the index, and prepends
-the log entries:
-
-```sh
-node <skill-dir>/../iterator/write.mjs << 'REVIEW_WRITE'
-<the review-feedback JSON line, unchanged>
-REVIEW_WRITE
-```
-
-It never sets `status: done`. What remains for you is the semantic residue:
-address every `changes` note, answer every `question` inline for the user,
+Address every `changes` note, answer every `question` inline for the user,
 and for each `lineComments[]` entry explain or fix (ask before changing
-code).
-
-Only the reviewed chunk file(s) plus the generated files should change (the
-writer guarantees this). Report which chunks were
-approved/flagged and how many remain: "All chunks reviewed ✓" or "N chunk(s)
-still pending. Run `/iterator-review` again to continue."
-
-## Relationship to the other skills
-
-- `/iterator-plan` + `/iterator-chunk` create the chunk files.
-- `/iterator-implement` builds chunks and owns `done` (it reuses this UI in
-  commit mode).
-- `/iterator-review` records `reviewed`/notes into the chunk files (this skill).
-- `/iterator-test` generates a chunk's tests.
+code). Report which chunks were approved/flagged and how many remain: "All
+chunks reviewed ✓" or "N chunk(s) still pending. Run `/iterator-review` again
+to continue."

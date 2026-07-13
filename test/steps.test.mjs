@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import {
   gatherPlan, gatherChunk, gatherImplement, gatherTest, gatherReview,
   parseDiff, sections, snippets,
-} from '../skills/iterator/gather.mjs';
+} from '../lib/gather.mjs';
 
 const git = (dir, ...args) => execFileSync('git', args, {
   cwd: dir, encoding: 'utf8',
@@ -255,5 +255,95 @@ test('every skill folder ships a SKILL.md with discoverable frontmatter', async 
     assert.ok(match, `${skill}/SKILL.md is missing frontmatter`);
     assert.match(match[1], /^name:\s*\S+/m, `${skill}/SKILL.md missing name`);
     assert.match(match[1], /^description:\s*\S+/m, `${skill}/SKILL.md missing description`);
+  }
+});
+
+test('parseDiff keeps binary files, decodes quoted paths, tracks renames', () => {
+  const files = parseDiff([
+    'diff --git a/img/logo.png b/img/logo.png',
+    'index 0000000..1111111 100644',
+    'Binary files a/img/logo.png and b/img/logo.png differ',
+    'diff --git "a/docs/caf\\303\\251.md" "b/docs/caf\\303\\251.md"',
+    'index 2222222..3333333 100644',
+    '--- "a/docs/caf\\303\\251.md"',
+    '+++ "b/docs/caf\\303\\251.md"',
+    '@@ -1,1 +1,1 @@',
+    '-old',
+    '+new',
+    'diff --git a/src/old-name.ts b/src/new-name.ts',
+    'similarity index 100%',
+    'rename from src/old-name.ts',
+    'rename to src/new-name.ts',
+  ].join('\n'));
+  assert.equal(files.length, 3);
+  assert.deepEqual(files[0], { path: 'img/logo.png', binary: true, hunks: [] });
+  assert.equal(files[1].path, 'docs/café.md');
+  assert.equal(files[1].hunks.length, 1);
+  assert.equal(files[2].path, 'src/new-name.ts');
+  assert.equal(files[2].renamedFrom, 'src/old-name.ts');
+  assert.equal(files[2].hunks.length, 0);
+});
+
+test('parseDiff keeps hunks of a rename with modifications under the new path', () => {
+  const files = parseDiff([
+    'diff --git a/src/a.ts b/src/b.ts',
+    'similarity index 90%',
+    'rename from src/a.ts',
+    'rename to src/b.ts',
+    'index 1111111..2222222 100644',
+    '--- a/src/a.ts',
+    '+++ b/src/b.ts',
+    '@@ -1,1 +1,1 @@',
+    '-x',
+    '+y',
+  ].join('\n'));
+  assert.equal(files.length, 1);
+  assert.equal(files[0].path, 'src/b.ts');
+  assert.equal(files[0].renamedFrom, 'src/a.ts');
+  assert.equal(files[0].hunks.length, 1);
+});
+
+test('gatherReview surfaces untracked files as all-addition diffs', () => {
+  const dir = makeFixture();
+  try {
+    writeFileSync(join(dir, 'src', 'brand-new.ts'), 'export const fresh = 1;\n');
+    const review = gatherReview(dir, {});
+    const all = [
+      ...review.chunks.flatMap((c) => c.files),
+      ...review.uncategorized,
+    ];
+    const fresh = all.find((f) => f.path === 'src/brand-new.ts');
+    assert.ok(fresh, 'untracked file appears in the review payload');
+    assert.equal(fresh.untracked, true);
+    assert.ok(fresh.hunks.length > 0, 'rendered as an all-addition diff');
+    assert.ok(
+      fresh.hunks.every((h) => h.lines.every((l) => l.type === 'addition')),
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('gatherTest suggests a convention-derived test path', () => {
+  const root = makeFixture();
+  try {
+    writeFileSync(join(root, 'test-existing.test.ts'), 'x');
+    git(root, 'add', '.');
+    git(root, 'commit', '-qm', 'seed test');
+    const p = gatherTest(root, 'auth-middleware');
+    assert.match(p.suggestedTestPath, /auth-middleware\.test\.ts$/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('gatherImplement carries a pre-composed advice string', () => {
+  const root = makeFixture();
+  try {
+    const p = gatherImplement(root);
+    assert.match(p.advice, /auth-middleware/);
+    assert.match(p.advice, /wave/i);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });

@@ -245,3 +245,20 @@ test('bundle index writes and edits always warn toward the writer', () => {
     { path: 'memory/pitfalls/index.md', oldText: 'a', newText: 'b' }, '# Pitfalls\n');
   assert.equal(e.warn, true);
 });
+
+test('with a resolved root, a project\'s own memory/ subtree is not the bundle', () => {
+  const env = {};
+  const root = '/repo';
+  // Anchored: only <root>/memory/** classifies.
+  assert.equal(isChunkFile('/repo/memory/chunks/a.md', env, root), true);
+  assert.equal(isChunkFile('/repo/src/memory/chunks/a.md', env, root), false);
+  assert.equal(isConceptFile('/repo/src/memory/pitfalls/x.md', env, root), false);
+  assert.equal(isBundleIndexFile('/repo/vendor/memory/index.md', env, root), false);
+  // checkWrite must not block edits to the look-alike path.
+  const verdict = checkWrite(
+    { path: '/repo/src/memory/chunks/a.md', content: '---\nstatus: done\n---\n' },
+    '---\nstatus: pending\n---\n',
+    { root },
+  );
+  assert.equal(verdict, null);
+});

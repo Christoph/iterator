@@ -81,28 +81,40 @@ iterator/
 │   └── marketplace.json         # Local-marketplace manifest for persistent installs
 ├── extensions/
 │   └── iterator.js              # pi extension: /iterator… commands → /skill:iterator…
-├── lib/
+├── lib/                         # SOURCE OF TRUTH for every core (synced into the hub skill)
+│   ├── app.mjs                  # control plane: view dispatch, one-command gather, onSubmit
 │   ├── server.mjs               # shared local HTTP server: stdin→JSON, /submit + /cancel,
-│   │                            #   single-instance takeover, timeout
-│   ├── ui.mjs                   # shared page shell: header, theme, CSS vars, esc/mdToHtml, post()
+│   │                            #   single-instance takeover, timeout, cancel/timeout reports
+│   ├── gather.mjs               # deterministic state gathering for every step
+│   ├── write.mjs                # deterministic bundle writer (all ops; --schema <op>)
+│   ├── git.mjs                  # one git/gitOrFail/hasStaged helper set
+│   ├── bundle.mjs               # frontmatter/index/log primitives + validateBundle
+│   ├── guardrails.mjs           # bundle-write guardrails for harness hooks
+│   ├── pi-tools.mjs             # pure helpers behind the pi extension's tools
+│   ├── session-server.mjs       # pi session dashboard (persistent tab)
+│   ├── ui.mjs                   # shared page shell + "ink & ember" design tokens
 │   └── views/                   # one view module per step (render(data) → html)
 │       ├── hub.mjs              #   dashboard: cards, badges, graph → dispatches actions
 │       ├── plan.mjs             #   plan review: sections, comments, dependency chips
 │       ├── chunk.mjs            #   chunk breakdown: graph, cards, split/merge
 │       ├── test.mjs             #   per-chunk test plan; red/green mode banner
-│       └── review.mjs           #   chunk-grouped diff review (+ implement's commit mode)
+│       ├── review.mjs           #   chunk-grouped diff review (+ implement's commit mode)
+│       ├── knowledge.mjs        #   okf memory plane dashboard
+│       └── memory-review.mjs    #   memory card review (init/consolidate/memorize)
 ├── skills/
-│   ├── iterator/                # hub skill — server.mjs (control plane) + gather.mjs (payload builder) + lib/ copy
+│   ├── iterator/                # hub skill — thin shims (server/gather/write.mjs) + lib/ copy + PI.md
 │   ├── iterator-plan/           # logic-only; carries templates/format.md
 │   ├── iterator-chunk/          # logic-only
 │   ├── iterator-implement/     # logic-only; green gate; auto-review; Accept and commit
 │   ├── iterator-design/         # logic-only; design params + UI quality rules
 │   ├── iterator-review/         # logic-only
-│   └── iterator-test/           # logic-only
+│   ├── iterator-test/           # logic-only
+│   └── okf*, okf-init, …        # knowledge plane skills + shared okf/PROTOCOL.md
 ├── templates/
 │   └── format.md                # self-describing bundle schema, copied into every bundle
 ├── scripts/
-│   └── sync.mjs                 # copies lib/ (+views) into the hub skill, template into iterator-plan
+│   ├── sync.mjs                 # copies lib/ (+views) into the hub skill, template into iterator-plan
+│   └── githooks/pre-commit      # runs sync + drift check (npm run hooks:install)
 ├── docs/
 │   └── OKF_SPEC.md              # Open Knowledge Format v0.1 spec
 ├── test/                        # node:test suite (npm test, no dependencies)
@@ -117,14 +129,15 @@ not list them. The `pi` manifest in `package.json` additionally registers
 `extensions/iterator.js`, which adds friendly `/iterator…` commands in pi that
 forward to the skills (same pattern as okf-memory).
 
-The **hub skill folder is the UI**: `skills/iterator/` carries `server.mjs`
-plus a bundled copy of the shared shell and all step views
-(`skills/iterator/lib/`). The step skills are logic-only — they must be
-installed **alongside** the hub skill, whose server they invoke as
-`<skill-dir>/../iterator/server.mjs`. `iterator-plan` also carries
-`templates/format.md`. The repo-root `lib/` and `templates/` remain the source
-of truth; `npm run sync` refreshes the bundled copies and `test/sync.test.mjs`
-fails if they drift.
+The **hub skill folder is the UI**: `skills/iterator/` carries thin shims
+(`server.mjs`, `gather.mjs`, `write.mjs` — re-export + `runCli` only) plus a
+bundled copy of every core and view (`skills/iterator/lib/`). The step skills
+are logic-only — they must be installed **alongside** the hub skill, whose
+scripts they invoke as `<skill-dir>/../iterator/<name>.mjs`. `iterator-plan`
+also carries `templates/format.md`. The repo-root `lib/` and `templates/` are
+the source of truth; `npm run sync` refreshes the bundled copies,
+`test/sync.test.mjs` fails if they drift, and `npm run hooks:install` sets up
+a pre-commit hook that syncs automatically.
 
 ## The `memory/` bundle (OKF v0.1)
 
@@ -227,10 +240,15 @@ browser JS; the shell provides the rest:
   `iterator / <step>` header with a branch tag, theme toggle, **Cancel**, and a
   primary button that flips **Accept ↔ Send review** driven by a step-provided
   `hasChanges()` hook (the implement review's no-comment primary is **Accept and
-  commit**). It ships the shared CSS variables (dark/light), `esc()`, a
-  dependency-free `mdToHtml()` markdown renderer, the cancel-on-unload beacon,
-  and the `post()` submit helper. `DIFF_CSS` is the shared diff-table style the
-  review step (and via it, implement's commit mode) builds on.
+  commit**). It ships the **"ink & ember" design system** — `:root` font/type
+  scale/spacing/radius tokens plus warm charcoal (dark) / warm paper (light)
+  theme blocks with an ember copper accent; both blocks define the identical
+  token set and the semantic diff pairs are AA-checked in `test/ui.test.mjs`,
+  and the view files may not contain raw hex (regex-tested) — every color
+  comes from a token. It also ships `esc()`, a dependency-free `mdToHtml()`
+  markdown renderer, the cancel-on-unload beacon, and the `post()` submit
+  helper. `DIFF_CSS` is the shared diff-table style the review step (and via
+  it, implement's commit mode) builds on.
 
 Step-specific browser handlers are wired with `addEventListener` + closures,
 never inline `on*` attribute strings built from data — so chunk names
@@ -241,9 +259,13 @@ and flow" true by construction rather than by copy-paste discipline.
 
 ### Browser round-trip (no temp files)
 
-1. A skill builds a JSON payload (with a `step` field picking the view) and
-   pipes it to the hub's `server.mjs` via a heredoc — nothing is written to
-   `/tmp`.
+1. A skill pipes a JSON payload to the hub's `server.mjs` — nothing is written
+   to `/tmp`. For most steps this is the **one-command request form**
+   `{"gather":true,"step":"<step>","chunk"?,"project"?,"extra"?}`: the server
+   gathers the step payload itself (in-process, same `lib/` cores) and merges
+   the small agent-authored `extra` on top. A fully-gathered payload with a
+   `step` field keeps working (implement's commit review uses it to inject
+   per-chunk test state).
 2. `server.mjs` replaces any lingering iterator server, serves the page (data
    embedded inline, safely escaped), and opens the browser on
    `127.0.0.1:<port>`.

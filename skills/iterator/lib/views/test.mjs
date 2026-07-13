@@ -14,27 +14,28 @@
 import { renderPage } from '../ui.mjs';
 
 const CSS = `
-.main{max-width:820px;margin:0 auto;padding:24px 20px}
-h1{font-size:20px;font-weight:600;margin-bottom:6px}
-.desc{font-size:14px;color:var(--text-muted);margin-bottom:8px;line-height:1.5}
-.runner{font-size:12px;color:var(--text-muted);margin-bottom:8px}
-.mode{font-size:12.5px;line-height:1.5;border-radius:6px;padding:8px 12px;margin-bottom:20px;display:none}
+.main{max-width:820px;margin:0 auto;padding:24px var(--sp-5)}
+h1{font-family:var(--font-display);font-size:var(--fs-xl);font-weight:600;margin-bottom:6px}
+.desc{font-size:var(--fs-sm);color:var(--text-muted);margin-bottom:8px;line-height:1.5}
+.runner{font-size:var(--fs-xs);color:var(--text-muted);margin-bottom:8px}
+.mode{font-size:var(--fs-sm);line-height:1.5;border-radius:var(--radius-sm);padding:var(--sp-2) var(--sp-3);margin-bottom:var(--sp-5);display:none}
 .mode.red{display:block;background:var(--bg-red);color:var(--dot-red)}
 .mode.green{display:block;background:var(--bg-green);color:var(--dot-green)}
-.runner code{background:var(--code-bg);border-radius:4px;padding:1px 6px;font-family:ui-monospace,Menlo,monospace}
-.hint{font-size:13px;color:var(--text-muted);margin-bottom:20px;line-height:1.5}
-.case{background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:12px;padding:12px 14px}
+.runner code{background:var(--code-bg);border-radius:4px;padding:1px 6px;font-family:var(--font-mono)}
+.hint{font-size:var(--fs-sm);color:var(--text-muted);margin-bottom:var(--sp-5);line-height:1.5}
+.case{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);box-shadow:var(--shadow-card);margin-bottom:var(--sp-3);padding:var(--sp-3) 14px}
 .case.excluded{opacity:.5}
 .ch{display:flex;align-items:center;gap:10px}
 .ch input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent);cursor:pointer}
-.ctitle{font-size:14px;font-weight:600;flex:1;border:1px solid transparent;border-radius:3px;padding:1px 4px;background:none;color:var(--text);font-family:inherit}
+.ctitle{font-size:var(--fs-sm);font-weight:600;flex:1;border:1px solid transparent;border-radius:3px;padding:1px 4px;background:none;color:var(--text);font-family:inherit}
 .ctitle:hover{border-color:var(--border)}
 .ctitle:focus{border-color:var(--accent);outline:none}
-.kind{font-size:11px;border-radius:10px;padding:2px 8px;text-transform:capitalize}
+.kind{font-size:var(--fs-xs);font-family:var(--font-mono);border-radius:10px;padding:2px var(--sp-2);text-transform:uppercase;letter-spacing:.05em}
 .k-happy{background:var(--bg-green);color:var(--dot-green)}
 .k-edge{background:var(--bg-yellow);color:var(--dot-yellow)}
 .k-integration{background:var(--hunk-bg);color:var(--hunk-fg)}
-.crat{font-size:13px;color:var(--text-muted);margin:8px 0 0;line-height:1.5}
+.crat{font-size:var(--fs-sm);color:var(--text-muted);margin:8px 0 0;line-height:1.5}
+.sdot{display:inline-block;width:8px;height:8px;border-radius:50%;background:currentColor;margin-right:4px;vertical-align:1px}
 textarea.ccmt{width:100%;margin-top:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;
   color:var(--text);font-size:12px;font-family:inherit;resize:vertical;min-height:44px;outline:none;padding:8px 10px;line-height:1.5}
 textarea.ccmt:focus{border-color:var(--accent)}
@@ -71,10 +72,10 @@ if(D.runner) document.getElementById('runner').innerHTML = 'Runner: <code>'+esc(
 const modeEl = document.getElementById('mode');
 if(D.mode==='red'){
   modeEl.className='mode red';
-  modeEl.innerHTML='🔴 <strong>Red mode</strong> — this chunk is not implemented yet. Accepted tests are written against the chunk\\'s contract and are <em>expected to fail</em> until /iterator-implement turns them green.';
+  modeEl.innerHTML='<i class="sdot"></i><strong>Red mode</strong> — this chunk is not implemented yet. Accepted tests are written against the chunk\\'s contract and are <em>expected to fail</em> until /iterator-implement turns them green.';
 }else if(D.mode==='green'){
   modeEl.className='mode green';
-  modeEl.innerHTML='🟢 <strong>Green mode</strong> — this chunk is implemented; accepted tests must pass against the current code.';
+  modeEl.innerHTML='<i class="sdot"></i><strong>Green mode</strong> — this chunk is implemented; accepted tests must pass against the current code.';
 }
 renderCases();
 refresh();

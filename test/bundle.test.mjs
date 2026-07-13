@@ -318,3 +318,70 @@ test('validator reports a missing bundle directory', () => {
   assert.equal(result.ok, false);
   assert.match(result.errors[0], /does not exist/);
 });
+
+// ---------------------------------------------------------------------------
+// round-trip: parse(serialize(v)) must be a fixed point for adversarial values
+
+const ADVERSARIAL = [
+  'he said: "hello"',
+  "it's got 'single' quotes",
+  'money $& and $\' and $1 markers',
+  'back`ticks` and *stars* and #hash',
+  'colons: in: many: places',
+  'brackets [a, b] {c: d}',
+  'unicode — em dash · middle dot ✓',
+  'trailing backslash \\',
+];
+
+test('fmScalar → unquote round-trips adversarial scalars (1 and 3 cycles)', () => {
+  for (const value of ADVERSARIAL) {
+    let fm = `type: Chunk\ntitle: ${fmScalar(value)}`;
+    for (let cycle = 1; cycle <= 3; cycle++) {
+      const parsed = frontmatter(`---\n${fm}\n---\n`);
+      // fmScalar collapses whitespace by contract; adversarial values above
+      // are single-spaced, so the parse must return them verbatim.
+      assert.equal(parsed.title, value, `cycle ${cycle}: ${value}`);
+      fm = setFmKeys(fm, { title: parsed.title });
+    }
+  }
+});
+
+test('setFmKeys is immune to replacement-pattern injection ($&, $`, $1)', () => {
+  const fm = 'type: Chunk\ndescription: old text';
+  const out = setFmKeys(fm, { description: 'costs $& and $` and $1 dollars' });
+  const parsed = frontmatter(`---\n${out}\n---\n`);
+  assert.equal(parsed.description, 'costs $& and $` and $1 dollars');
+  assert.ok(!out.includes('old text'), 'old line must be fully replaced');
+});
+
+test('inline lists keep commas inside quoted entries', () => {
+  const files = ['src/{a,b}.ts', 'plain.ts', 'with, comma.md'];
+  const fm = setFmKeys('type: Chunk', { files });
+  const parsed = frontmatter(`---\n${fm}\n---\n`);
+  assert.deepEqual(parsed.files, files);
+});
+
+test('continuation keys do not fold into plain string list items', () => {
+  const fm = frontmatter([
+    '---',
+    'type: Chunk',
+    'tags:',
+    '  - auth',
+    '  bogus: nested-mapping',
+    '---',
+  ].join('\n'));
+  assert.deepEqual(fm.tags, ['auth']);
+});
+
+test('commits continuation folding still works for mapping items', () => {
+  const fm = frontmatter([
+    '---',
+    'type: Chunk',
+    'commits:',
+    '  - sha: abc123',
+    '    kind: implement',
+    '    date: 2026-07-06',
+    '---',
+  ].join('\n'));
+  assert.deepEqual(fm.commits, ['sha: abc123, kind: implement, date: 2026-07-06']);
+});

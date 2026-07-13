@@ -12,10 +12,11 @@ import {
 	gatherMemorize,
 	gatherRange,
 	gatherReview,
+	gatherSession,
 	frontmatter,
 	globToRegExp,
 	matchConcepts,
-} from "../skills/iterator/gather.mjs";
+} from "../lib/gather.mjs";
 
 const git = (dir, ...args) =>
 	execFileSync("git", args, {
@@ -742,6 +743,36 @@ test("review payload carries pitfall cards for anchored changed files", () => {
 		assert.deepEqual(pits[0].matched, ["src/auth/index.ts"]);
 		assert.ok(pits[0].path.endsWith(".md"));
 		assert.deepEqual(p.pitfalls, [], "no uncategorized pitfalls");
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("gatherSession bundles hub/implement/memorize in one payload", () => {
+	const root = mkFreshRepo();
+	try {
+		const s = gatherSession(root);
+		assert.equal(s.step, "session");
+		assert.equal(s.hub.step, "hub");
+		assert.equal(s.memorize.step, "memorize");
+		// No plan in a bare repo → implement is skipped.
+		assert.equal(s.hub.plan, null);
+		assert.equal(s.implement, null);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("gatherRange advice covers the pointer states in one sentence", () => {
+	const root = mkFreshRepo();
+	try {
+		assert.match(gatherRange(root).advice, /okf-init/);
+		mkdirSync(join(root, "memory"), { recursive: true });
+		writeFileSync(
+			join(root, "memory", "index.md"),
+			'---\nokf_version: "0.1"\n---\n# Memory\n',
+		);
+		assert.match(gatherRange(root).advice, /No last_memorized_commit/);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}

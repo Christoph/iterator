@@ -1,0 +1,16 @@
+- The dependencies list is used wrong. It shows a list of todos but it should show only if a external dependency liek a new package/lib/create is used. SOmething like i need to add axum v xxxx to solve this.
+- At the start of plan when asking what to do make sure there is a direct option to type in a new plan. In order to reduce waiting time. now i have to say new plan and then need to wait. 
+- Lets move the questions asked fo the user also to the ui so the agentis controlled by the ui. i had the issue that i checked the ui and in the terminal was a question. ask them also in the ui. 
+- Add project spedific setting that can be changed via ui. One should be an auto-mode that lets you pick a review model and instead of human review and interaction the reviewer does the human part. After 3 iterations in the smae place human interventiuon is needed. this would after the plan was approved do all steps automatic. also set if testing is per default on or off. Other options to set?
+- auto mode should start after approving the chunks if active. it should keep the ui updated and reviews and comments of the reviewer are also saved in the memory so i can review them later.
+- when starting a new plan with many chunks a nbew branch should be creted. make this deactivatable via config.
+- COnfig for either use the activ model or let the user set one for different agents. default is the active model. 
+- make sure that the ui skill is used in plan, review, implement so uis look good. 
+- each chunk should have a list of memory files that are relevant like architecture, patterns and others so the implementer knows what he needs to know and can start directly. if the chunk is not following a decision of thius project it shoulod be flagged. 
+- it showed a review with zero changes. should not happen.
+- there were also issues with not commited files. the gity flow needs to be thight.
+- i want token usage statistics tab for a plan so i can judge how much plan/review/.implement and so on was used. just model plus topkens and cached tokens so later i can calculate prices. Also something like retire plan token costs so i can check out a retired plan and see the total tokens used. 
+- make sure that memory is setup and initialized before starting to work so all can be saved and loaded proper.
+- the work tab should a user allow to see old retired plans and read through it.
+- knowledgfe tab should be improved also from an ui and ux standpoint. This is where a user checks what his project is based on which decisions, archticteur, design and so on. 
+- add a pause button in the ui that stops the current things and the state should be saved after each step so continue is just a continue button in the ui for the active plan. also the branch should be shown for the active plan. 

@@ -5,177 +5,127 @@ description: Generate tests one chunk at a time from the memory/ bundle. For a p
 
 # iterator-test
 
-Generates tests at the **chunk** level, using the same `memory/` bundle the other
-iterator skills rely on. Instead of asking for tests up front for everything, the
-user opts in per chunk — pick a chunk, review a proposed **test plan** in the
-browser, then write focused tests for exactly the files and behavior that chunk
-covers.
+Generates tests at the **chunk** level: pick a chunk, review a proposed test
+plan in the browser, then write focused tests for exactly the behavior that
+chunk covers. The mode is decided by the chunk's `status`:
 
-The skill runs in one of two modes, decided by the chunk's `status`:
+- **Red mode** (`pending`) — no implementation exists yet. Tests are written
+  from the chunk's *contract* (description, implementation notes, snippets,
+  the module paths in `files`) and are **expected to fail**. Red tests become
+  the goal `/iterator-implement` drives to green.
+- **Green mode** (`done`) — tests are written against the real code and must
+  pass.
 
-- **Red mode** (`status: pending`) — the chunk is not implemented yet. Tests are
-  written from the chunk's *contract* (its `description`,
-  `# Implementation notes`, `# Snippets`, and the module paths in `files`) and
-  are **expected to fail**. Red tests become the goal `/iterator-implement`
-  drives to green.
-- **Green mode** (`status: done`) — the chunk is implemented. Tests are written
-  against the real code and must pass.
+The unit of testing is the chunk, not the file. This skill **never** changes
+a chunk's `status` (it does set `tests`/`tests_status`). Draft chunks are not
+testable — they must be accepted (pending) first.
 
-The unit of testing is the chunk, not the file: a chunk's `files`,
-`description`, and `# Implementation notes` tell you what the tests must protect.
-Tests are independent of implementation/review status — this skill **never**
-changes a chunk's `status` (it does set `tests`/`tests_status`).
+**pi mode:** see `<skill-dir>/../iterator/PI.md`.
 
 ## When to use this skill
 
-When the user types `/iterator-test`, asks to add or generate tests for a planned
-chunk, or wants chunk-level coverage.
-
-If `memory/chunks/` has no chunk files, tell the user: "No chunks found. Run
-`/iterator-plan` → `/iterator-chunk` first." and stop.
-
-If the user's message contains a test-plan result payload (`test-approved`,
-`test-feedback`, `cancel`, `timeout`), process it (steps 4–6).
-
-**pi mode:** if the tools `iterator_gather` / `iterator_write` / `iterator_ui`
-are available, use them instead of the shell pipelines below.
-`iterator_ui { step: "test", chunk: "<slug>", extra: { cases: [...] } }`
-gathers the chunk contract/runner itself — your drafted `cases` are the only
-thing you pass; `iterator_write` replaces the write.mjs heredocs. Steps,
-payloads, and rules are unchanged. Draft chunks are not testable — they must
-be accepted (pending) first.
+When the user types `/iterator-test`, asks to add or generate tests for a
+planned chunk, or wants chunk-level coverage. If `memory/chunks/` has no
+chunk files, tell the user: "No chunks found. Run `/iterator-plan` →
+`/iterator-chunk` first." and stop. If the user's message contains a
+test-plan result payload (`test-approved`, `test-feedback`, `cancel`,
+`timeout`), process it (steps 3–5) first.
 
 ## Steps
 
 ### 1. Choose which chunk to test
 
-Get the chunk list from `node <skill-dir>/../iterator/gather.mjs --step hub`
-(names, sizes, statuses, test badges — do **not** read bundle files yourself).
-If the user named a chunk, use it. Otherwise use `AskUserQuestion` (header
-`Chunk`) — offer the most-foundational chunks first (dependency order), each
-labeled with the chunk name and size. Prefer testing dependency-first so a
-chunk's dependencies are already covered.
+Get the chunk list from
+`node <skill-dir>/../iterator/gather.mjs --step hub` (do **not** read bundle
+files yourself). If the user named a chunk, use it. Otherwise use
+`AskUserQuestion` (header `Chunk`) — most-foundational chunks first
+(dependency order), labeled with name and size; a chunk's dependencies should
+already be covered where possible.
 
-### 2. Gather the chunk contract, mode, and test setup
-
-One scripted call collects everything mechanical:
+### 2. Gather the contract and derive the test plan
 
 ```sh
 node <skill-dir>/../iterator/gather.mjs --step test --chunk <slug>
 ```
 
-It prints the payload skeleton: `mode` (red/green from the chunk's `status`),
-the chunk `contract` (implementation notes, snippets, files, dependsOn), the
-detected `runner` (package.json scripts/deps, pytest config), and
-`existingTests` (sample paths showing the project's location/naming
-convention). Read a couple of the `existingTests` files to match the
-assertion/mocking style exactly. If `runner` is null there is no test setup —
-recommend one and confirm before adding a dev dependency or config.
+It prints `mode` (red/green), the chunk `contract`, the detected `runner`,
+`existingTests` (sample paths showing the project's conventions), and
+`suggestedTestPath` (a convention-matching location for the new file). Read
+a couple of the `existingTests` files to match the assertion/mocking style
+exactly. If `runner` is null there is no test setup — recommend one and
+confirm before adding a dev dependency or config.
 
-### 3. Propose a test plan in the browser
+Derive the cases:
 
-Derive the cases from the gathered contract:
+- **Red mode:** use the contract — import from the paths the chunk *will*
+  own; assert the behavior the notes promise.
+- **Green mode:** for each file in the contract's `files` (expand globs
+  against `git ls-files`), read the current implementation and its public
+  surface.
+- In both modes, consider the failure modes implied by the chunk's
+  `dependsOn`.
 
-- **Red mode (`pending`):** there is no implementation to read. Use the
-  contract — `description`, implementation notes, snippets (exported names,
-  signatures), and the module paths in `files`. Import from the paths the
-  chunk *will* own; assert the behavior the notes promise.
-- **Green mode (`done`):** for each file in the contract's `files` (expand
-  globs against `git ls-files`), read the current implementation and its
-  public surface.
-
-In both modes, consider the failure modes implied by the chunk's `dependsOn`.
-Then fill the gathered skeleton's `cases` and pipe it into the UI server —
-each case `{ "title": ..., "kind": "happy|edge|integration", "rationale": ... }`:
+Then open the test-plan UI — the server gathers the payload itself; your
+drafted `cases` are the only thing you pass (each
+`{ "title": ..., "kind": "happy|edge|integration", "rationale": ... }`):
 
 ```sh
 node <skill-dir>/../iterator/server.mjs << 'TEST_DATA'
-<the gathered payload with cases filled in>
+{ "gather": true, "step": "test", "chunk": "<slug>",
+  "extra": { "cases": [ { "title": "...", "kind": "happy", "rationale": "..." } ] } }
 TEST_DATA
 ```
 
-Each case has a kind (`happy` / `edge` / `integration`), a one-line rationale, an
-include checkbox, and a per-case comment box, plus an overall comment. Header
-controls: **Accept** / **Cancel** / **Send review**.
-
-### 4. Process the test-plan output
+### 3. Process the test-plan output (one JSON line)
 
 - `{ "type": "test-approved", "cases": [...] }` → write tests for exactly the
-  included cases (step 5).
-- `{ "type": "test-feedback", "cases": [...], "comment": "..." }` → revise the plan
-  per the per-case and overall comments (add/remove/reword cases) and re-run
-  step 3.
-- `{ "type": "cancel" }` / `{ "type": "timeout" }` → stop; no files written.
+  included cases (step 4).
+- `{ "type": "test-feedback", "cases": [...], "comment": "..." }` → revise
+  the plan per the comments and re-run step 2's serve.
+- `cancel` / `timeout` → relay the result's `report` and stop; no files
+  written.
 
-### 5. Write the tests, run them, and verify the expected color
+### 4. Write the tests, run them, and verify the expected color
 
-Write tests covering the approved cases:
-
-- Place test files following the detected convention (co-located `*.test.*` or a
-  `tests/` dir). Reuse existing helpers/fixtures rather than inventing new ones.
+- Place test files at `suggestedTestPath` (or the detected convention). Reuse
+  existing helpers/fixtures rather than inventing new ones.
 - Keep each chunk's tests in their own file(s) so coverage maps back to the
   chunk.
-- Do **not** weaken assertions to make tests pass — if the implementation looks
-  buggy, tell the user instead of asserting the buggy behavior.
+- Do **not** weaken assertions to make tests pass — if the implementation
+  looks buggy, tell the user instead of asserting the buggy behavior.
 
-Run only the new tests if the runner can target a path/pattern; otherwise run the
-suite. Show real output — never claim a result without running. Then verify the
-**expected color**:
+Run only the new tests if the runner can target a path/pattern; otherwise run
+the suite. Show real output — never claim a result without running. Then
+verify the **expected color**:
 
-- **Red mode:** the tests must fail **on assertions or missing exports** — that
-  is the success condition ("N tests red — ready for `/iterator-implement`").
-  A syntax error or unresolvable import *inside the test file itself* is a bug
-  in the test — fix it, don't count it as red. Never soften a red run into a
-  skip.
+- **Red mode:** the tests must fail **on assertions or missing exports** —
+  that is the success condition ("N tests red — ready for
+  `/iterator-implement`"). A syntax error or unresolvable import *inside the
+  test file itself* is a bug in the test — fix it, don't count it as red.
+  Never soften a red run into a skip.
 - **Green mode:** the tests must pass. A failure means either the test or the
   implementation is wrong — investigate and tell the user; do not adjust
   assertions to match buggy behavior.
 
-### 6. Record, commit, and report
+### 5. Record and commit — one op
 
-Record through the bundle writer — it sets the frontmatter, updates the
-`timestamp`, regenerates the index (🔴/🟢 badge), and prepends the log entry.
-The recorded `tests` paths make the test files part of the chunk's review
-scope: `/iterator-review` groups their diff with the chunk, so the tests are
-always reviewed next to the logic they cover:
+The whole record-and-commit choreography (branch safety, staging the test
+files with the bundle updates, the `test(<slug>)` commit with its `Chunk:`
+trailer, `tests`/`tests_status` frontmatter, sha recording, index/log
+regeneration) is one deterministic write:
 
 ```sh
-node <skill-dir>/../iterator/write.mjs << 'TEST_WRITE'
-{
-  "op": "update-chunk",
-  "chunk": "<slug>",
-  "set": { "tests": ["<test file path>", "..."], "tests_status": "<red|green>" },
-  "log": "**Tests**: Added <N> <red|green> test(s) for [<Title>](/chunks/<slug>.md) (<runner>)."
-}
-TEST_WRITE
+node <skill-dir>/../iterator/write.mjs << 'TEST_COMMIT'
+{ "op": "commit-tests", "chunk": "<slug>",
+  "files": ["<test file path>", "..."],
+  "testsStatus": "<red|green>", "summary": "<short summary>" }
+TEST_COMMIT
 ```
 
-Commit the test files **together with** the bundle updates (branch safety: if
-on `main`/`master`, create and switch to a working branch first — same rule as
-`/iterator-implement`):
-
-```
-test(<slug>): <short summary>
-
-Chunk: <slug>
-```
-
-Then record the sha in the *next* bundle write by piping
-`{ "op": "update-chunk", "chunk": "<slug>", "appendCommit": { "sha": "<sha>", "kind": "test" } }`
-into the writer (a commit cannot contain its own sha; per `memory/format.md`
-the `Chunk: <slug>` trailer is the resilient lookup, so a briefly missing sha
-is harmless).
+The recorded `tests` paths make the test files part of the chunk's review
+scope, so `/iterator-review` shows them next to the logic they cover.
 
 Report which chunk was covered, the file(s) created, the verified color (red:
 "expected to fail — implement drives these green"), any cases intentionally
 left out and why, and whether other chunks still lack tests (offer to
-continue). Do **not** change any chunk's `status` — `/iterator-implement`
-owns `done` and `/iterator-review` owns review notes.
-
-## Relationship to the other skills
-
-- `/iterator-plan` + `/iterator-chunk` create the chunk files.
-- `/iterator-test` reads them to generate tests per chunk (this skill); red
-  tests written before implementation become the goal of `/iterator-implement`.
-- `/iterator-implement` builds chunks, drives red tests green, and flips
-  `tests_status` on Accept-and-commit; `/iterator-review` reviews their diffs.
+continue).

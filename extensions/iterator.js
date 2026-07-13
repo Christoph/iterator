@@ -169,6 +169,20 @@ export default function iteratorExtension(pi) {
 		return runJson(scriptPath("gather"), args, { cwd });
 	};
 
+	// One `--step session` spawn per turn instead of ~5 single-step spawns:
+	// footer, ambient context, and hub refresh all read the same snapshot.
+	// Invalidated by writes and at turn end, so the next reader re-gathers.
+	let sessionSnapshot = null;
+	const gatherSession = async (cwd) => {
+		if (sessionSnapshot?.cwd === cwd) return sessionSnapshot.value;
+		const value = await gatherPayload(cwd, "session");
+		sessionSnapshot = { cwd, value };
+		return value;
+	};
+	const invalidateSession = () => {
+		sessionSnapshot = null;
+	};
+
 	// Footer segment + unmemorized-commit nudge (IDEAS §5/§11). Runs on the
 	// same lifecycle beats as the dashboard refresh, but independently of it —
 	// the footer works with the browser dashboard closed.
@@ -180,9 +194,7 @@ export default function iteratorExtension(pi) {
 				ctx.ui.setStatus("iterator", undefined);
 				return;
 			}
-			const hub = await gatherPayload(ctx.cwd, "hub");
-			const implement = hub.plan ? await gatherPayload(ctx.cwd, "implement") : null;
-			const memorize = await gatherPayload(ctx.cwd, "memorize");
+			const { hub, implement, memorize } = await gatherSession(ctx.cwd);
 			const pending = memorize.okf ? memorize.pendingCount : 0;
 			ctx.ui.setStatus("iterator", footerText(hub, implement, pending) || undefined);
 
@@ -208,8 +220,8 @@ export default function iteratorExtension(pi) {
 			// silently, so the hub view stays what the user ends up watching.
 			const knowledge = await gatherPayload(cwd, "knowledge");
 			session.showView({ step: "knowledge", render: () => VIEWS.knowledge(knowledge) });
-			const payload = await gatherPayload(cwd, "hub");
-			session.showView({ step: "hub", render: () => VIEWS.hub(payload) });
+			const { hub } = await gatherSession(cwd);
+			session.showView({ step: "hub", render: () => VIEWS.hub(hub) });
 		} catch {
 			/* a broken bundle read must never take pi down */
 		}
@@ -365,7 +377,8 @@ export default function iteratorExtension(pi) {
 					cwd: ctx.cwd,
 					stdin: JSON.stringify(params),
 				});
-				void refreshStatus(ctx); // writes move the footer's numbers
+				invalidateSession(); // the bundle just changed under the snapshot
+			void refreshStatus(ctx); // writes move the footer's numbers
 				return asText(result);
 			} catch (e) {
 				return asError(e.message);
@@ -426,7 +439,8 @@ export default function iteratorExtension(pi) {
 					cwd: ctx.cwd,
 					stdin: JSON.stringify({ op: "apply-review", ...params }),
 				});
-				void refreshStatus(ctx); // the pointer/counts just changed
+				invalidateSession(); // the bundle just changed under the snapshot
+			void refreshStatus(ctx); // the pointer/counts just changed
 				return asText(result);
 			} catch (e) {
 				return asError(e.message);
@@ -488,8 +502,7 @@ export default function iteratorExtension(pi) {
 	pi.on("before_agent_start", async (_event, ctx) => {
 		try {
 			if (!bundleExists(ctx.cwd)) return undefined;
-			const hub = await gatherPayload(ctx.cwd, "hub");
-			const implement = hub.plan ? await gatherPayload(ctx.cwd, "implement") : null;
+			const { hub, implement } = await gatherSession(ctx.cwd);
 			let matched = [];
 			if (recentFiles.size) {
 				const knowledge = await gatherPayload(ctx.cwd, "knowledge");
@@ -534,6 +547,7 @@ export default function iteratorExtension(pi) {
 
 	// Keep the idle dashboard + footer current so they reflect reality.
 	pi.on("agent_end", async (_event, ctx) => {
+		invalidateSession(); // the turn may have changed files/commits
 		await refreshHub(ctx.cwd);
 		await refreshStatus(ctx);
 	});
@@ -545,7 +559,19 @@ export default function iteratorExtension(pi) {
 		if (event.toolName === "write" || event.toolName === "edit") {
 			const path = event.input?.path;
 			rememberFile(ctx.cwd, path);
-			if (!path || !(isChunkFile(path) || isConceptFile(path) || isBundleIndexFile(path))) {
+			if (!path) return undefined;
+			// Anchor classification to the resolved bundle dir so a project's own
+			// src/memory/chunks/*.md is never blocked as a bundle file.
+			const root = projectRoot(ctx.cwd);
+			const abs = resolve(ctx.cwd, String(path)).split("\\").join("/");
+			const opts = { root };
+			if (
+				!(
+					isChunkFile(abs, process.env, root) ||
+					isConceptFile(abs, process.env, root) ||
+					isBundleIndexFile(abs, process.env, root)
+				)
+			) {
 				return undefined;
 			}
 			let oldContent = null;
@@ -556,8 +582,8 @@ export default function iteratorExtension(pi) {
 			}
 			const verdict =
 				event.toolName === "write"
-					? checkWrite(event.input, oldContent)
-					: checkEdit(event.input, oldContent);
+					? checkWrite({ ...event.input, path: abs }, oldContent, opts)
+					: checkEdit({ ...event.input, path: abs }, oldContent, opts);
 			if (!verdict) return undefined;
 			if (verdict.block) return { block: true, reason: `iterator: ${verdict.reason}` };
 			if (ctx.hasUI) ctx.ui.notify(`iterator: ${verdict.reason}`, "warning");
