@@ -1,0 +1,13 @@
+# Features
+
+* [Schema: tests + commits fields](schema-tests-commits.md) - ✅ done · small · Add tests, tests_status, and commits frontmatter to the Feature schema and define the test badge in features/index.md.
+* [Dev bind host for Docker](expose-bind-host.md) - ✅ done · small · ITERATOR_HOST env var lets the shared server bind 0.0.0.0 for Docker sandboxes, and the default port moves from 8888 to 7777.
+* [Red mode for iterator-test](test-red-mode.md) - ✅ done · medium · depends: schema-tests-commits · iterator-test writes intentionally-failing contract tests for pending features, commits them, and records tests/tests_status/commits in the feature file.
+* [Green gate for iterator-implement](implement-green-gate.md) - ✅ done · medium · depends: schema-tests-commits · iterator-implement runs a feature's tests as its goal, only offers Accept-and-commit when green, shows a test badge in the commit-mode UI, and records the implement commit.
+* [Review committed features](review-committed-diffs.md) - ✅ done · small · depends: schema-tests-commits · iterator-review builds the diff from recorded commits (or the Feature trailer) when the working tree is clean and the feature is done.
+* [Hub dashboard UI](hub-dashboard-ui.md) - ✅ done · medium · depends: schema-tests-commits · New skills/iterator/server.mjs renders the plan + feature dashboard (cards, badges, dependency graph, action buttons) and emits one action payload.
+* [Hub dispatch skill](hub-dispatch.md) - ✅ done · medium · depends: hub-dashboard-ui, test-red-mode, implement-green-gate, review-committed-diffs · skills/iterator/SKILL.md reads the bundle, opens the dashboard, and routes the chosen action into the existing per-step flows, reopening the hub afterwards.
+* [Docs refresh](docs-refresh.md) - ✅ done · small · depends: hub-dispatch, expose-bind-host · README and ARCHITECTURE describe the six-skill flow with the hub, red/green testing, commit tracking, and the Docker bind option.
+* [OKF gather staleness and range accuracy](okf-gather-staleness-range.md) - ✅ done · small · Make Knowledge staleness honor glob anchors and make /iterator-memorize ignore memory-only bookkeeping commits.
+* [OKF writer invariants](okf-writer-invariants.md) - ✅ done · small · Enforce apply-review pointer and knowledge-area invariants so memory approvals cannot skip future memorize coverage or create unsupported areas.
+* [Commit review memory-card readability](commit-memory-reviewability.md) - ✅ done · medium · depends: okf-writer-invariants, okf-gather-staleness-range · Make commit-mode memory proposals readable enough for human approval and refresh the README documentation for the safer OKF flow.

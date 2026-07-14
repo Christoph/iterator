@@ -1,13 +1,22 @@
 # iterator update log
 
 ## 2026-07-14
+* **Update**: Implemented all 4 features in the working tree with green regression tests; statuses stay pending until the user reviews and commits.
+* **Update**: Reset runtime state to manual/idle — the auto loop was wedged dispatching /iterator-test against a bundle the renamed tooling could not see.
+* **Update**: Converted the plan bundle from the retired chunk layout (memory/chunks/, `# Chunks`, active_chunk) to the feature contract; completed the cancelled 2026-07-05 plan's archive with its 11 stranded feature files.
+* **Update**: Applied 1 chunk adjustment(s).
+* **Update**: 2 chunk(s) written.
+* **Update**: Applied 3 chunk adjustment(s).
+* **Update**: 3 chunk(s) written.
+* **Creation**: 3 chunk(s) written.
+* **Creation**: Plan "Repair dashboard actions and drafting" approved on branch iterator/settings-return-to-work.
 * **Retirement**: Plan "Restore Work tab after closing Settings" condensed into [Return to Work when Settings closes](/decisions/settings-close-returns-to-work.md).
 * **Implementation**: Committed chunk(settings-return-to-work) on branch iterator/settings-return-to-work.
 * **Design**: Captured project design parameters.
 * **Update**: Applied 1 chunk adjustment(s).
 * **Creation**: 1 chunk(s) written.
 * **Creation**: Plan "Restore Work tab after closing Settings" approved on branch main.
-* **Cancellation**: Plan "Hub UI, red/green testing, and commit tracking" cancelled — archived under /chunks/archive/cancelled-2026-07-05-hub-ui-red-green-testing-and-commit-tracking/.
+* **Cancellation**: Plan "Hub UI, red/green testing, and commit tracking" cancelled — archived under /features/archive/cancelled-2026-07-05-hub-ui-red-green-testing-and-commit-tracking/.
 
 ## 2026-07-06
 * **Implementation**: Committed feature(commit-memory-reviewability) on branch iterator/okf-gather-staleness-range.

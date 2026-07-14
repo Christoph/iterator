@@ -674,7 +674,12 @@ export default function iteratorExtension(pi) {
 						void openArchive(result.feature);
 						return;
 					}
-					if (result?.type === "action" && result.action === "hub") {
+					// Knowledge's page-level Close mirrors Settings: back to Work
+					// (decisions/settings-close-returns-to-work) — never a model turn.
+					if (
+						result?.type === "action" &&
+						["hub", "close"].includes(result.action)
+					) {
 						void refreshHub(ctxCwd());
 						return;
 					}

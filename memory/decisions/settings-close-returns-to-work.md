@@ -23,6 +23,6 @@ Keep Settings save handling on the existing `settings` result path. Cover idle S
 
 # Retired plan
 
-Condensed from plan "Restore Work tab after closing Settings" (1 chunks, archived under /chunks/archive/2026-07-14-settings-close-returns-to-work/).
+Condensed from plan "Restore Work tab after closing Settings" (1 feature, archived under /features/archive/2026-07-14-settings-close-returns-to-work/).
 
 Token usage: 206353 in / 7199 out / 1748992 cache-read / 0 cache-write over 53 turns (per-step breakdown in the archived usage.md).
