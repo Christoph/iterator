@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-14
+* **Retirement**: Plan "Restore Work tab after closing Settings" condensed into [Return to Work when Settings closes](/decisions/settings-close-returns-to-work.md).
 * **Implementation**: Committed chunk(settings-return-to-work) on branch iterator/settings-return-to-work.
 * **Design**: Captured project design parameters.
 * **Update**: Applied 1 chunk adjustment(s).
