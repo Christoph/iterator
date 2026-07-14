@@ -7,9 +7,13 @@ size: medium
 depends_on: []
 files: ["extensions/iterator.js", "lib/views/settings.mjs", "skills/iterator/lib/views/settings.mjs", "test/session-server.test.mjs", "test/sync.test.mjs"]
 memories: [pitfalls/cancel-now-after-grace-timer, architecture/package-and-skill-layout, decisions/synced-droppable-skill-libs, setup/development-commands, setup/install-and-command-surface]
-timestamp: "2026-07-14T11:00:52.712Z"
+timestamp: "2026-07-14T11:00:52.767Z"
 tags: []
 done: 2026-07-14
+commits:
+  - sha: 96d30d03ed6d416e96266319b598d64f30948d27
+    kind: implement
+    date: 2026-07-14
 ---
 
 # Implementation notes
