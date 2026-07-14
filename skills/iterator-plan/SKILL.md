@@ -73,17 +73,34 @@ invocation or typed into a previous question's Other field, use
 `AskUserQuestion` for a single free-text question: *"What are you building
 and why? (1–3 sentences)"* (header `Goal`). Then silently read
 `ARCHITECTURE.md` if present; only raise a follow-up if the goal clearly
-diverges from documented architecture or implies a new dependency /
-product-fit question worth confirming. If the plan touches UI and
+diverges from documented architecture or implies a new dependency worth
+confirming. If the plan touches UI and
 `designFile` is set, read it and let the plan reference the project's design
 params; if it is null, note that `/iterator-design` should run before
 implementation styles anything.
 
+**Consult the recorded knowledge before drafting.** The gather payload's
+`knowledge` field carries the bundle's `architecture`, `decisions`, and
+`pitfalls` concepts (id, title, description, files, path). Read every entry;
+for the architecture concepts the goal touches, read the full bodies at
+their `path`. Then:
+
+- The **Architecture section builds on the recorded architecture** — extend
+  the real seams, referencing concept ids (`architecture/<slug>`) where the
+  plan touches or extends them, instead of inventing a parallel structure.
+- The plan must **never silently contradict a decision or ignore a
+  pitfall**. Follow each relevant one; where the goal genuinely requires
+  deviating, add an explicit Key Decisions bullet naming the concept id and
+  the deviation, and tell the user (in chat and in the review round) that
+  the deviation must be memorized after acceptance (`/okf-memorize`).
+
 ### 3. Draft the plan and open the review UI
 
-Draft the four sections and the dependency list, then serve them — the
+Draft the three sections and the dependency list, then serve them — the
 server gathers the base payload itself and merges your draft (`extra`) on
-top. (The server ships with the `/iterator` hub skill; if that folder is
+top. **Architecture and Key decisions are markdown bullet lists** — one
+statement or decision per bullet, so the review reads at a glance; Goal
+stays short prose. (The server ships with the `/iterator` hub skill; if that folder is
 missing, tell the user to install the full iterator plugin and stop.)
 
 `dependencies` lists **only new external packages, libraries, crates, or
@@ -97,7 +114,7 @@ node <skill-dir>/../iterator/server.mjs << 'PLAN_DATA'
 { "gather": true, "step": "plan",
   "extra": {
     "title": "<plan title>",
-    "plan": { "goal": "...", "architecture": "...", "keyDecisions": "...", "productFit": "..." },
+    "plan": { "goal": "...", "architecture": "- ...\n- ...", "keyDecisions": "- ...\n- ..." },
     "dependencies": ["<new-external-pkg-or-service> — <why>"] } }
 PLAN_DATA
 ```
@@ -121,7 +138,7 @@ OKF conformance; a re-plan preserves the existing `# Chunks` section):
 ```sh
 node <skill-dir>/../iterator/write.mjs << 'PLAN_WRITE'
 { "op": "plan", "title": "<plan title>", "description": "<one-line summary>",
-  "sections": { "goal": "...", "architecture": "...", "keyDecisions": "...", "productFit": "..." },
+  "sections": { "goal": "...", "architecture": "- ...\n- ...", "keyDecisions": "- ...\n- ..." },
   "dependencies": ["<new-external-pkg> — <why>"] }
 PLAN_WRITE
 ```

@@ -82,7 +82,9 @@ function startServer(payload, extraEnv = {}) {
 const waitExit = (child) =>
 	new Promise((r) => {
 		child.on("exit", r);
-		if (child.exitCode != null) r(child.exitCode);
+		// signal-killed children have exitCode null but signalCode set — without
+		// this check waitExit hangs forever when the exit already happened
+		if (child.exitCode != null || child.signalCode != null) r(child.exitCode);
 	});
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -97,7 +99,7 @@ const PLAN_PAYLOAD = {
 	step: "plan",
 	branch: "test",
 	title: "Add JWT auth",
-	plan: { goal: "g", architecture: "a", keyDecisions: "k", productFit: "p" },
+	plan: { goal: "g", architecture: "a", keyDecisions: "k" },
 	dependencies: ["jsonwebtoken — signing"],
 };
 
@@ -332,6 +334,85 @@ test("ITERATOR_NO_TAKEOVER leaves a running server alone (port walk instead)", a
 	await waitExit(b.child);
 });
 
+// --- force-port reclaim (issue: sandbox publishes only 7777; walking to 7778
+// makes the UI unreachable, so remote/forced servers kill the holder instead)
+
+/** Spawn a plain (non-iterator) HTTP holder on `port`; resolves once listening. */
+async function startForeignHolder(port) {
+	const child = spawn(process.execPath, [
+		"-e",
+		`require('node:http').createServer((q,s)=>{s.writeHead(200);s.end('foreign')})` +
+			`.listen(${port},'127.0.0.1',()=>console.log('up'))`,
+	]);
+	CHILDREN.add(child);
+	child.on("exit", () => CHILDREN.delete(child));
+	await new Promise((resolve, reject) => {
+		child.stdout.on("data", (d) => String(d).includes("up") && resolve());
+		child.on("exit", () => reject(new Error("holder died before listening")));
+		setTimeout(() => reject(new Error("holder did not start")), 5000).unref();
+	});
+	return child;
+}
+
+test("force-port mode reclaims the start port from a foreign process", async () => {
+	const port = 25_000 + Math.floor(Math.random() * 4000);
+	const holder = await startForeignHolder(port);
+	const io = await startServer(PLAN_PAYLOAD, {
+		ITERATOR_PORT: String(port),
+		ITERATOR_FORCE_PORT: "1",
+	});
+	assert.equal(Number(io.url.port), port, "must land on the published port");
+	assert.match(io.stderr(), /foreign.*reclaiming|reclaiming/);
+	assert.equal(await waitExit(holder), null, "holder must be gone");
+	io.child.kill();
+	await waitExit(io.child);
+});
+
+test("without force-port a foreign holder survives and the server walks up", async () => {
+	const port = 25_000 + Math.floor(Math.random() * 4000);
+	const holder = await startForeignHolder(port);
+	const io = await startServer(PLAN_PAYLOAD, { ITERATOR_PORT: String(port) });
+	assert.notEqual(Number(io.url.port), port, "local mode walks up");
+	assert.equal(holder.exitCode, null, "foreign holder must survive local mode");
+	holder.kill();
+	io.child.kill();
+	await waitExit(io.child);
+});
+
+test("reclaimPort: never kills a session dashboard; degrades without lsof/fuser", async () => {
+	const { reclaimPort } = await import("../lib/server.mjs");
+	// A fake session dashboard: status says mode:'session' → hands-off.
+	const fake = http.createServer((req, res) => {
+		if (req.url === "/__iterator/status") {
+			res.writeHead(200, { "Content-Type": "application/json" });
+			res.end(JSON.stringify({ app: "iterator", mode: "session", pid: process.pid }));
+		} else {
+			res.writeHead(200);
+			res.end("dash");
+		}
+	});
+	await new Promise((r) => fake.listen(0, "127.0.0.1", r));
+	const sessionPort = fake.address().port;
+	assert.deepEqual(await reclaimPort(sessionPort, () => {}), {
+		killed: false,
+		reason: "session",
+	});
+	await new Promise((r) => fake.close(r));
+
+	// Foreign holder + no lsof/fuser on PATH → { killed:false }, holder lives.
+	const port = 25_000 + Math.floor(Math.random() * 4000);
+	const holder = await startForeignHolder(port);
+	const oldPath = process.env.PATH;
+	process.env.PATH = "/nonexistent-for-reclaim-test";
+	try {
+		assert.deepEqual(await reclaimPort(port, () => {}), { killed: false });
+	} finally {
+		process.env.PATH = oldPath;
+	}
+	assert.equal(holder.exitCode, null, "holder survives when tools are missing");
+	holder.kill();
+});
+
 test("isRemoteSession: explicit override beats SSH markers, SSH markers imply remote", () => {
 	assert.equal(isRemoteSession({ ITERATOR_REMOTE: "1" }), true);
 	assert.equal(isRemoteSession({ ITERATOR_REMOTE: "true" }), true);
@@ -556,6 +637,24 @@ for (const [step, marker, payload] of SMOKE) {
 	});
 }
 
+test("hub without a plan renders the goal box with @-file suggestions", async () => {
+	const io = await startServer({
+		step: "hub",
+		branch: "test",
+		plan: null,
+		progress: { done: 0, total: 0 },
+		chunks: [],
+		files: ["src/auth.ts", "src/config.ts"],
+		knowledgeInitialized: true,
+	});
+	const body = await (await fetch(io.url)).text();
+	assert.match(body, /at-menu/, "@-mention dropdown infrastructure present");
+	assert.match(body, /wireAtMenu/, "goal box wired for @ suggestions");
+	assert.match(body, /src\/config\.ts/, "tracked file list embedded");
+	io.child.kill();
+	await waitExit(io.child);
+});
+
 test("commit mode embeds the wave chunks and okf memory proposals", async () => {
 	const io = await startServer({
 		step: "review",
@@ -677,11 +776,14 @@ test("knowledge view renders memory state, areas, concepts, design, and actions"
 	assert.match(page, /pitfalls\/gone-anchor/, "concept ids embedded");
 	assert.match(page, /data-action="update-memory"/);
 	assert.match(page, /badge-stale/);
-	assert.match(page, /Design parameters/, "design.md card present");
+	assert.match(page, /Design parameters/, "design.md panel present");
+	assert.match(page, /design-grid/, "design constants grid rendered client-side");
+	assert.match(page, /space-sm: 8px/, "design section content embedded");
 	assert.match(page, /data-action="refresh-format"/, "formatStale affordance");
 	assert.match(page, /data-action="okf-memorize"/);
 	assert.match(page, /Draft memory from prompt/);
-	assert.match(page, /data-drawer/, "read-in-place concept drawer");
+	assert.match(page, /id="mscrim"/, "concept modal scrim present");
+	assert.match(page, /id="m-body"/, "modal body renders the full concept");
 	assert.doesNotMatch(
 		page,
 		/data-action="okf-init"/,

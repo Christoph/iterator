@@ -66,7 +66,8 @@ when the params have been captured, or `null` on first use. (When invoked from
        "direction": "<aesthetic direction, tone, signature element, what to avoid>",
        "typography": "<families for display/body/mono, scale ratio, weights>",
        "color": "<named palette values, accent, neutral tint, dark-mode notes>",
-       "spacing": "<base unit, scale steps, radii, section rhythm>",
+       "spacing": "<base unit, scale steps, radii, section rhythm, and the named margin/padding constants: space-sm: 8px · space-md: 16px · space-lg: 32px (small/medium/large are mandatory)>",
+       "elements": "<per-component styles, one line each: button (bg, border, radius, padding, hover), input, card, badge — concrete CSS values>",
        "responsive": "<breakpoints, fluid-type ranges, touch rules>",
        "signature": "<the one distinctive recurring element>"
      }
@@ -74,10 +75,13 @@ when the params have been captured, or `null` on first use. (When invoked from
    DESIGN_WRITE
    ```
 
-   `direction`, `typography`, `color`, `spacing` are required; `responsive`
-   and `signature` are optional. Write **concrete values** (font stacks, hex/
-   OKLCH colors, pixel scales), not adjectives — the next session must be able
-   to reproduce the look from this file alone.
+   `direction`, `typography`, `color`, `spacing`, `elements` are required;
+   `responsive` and `signature` are optional. Write **concrete values** (font
+   stacks, hex/OKLCH colors, pixel scales, named spacing tokens), not
+   adjectives — the next session must be able to reproduce the look from this
+   file alone. The writer warns when `color` has no literal color value or
+   `spacing` lacks named small/medium/large constants — fix the sections and
+   re-run rather than shipping a vague file.
 
 ### 3. Apply while building
 
@@ -109,7 +113,9 @@ Dark mode is a re-design, not an inversion: lighter surfaces mean elevation,
 accents desaturate slightly, text weight drops a notch.
 
 **Spatial.** One 4pt spacing scale (4/8/12/16/24/32/48/64/96) behind semantic
-tokens; prefer `gap` over margins. Rhythm comes from contrast: tight within
+tokens; prefer `gap` over margins. Every margin and padding comes from the
+named small/medium/large constants in `design.md` — never an ad-hoc value.
+Rhythm comes from contrast: tight within
 groups (8–12px), generous between sections (48–96px) — monotone equal spacing
 kills hierarchy. Squint test: primary, secondary, and groupings must survive
 blurred vision. No cards inside cards; cards only for genuinely distinct,
@@ -122,6 +128,12 @@ actually breaks, not per device). `clamp()` for fluid display type, with max
 ≤ ~2.5× min. Detect input with `pointer: coarse` / `hover: hover` queries
 instead of inferring it from width. Respect safe-area insets. Never hide core
 functionality on mobile — adapt it.
+
+**Elements.** Define each recurring component once — button, input, card,
+badge, table — with its exact background, border, radius, padding, and hover
+treatment, and reuse those values everywhere the component appears. Never
+restyle a component per page; a deviation is a params revision (re-run the
+`design` op), not a local override.
 
 ### 3b. Improving existing UI (manual invocation)
 
@@ -147,6 +159,8 @@ named surface (or the UI files of recent chunks if none is named):
 
 Scale committed (no stray sizes/spacings)? One accent, reserved? Contrast AA?
 Usable at 360px width? Signature element present, everything else quiet?
+Every element style and every margin/padding traceable to a value in
+`design.md` (element styles, named spacing constants)?
 If the user asked for a deviation from the saved params during the build,
 re-run the `design` op with the updated sections so `memory/design.md` stays
 the source of truth — the op preserves `created`, refreshes `timestamp`, and

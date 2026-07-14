@@ -120,7 +120,11 @@ test('gatherPlan returns existing sections and parsed dependencies', () => {
     assert.equal(p.title, 'Add JWT auth');
     assert.equal(p.plan.goal, 'Protect the API with JWT.');
     assert.equal(p.plan.keyDecisions, 'HS256 for simplicity.');
+    assert.equal(p.plan.productFit, undefined, 'product fit dropped from the plan payload');
     assert.deepEqual(p.dependencies, ['jsonwebtoken — token signing/verification']);
+    // The planner's knowledge payload: always present, one list per area.
+    assert.deepEqual(Object.keys(p.knowledge), ['architecture', 'decisions', 'pitfalls']);
+    assert.deepEqual(p.knowledge.architecture, []);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

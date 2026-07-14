@@ -42,9 +42,8 @@ const PLAN_OP = {
 	title: "Add JWT auth",
 	sections: {
 		goal: "Protect the API with JWT.",
-		architecture: "Middleware in src/auth.",
-		keyDecisions: "HS256.",
-		productFit: "Matches middleware pattern.",
+		architecture: "- Middleware in src/auth.",
+		keyDecisions: "- HS256.",
 	},
 	dependencies: ["jsonwebtoken — token signing/verification"],
 };
@@ -89,6 +88,10 @@ test("plan op writes a conformant bundle and log entry", () => {
 		assert.match(
 			read(root, "plan.md"),
 			/\* `jsonwebtoken` — token signing\/verification/,
+		);
+		assert.ok(
+			!read(root, "plan.md").includes("# Product fit"),
+			"plans no longer carry a Product fit section",
 		);
 
 		assert.match(read(root, "index.md"), /okf_version: "0\.1"/);
@@ -511,7 +514,8 @@ const DESIGN_OP = {
 		direction: "Editorial, calm; signature: hairline-ruled tables.",
 		typography: "Display: Fraunces; body: Source Sans 3; scale 1.25.",
 		color: "Accent oklch(0.55 0.15 250); neutrals tinted toward it.",
-		spacing: "4pt scale: 4/8/12/16/24/32/48.",
+		spacing: "4pt scale: 4/8/12/16/24/32/48. space-sm: 8px, space-md: 16px, space-lg: 32px.",
+		elements: "Button: bg accent, radius 4px, padding 4px 12px. Input: 1px border, radius 4px.",
 		responsive: "Breakpoints 640/1024; clamp() display type.",
 	},
 };
@@ -530,11 +534,13 @@ test("design op writes design.md, links it in the index, and logs", () => {
 		assert.equal(fm.created, "2026-07-06");
 		assert.equal(fm.timestamp, "2026-07-06T12:00:00Z");
 		assert.match(raw, /# Direction\n\nEditorial, calm/);
+		assert.match(raw, /# Elements\n\nButton: bg accent/);
 		assert.match(raw, /# Responsive\n\nBreakpoints 640\/1024/);
 		assert.ok(
 			!raw.includes("# Signature"),
 			"omitted optional section not written",
 		);
+		assert.ok(!res.warnings, "concrete sections produce no lint warnings");
 
 		assert.match(
 			read(root, "index.md"),
@@ -559,9 +565,36 @@ test("design op validates plan, required sections, and register", () => {
 			/design op needs sections\.typography/,
 		);
 		assert.throws(
+			() =>
+				applyOp(
+					{
+						...DESIGN_OP,
+						sections: { ...DESIGN_OP.sections, elements: undefined },
+					},
+					root,
+				),
+			/design op needs sections\.elements/,
+		);
+		assert.throws(
 			() => applyOp({ ...DESIGN_OP, register: "marketing" }, root),
 			/invalid register 'marketing'/,
 		);
+
+		// Vague sections don't fail, but the lint surfaces them as warnings.
+		const vague = applyOp(
+			{
+				...DESIGN_OP,
+				sections: {
+					...DESIGN_OP.sections,
+					color: "calm neutrals with one accent",
+					spacing: "a comfortable 4pt rhythm",
+				},
+			},
+			root,
+		);
+		assert.equal(vague.warnings.length, 2);
+		assert.match(vague.warnings[0], /no concrete color value/);
+		assert.match(vague.warnings[1], /small\/medium\/large/);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
@@ -2067,6 +2100,95 @@ test("plan approval on main creates the plan branch (worktree by default, in pla
 		const res3 = applyOp(PLAN_OP, root);
 		assert.equal(res3.branch, undefined);
 		assert.equal(git(root, "rev-parse", "--abbrev-ref", "HEAD"), "main");
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+// ---------------------------------------------------------------------------
+// ops: cancel-chunk / cancel-plan
+
+test("cancel-chunk archives the file, scrubs dependents, and regenerates indexes", () => {
+	const root = makeRepo();
+	try {
+		applyOp(PLAN_OP, root);
+		applyOp(CHUNKS_OP, root);
+
+		const res = applyOp({ op: "cancel-chunk", chunk: "config-module" }, root);
+		assert.equal(res.op, "cancel-chunk");
+		assert.match(res.archived, /^chunks\/archive\/cancelled-.*-config-module$/);
+		assert.deepEqual(res.dependentsScrubbed, ["auth-middleware"]);
+
+		assert.ok(
+			!existsSync(join(root, "memory", "chunks", "config-module.md")),
+			"chunk file moved out of the live set",
+		);
+		assert.ok(
+			existsSync(join(root, "memory", res.archived, "config-module.md")),
+			"chunk file archived",
+		);
+		const auth = frontmatter(read(root, "chunks", "auth-middleware.md"));
+		assert.deepEqual(auth.depends_on, [], "dangling dependency scrubbed");
+		assert.ok(
+			!read(root, "chunks", "index.md").includes("config-module"),
+			"chunks index regenerated without the cancelled chunk",
+		);
+		assert.match(read(root, "log.md"), /\*\*Cancellation\*\*: Chunk/);
+
+		assert.throws(
+			() => applyOp({ op: "cancel-chunk", chunk: "nope" }, root),
+			/no chunk 'nope'/,
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("cancel-plan archives everything, resets state, and tears down branch+worktree", () => {
+	const root = makeRepo();
+	try {
+		git(root, "config", "user.email", "t@t");
+		git(root, "config", "user.name", "t");
+		git(root, "checkout", "-qb", "main");
+		writeFileSync(join(root, ".keep"), "");
+		git(root, "add", ".keep");
+		git(root, "commit", "-qm", "init");
+
+		const planRes = applyOp(PLAN_OP, root); // worktree_per_plan default: on
+		assert.ok(planRes.worktree, "fixture must create a worktree");
+		applyOp(CHUNKS_OP, root);
+		applyOp({ op: "state", set: { mode: "auto", phase: "implementing" } }, root);
+		// Uncommitted work inside the worktree — cancel must report and discard it.
+		writeFileSync(join(planRes.worktree, "leftover.txt"), "x");
+
+		const res = applyOp({ op: "cancel-plan" }, root);
+		assert.equal(res.op, "cancel-plan");
+		assert.match(res.archived, /^chunks\/archive\/cancelled-/);
+		assert.ok(res.archivedFiles.includes("plan.md"));
+		assert.ok(res.discarded.uncommittedFiles >= 1, "discarded work reported");
+		assert.equal(res.worktree, planRes.worktree, "worktree removed");
+		assert.equal(res.branch, "iterator/add-jwt-auth", "branch deleted");
+		assert.ok(!existsSync(planRes.worktree), "worktree gone from disk");
+		assert.equal(
+			git(root, "branch", "--list", "iterator/add-jwt-auth"),
+			"",
+			"branch gone",
+		);
+
+		assert.ok(!existsSync(join(root, "memory", "plan.md")), "bundle plan-less");
+		assert.ok(
+			existsSync(join(root, "memory", res.archived, "plan.md")),
+			"plan archived",
+		);
+		const state = frontmatter(read(root, "state.md"));
+		assert.equal(state.mode, "manual");
+		assert.equal(state.phase, "idle");
+		assert.match(read(root, "log.md"), /\*\*Cancellation\*\*: Plan/);
+
+		assert.throws(
+			() => applyOp({ op: "cancel-plan" }, root),
+			/no memory\/plan\.md/,
+		);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}

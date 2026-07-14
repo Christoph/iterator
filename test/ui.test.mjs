@@ -48,6 +48,14 @@ test('shared client JS posts to the server endpoints with the run id', () => {
   assert.ok(html.includes("fetch(__q('/cancel?now=1')"));
 });
 
+test('shared client JS wires read-only mode while the agent works', () => {
+  const html = renderPage({ step: 't', data: {}, body: '', clientJs: '' });
+  assert.ok(html.includes("e.data.iterator !== 'working'"), 'listens for the shell working message');
+  assert.ok(html.includes("classList.toggle('iterator-ro'"), 'toggles the read-only class');
+  assert.ok(html.includes("classList.contains('iterator-ro')"), 'post() refuses actions while read-only');
+  assert.ok(BASE_CSS.includes('body.iterator-ro'), 'read-only CSS rules present');
+});
+
 test('mdToHtml refuses javascript: links', () => {
   const html = renderPage({ step: 't', data: {}, body: '', clientJs: '' });
   // The linkify branch must be guarded by a protocol whitelist.
