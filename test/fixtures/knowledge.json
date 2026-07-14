@@ -91,7 +91,17 @@
   "design": {
     "title": "Design parameters",
     "description": "Quiet editorial tool.",
-    "path": "design.md"
+    "path": "design.md",
+    "register": "product",
+    "sections": {
+      "direction": "Editorial, calm; signature: hairline-ruled tables.",
+      "typography": "Display: Fraunces; body: Source Sans 3; scale 1.25.",
+      "color": "Accent oklch(0.55 0.15 250); surface #f7f5f2; ink #1c1a17.",
+      "spacing": "space-sm: 8px, space-md: 16px, space-lg: 32px; radii 4px.",
+      "elements": "Button: bg accent, radius 4px, padding 4px 12px.",
+      "responsive": "Breakpoints 640/1024; clamp() display type.",
+      "signature": ""
+    }
   },
   "formatStale": true
 }

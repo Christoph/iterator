@@ -348,6 +348,21 @@ export default function iteratorExtension(pi) {
 				if (lastCtx?.hasUI) lastCtx.ui.notify("iterator: continuing", "info");
 				await pushStatus(cwd);
 				resumeAuto(cwd); // no-op unless auto mode has work to pick up
+			} else if (input.action === "abort") {
+				// One-click recovery to a clean state: kill the in-flight stream,
+				// reset the runtime flow state, and re-render the hub — works even
+				// when a dispatch stalled, because /control never needs a model turn.
+				try { lastCtx?.abort?.(); } catch {}
+				await writeState({
+					mode: "manual", paused: false, phase: "idle",
+					active_chunk: null, strikes: {},
+				});
+				autoSteps = 0;
+				await restoreModel();
+				if (lastCtx?.hasUI) lastCtx.ui.notify("iterator: aborted — flow state reset, hub is fresh", "info");
+				session?.clearWorking?.(); // the overlay must never wedge
+				await pushStatus(cwd);
+				await refreshHub(cwd);
 			}
 		} catch (e) {
 			if (lastCtx?.hasUI) lastCtx.ui.notify(`iterator: ${e.message}`, "error");
@@ -367,6 +382,21 @@ export default function iteratorExtension(pi) {
 	const notifyUi = (msg, level = "info") => {
 		if (lastCtx?.hasUI) lastCtx.ui.notify(`iterator: ${msg}`, level);
 	};
+
+	/**
+	 * Queue a prompt for the agent. Always passes deliverAs:'followUp' (the
+	 * runtime's streamingBehavior): several dispatch sites can fire while the
+	 * agent is still processing — the write-tool auto-start runs inside a live
+	 * tool call, and the agent_end → kickAuto path races its own async
+	 * bookkeeping — and without the option the runtime REJECTS the message
+	 * ("Agent is already processing…") instead of queueing it, silently
+	 * stalling auto mode. followUp = wait for the current turn, then run.
+	 */
+	const dispatch = (cmd) =>
+		pi.sendUserMessage(cmd, {
+			deliverAs: "followUp",
+			streamingBehavior: "followUp", // older runtimes take the raw option name
+		});
 
 	/** Apply a role's model/thinking overrides; remember the user's model once. */
 	const applyRole = async (role, settings) => {
@@ -454,11 +484,36 @@ export default function iteratorExtension(pi) {
 			await applyRole(action.role, sess.settings);
 			attribution = { step: action.step, chunk: action.chunk || null };
 			const p = sess.hub?.progress || {};
-			session?.showWorking(
-				`Auto: ${action.step} ${action.chunk || ""} (${p.done ?? 0}/${p.total ?? 0} done)…`,
-			);
+			// Structured working state: the shell renders step/chunk, a progress
+			// bar, and the memories the implementer will read for this chunk.
+			const contract = action.chunk
+				? [sess.implement?.next, ...(sess.implement?.wave || [])]
+						.filter(Boolean)
+						.find((c) => c.name === action.chunk)
+				: null;
+			session?.showWorking({
+				text: `Auto: ${action.step} ${action.chunk || ""} (${p.done ?? 0}/${p.total ?? 0} done)…`,
+				step: action.step,
+				chunk: action.chunk || null,
+				progress: { done: p.done ?? 0, total: p.total ?? 0 },
+				memories: (contract?.relevantMemories || []).map(
+					({ id, title, description }) => ({ id, title, description }),
+				),
+			});
 			await pushStatus(cwd);
-			pi.sendUserMessage(action.cmd);
+			try {
+				await dispatch(action.cmd);
+			} catch (err) {
+				// Recoverable, never a silent stall: keep mode:auto but pause, so
+				// the control strip's Continue re-enters kickAuto and re-dispatches.
+				await writeState({ paused: true });
+				await restoreModel();
+				session?.showWorking({
+					text: `Auto mode paused — dispatch failed (${err.message}). Press Continue to retry or Abort to reset.`,
+				});
+				await pushStatus(cwd);
+				notifyUi(`auto mode paused: dispatch failed (${err.message}) — Continue retries`, "warning");
+			}
 		} catch (e) {
 			notifyUi(`auto mode stopped: ${e.message}`, "error");
 		}
@@ -473,6 +528,35 @@ export default function iteratorExtension(pi) {
 	};
 
 	const resumeAuto = (cwd) => void kickAuto(cwd);
+
+	/**
+	 * Cancel a chunk or the whole plan (deterministic write op — never a model
+	 * turn, so cancel works even while the agent is stuck). The dashboard's
+	 * two-step confirm already happened client-side.
+	 */
+	const cancelWork = async (op, chunk) => {
+		const cwd = ctxCwd();
+		try {
+			const result = await runJson(scriptPath("write"), [], {
+				cwd,
+				stdin: JSON.stringify({ op, ...(chunk ? { chunk } : {}) }),
+			});
+			invalidateSession();
+			const d = result.discarded;
+			const discardNote = d && (d.uncommittedFiles || d.unmergedCommits)
+				? ` — discarded ${d.uncommittedFiles} uncommitted file(s), ${d.unmergedCommits} unmerged commit(s)`
+				: "";
+			notifyUi(
+				`${op === "cancel-plan" ? "plan" : `chunk ${chunk}`} cancelled (archived under ${result.archived})${discardNote}`,
+			);
+			for (const n of result.notes || []) notifyUi(n, "warning");
+			session?.clearWorking?.();
+			await pushStatus(cwd);
+			await refreshHub(cwd);
+		} catch (e) {
+			notifyUi(`${op} failed: ${e.message}`, "error");
+		}
+	};
 
 	/** Open one retired plan read-only on the Work tab (deterministic). */
 	const openArchive = async (target) => {
@@ -514,10 +598,15 @@ export default function iteratorExtension(pi) {
 						void startAuto(ctxCwd());
 						return;
 					}
+					if (result?.type === "action"
+						&& ["cancel-chunk", "cancel-plan"].includes(result.action)) {
+						void cancelWork(result.action, result.chunk || null);
+						return;
+					}
 					const cmd = actionToCommand(result);
 					if (!cmd) return;
 					session.showWorking(`Dispatched ${cmd} — Claude is working…`);
-					pi.sendUserMessage(cmd);
+					dispatch(cmd);
 				},
 				onControl,
 			});
@@ -538,10 +627,10 @@ export default function iteratorExtension(pi) {
 				if (command.name === "iterator-implement" && !trimmedArgs && ctx?.hasUI) {
 					const picked = await pickReadyChunk(ctx);
 					if (picked === undefined) return; // dismissed / nothing ready
-					pi.sendUserMessage(`/skill:iterator-implement ${picked}`.trim());
+					dispatch(`/skill:iterator-implement ${picked}`.trim());
 					return;
 				}
-				pi.sendUserMessage(
+				dispatch(
 					`/skill:${command.name}${trimmedArgs ? ` ${trimmedArgs}` : ""}`,
 				);
 			},
@@ -576,7 +665,7 @@ export default function iteratorExtension(pi) {
 					if (ctx.hasUI) ctx.ui.notify(`iterator: nothing to implement — ${why}`, "warning");
 					return;
 				}
-				pi.sendUserMessage(`/skill:iterator-implement ${imp.next.name}`);
+				dispatch(`/skill:iterator-implement ${imp.next.name}`);
 			} catch (e) {
 				if (ctx.hasUI) ctx.ui.notify(`iterator: ${e.message}`, "error");
 			}
@@ -772,7 +861,7 @@ export default function iteratorExtension(pi) {
 			"Show an iterator step in the session dashboard (persistent browser tab) and wait for " +
 			"the user's answer. The server gathers the step payload itself from the bundle — do NOT " +
 			"pass gathered payloads or chunk bodies. `extra` is only for the small agent-authored " +
-			"fields: plan → {title, plan:{goal,architecture,keyDecisions,productFit}, dependencies}; " +
+			"fields: plan → {title, plan:{goal,architecture,keyDecisions}, dependencies}; " +
 			"test → {cases:[...]}; review after implementing → {mode:'commit', tests:{status,total,passing}}; " +
 			"hub/chunk/review → none (chunk drafts are read from disk).",
 		parameters: Type.Object({
@@ -789,6 +878,23 @@ export default function iteratorExtension(pi) {
 		async execute(_id, params, signal, _onUpdate, ctx) {
 			try {
 				await ensureServer(ctx);
+				// Auto-mode gate guard: an unattended auto run must never block on
+				// a browser answer. A skill that ignores its --auto instruction and
+				// opens a gate view (test plan / question) would hang the chunk in
+				// its phase forever — refuse the round and tell the agent to
+				// continue non-interactively instead.
+				if (["test", "question"].includes(params.step)) {
+					const st = (await gatherSession(ctx.cwd))?.state;
+					if (st?.mode === "auto" && !st?.paused) {
+						return asText({
+							type: "auto-skip",
+							report:
+								"Auto mode is driving this flow — do NOT wait for a browser answer. " +
+								"Proceed non-interactively as your skill's --auto section describes " +
+								"(tester: write the red tests, commit via the writer, report, stop).",
+						});
+					}
+				}
 				// memory-review has no gather step of its own: the cards are
 				// agent-drafted (extra.memories); areas/branch come from the
 				// knowledge payload. question is fully agent-authored (extra).

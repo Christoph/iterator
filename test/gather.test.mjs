@@ -139,10 +139,15 @@ test("gather without a bundle returns the create-plan shape", () => {
 	const root = mkdtempSync(join(tmpdir(), "iterator-gather-"));
 	try {
 		git(root, "init", "-q");
+		writeFileSync(join(root, "a.ts"), "export {};\n");
+		writeFileSync(join(root, "b.ts"), "export {};\n");
+		git(root, "add", ".");
 		const p = gather(root);
 		assert.equal(p.plan, null);
 		assert.deepEqual(p.progress, { done: 0, total: 0 });
 		assert.deepEqual(p.chunks, []);
+		// Tracked files ride along for the goal box's @-mention suggestions.
+		assert.deepEqual(p.files, ["a.ts", "b.ts"]);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
@@ -541,7 +546,7 @@ function makeKnowledgeFixture() {
 	);
 	writeFileSync(
 		join(root, "memory", "design.md"),
-		"---\ntype: Design\ntitle: Design parameters\ndescription: Dark, dense, mono.\n---\n# Direction\nd\n",
+		"---\ntype: Design\ntitle: Design parameters\ndescription: Dark, dense, mono.\n---\n# Direction\nd\n\n# Color\nAccent #7aa2f7.\n\n# Spacing\nspace-sm: 8px, space-md: 16px, space-lg: 32px\n\n# Elements\nButton: radius 4px.\n",
 	);
 	return root;
 }
@@ -584,6 +589,16 @@ test("gather knowledge reports areas, concepts, staleness, and the design card",
 			title: "Design parameters",
 			description: "Dark, dense, mono.",
 			path: "design.md",
+			register: "product",
+			sections: {
+				direction: "d",
+				typography: "",
+				color: "Accent #7aa2f7.",
+				spacing: "space-sm: 8px, space-md: 16px, space-lg: 32px",
+				elements: "Button: radius 4px.",
+				responsive: "",
+				signature: "",
+			},
 		});
 		assert.equal(
 			p.formatStale,

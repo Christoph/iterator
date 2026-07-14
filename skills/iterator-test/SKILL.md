@@ -138,7 +138,10 @@ continue).
 ## Auto mode (`--auto`)
 
 When invoked as `/iterator-test <chunk> --auto` (dispatched by the auto-mode
-driver): skip the browser test-plan review. Derive the red test plan from the
+driver): the run is **unattended — never open `iterator_ui` (any step,
+including `question`) and never wait for a browser answer**; a gate would
+hang the chunk in `testing` forever (the extension refuses gate views in auto
+mode as a backstop, but do not rely on it). Derive the red test plan from the
 chunk contract (step 2), write the failing tests, run them to confirm they
 fail for the right reason, and commit via the `commit-tests` op exactly as in
 the manual flow. Report the test files and the failing output in one short

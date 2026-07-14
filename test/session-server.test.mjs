@@ -124,6 +124,66 @@ test('a /submit with no pending round is handed to onUnsolicited (idle dashboard
   }
 });
 
+test('unsolicited /submit while working is rejected with 409 busy', async () => {
+  let unsolicited = null;
+  const { session, origin } = await startSession({ onUnsolicited: r => (unsolicited = r) });
+  try {
+    session.showView({ step: 'hub', render: () => viewHtml('HUB') });
+    session.showWorking('Auto: implementing…');
+    const res = await fetch(`${origin}/submit?r=${srvMod.RUN_ID}`, {
+      method: 'POST', body: '{"type":"action","action":"implement","chunk":"auth"}',
+    });
+    assert.equal(res.status, 409);
+    assert.deepEqual(await res.json(), { busy: true });
+    await sleep(20);
+    assert.equal(unsolicited, null, 'busy dashboard must not dispatch');
+    // A fresh view clears the working state; the same click now dispatches.
+    session.showView({ step: 'hub', render: () => viewHtml('HUB2') });
+    const ok = await fetch(`${origin}/submit?r=${srvMod.RUN_ID}`, {
+      method: 'POST', body: '{"type":"action","action":"implement","chunk":"auth"}',
+    });
+    assert.equal(ok.status, 200);
+    await sleep(20);
+    assert.deepEqual(unsolicited, { type: 'action', action: 'implement', chunk: 'auth' });
+  } finally {
+    await session.stop();
+  }
+});
+
+test('showWorking accepts a structured payload and replays it to new SSE clients', async () => {
+  const { session, origin } = await startSession();
+  try {
+    session.showWorking({
+      text: 'Auto: implement auth (1/3 done)…',
+      step: 'implement',
+      chunk: 'auth',
+      progress: { done: 1, total: 3 },
+      memories: [{ id: 'pitfalls/gone-anchor', title: 'Gone anchor', description: 'd' }],
+    });
+    const sse = await firstSseEvent(origin);
+    assert.equal(sse.event, 'working');
+    assert.equal(sse.data.step, 'implement');
+    assert.equal(sse.data.chunk, 'auth');
+    assert.deepEqual(sse.data.progress, { done: 1, total: 3 });
+    assert.equal(sse.data.memories[0].title, 'Gone anchor');
+  } finally {
+    await session.stop();
+  }
+});
+
+test('the shell scopes the overlay to the Work tab and posts read-only state into views', async () => {
+  const { session, origin } = await startSession();
+  try {
+    const shell = await (await fetch(origin + '/')).text();
+    assert.ok(shell.includes("tab === 'work' && working"), 'overlay guarded by active tab');
+    assert.ok(shell.includes("postMessage({ iterator: 'working'"), 'read-only state posted into the iframe');
+    assert.ok(shell.includes('id="ov-abort"'), 'overlay has an Abort control');
+    assert.ok(shell.includes('id="ov-pause"'), 'overlay has a Pause control');
+  } finally {
+    await session.stop();
+  }
+});
+
 test('a second showStep supersedes the first, and the old view\'s cancel beacon is ignored', async () => {
   const { session, origin } = await startSession();
   try {

@@ -16,9 +16,14 @@
  *        registry file, verified via its tokenless /__iterator/status
  *        endpoint) is SIGTERMed and replaced, so back-to-back runs always land
  *        on the same fixed port — the port a sandbox forwards (see
- *        pi-docker-sandbox-setup, which publishes exactly 7777). Only when a
- *        *foreign* process holds the port do we walk up / fall back to an
- *        ephemeral port, always printing the real URL.
+ *        pi-docker-sandbox-setup, which publishes exactly 7777). Locally, a
+ *        *foreign* holder makes us walk up / fall back to an ephemeral port,
+ *        always printing the real URL. Remotely (REMOTE, or
+ *        ITERATOR_FORCE_PORT=1) walking up is useless — only the start port
+ *        is published to the host — so reclaimPort() kills the foreign/stale
+ *        holder (lsof/fuser, SIGTERM→SIGKILL, never a session dashboard,
+ *        never self/parent) and retries the same port once before degrading
+ *        to the walk-up.
  *   F10 — the 2h timeout prints { "type": "timeout" } to stdout instead of
  *        exiting silently, so the SKILL.md output contract is never violated.
  *   F11 — SIGTERM/SIGINT/SIGHUP print { "type": "cancel" } before exiting, so
@@ -49,7 +54,7 @@
  * overrides the bind address.
  */
 import http from 'node:http';
-import { exec } from 'node:child_process';
+import { exec, execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { tmpdir, userInfo } from 'node:os';
@@ -179,6 +184,88 @@ export async function takeoverStale(regPath) {
     try { process.kill(reg.pid, 0); process.kill(reg.pid, 'SIGKILL'); } catch {}
   }
   try { unlinkSync(regPath); } catch {}
+}
+
+// Force-port mode: a sandbox publishes exactly the start port to the host
+// (pi-docker-sandbox-setup publishes 7777:7777), so a walk-up bind on 7778 is
+// unreachable from the host browser. Under REMOTE — or ITERATOR_FORCE_PORT=1
+// for microVMs/tests — the servers reclaim the start port instead.
+export const FORCE_PORT = REMOTE
+  || ['1', 'true'].includes(String(process.env.ITERATOR_FORCE_PORT ?? '').toLowerCase());
+
+/**
+ * Reclaim `port` from whatever process holds it, so the server can bind the
+ * one port the sandbox publishes. Policy:
+ *   - a live iterator *session dashboard* is never killed (that pid is the
+ *     agent process itself) → { killed:false, reason:'session' };
+ *   - a lingering iterator one-shot identified via its status endpoint is
+ *     SIGTERMed with the same grace loop as takeoverStale;
+ *   - anything else (foreign or unidentifiable) is resolved via
+ *     `lsof -ti tcp:<port> -sTCP:LISTEN` (fuser fallback) and
+ *     SIGTERMed → SIGKILLed, skipping self/parent. Same-uid only: EPERM and
+ *     missing tools degrade to { killed:false } and the caller walks up.
+ */
+export async function reclaimPort(port, say = m => process.stderr.write(m)) {
+  let status = null;
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}${STATUS_PATH}`,
+      { signal: AbortSignal.timeout(500) });
+    if (res.ok) status = await res.json().catch(() => null);
+  } catch {}
+  if (status && status.app === 'iterator' && status.mode === 'session') {
+    return { killed: false, reason: 'session' };
+  }
+
+  const waitDead = async pid => {
+    const deadline = Date.now() + 2000;
+    while (Date.now() < deadline) {
+      try { process.kill(pid, 0); } catch { return true; } // throws once gone
+      await sleep(50);
+    }
+    return false;
+  };
+  const killPid = async pid => {
+    try { process.kill(pid, 'SIGTERM'); } catch { return false; } // EPERM/gone
+    if (!(await waitDead(pid))) {
+      try { process.kill(pid, 'SIGKILL'); } catch {}
+      await waitDead(pid);
+    }
+    try { process.kill(pid, 0); return false; } catch { return true; }
+  };
+
+  if (status && status.app === 'iterator' && Number.isInteger(status.pid)) {
+    say(`iterator: port ${port} held by a previous iterator UI (pid ${status.pid}) — reclaiming\n`);
+    return { killed: await killPid(status.pid) };
+  }
+
+  // Foreign or unidentifiable holder: resolve the listener pids via the OS.
+  let out = '';
+  try {
+    out = execFileSync('lsof', ['-ti', `tcp:${port}`, '-sTCP:LISTEN'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  } catch (e) {
+    if (e.code === 'ENOENT') {
+      try {
+        out = execFileSync('fuser', [`${port}/tcp`],
+          { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+      } catch { return { killed: false }; }
+    } else {
+      out = String(e.stdout || ''); // lsof exits 1 when nothing matches
+    }
+  }
+  const pids = [...new Set(out.split(/\s+/)
+    .map(s => parseInt(s, 10))
+    .filter(Number.isInteger))]
+    .filter(pid => pid > 0 && pid !== process.pid && pid !== process.ppid);
+  if (!pids.length) return { killed: false };
+
+  let killed = false;
+  for (const pid of pids) {
+    say(`iterator: port ${port} held by pid ${pid} (foreign) — reclaiming ` +
+      `(only ${port} is published in this sandbox)\n`);
+    if (await killPid(pid)) killed = true;
+  }
+  return { killed };
 }
 
 /**
@@ -334,9 +421,28 @@ export async function serve({ step = 'iterator', html, onSubmit, reports = {} })
     }
   };
 
+  let reclaimTried = false;
   const tryListen = (port, attemptsLeft) => {
     const onError = err => {
-      if (err.code === 'EADDRINUSE' && attemptsLeft > 0) {
+      if (err.code === 'EADDRINUSE' && FORCE_PORT && port === startPort
+        && !reclaimTried && !process.env.ITERATOR_NO_TAKEOVER) {
+        // Only the start port is published to the host — reclaim it once
+        // instead of drifting to an unreachable port.
+        reclaimTried = true;
+        reclaimPort(port).then(r => {
+          if (r.killed) { tryListen(port, attemptsLeft); return; }
+          if (r.reason === 'session') {
+            process.stderr.write(
+              `iterator: session dashboard owns port ${port} — open ` +
+              `http://127.0.0.1:${port}/ on the host; this one-shot walks up\n`);
+          } else {
+            process.stderr.write(
+              `iterator: could not reclaim port ${port} — walking up (the UI ` +
+              `may be unreachable through the sandbox's port publish)\n`);
+          }
+          tryListen(port + 1, attemptsLeft - 1);
+        });
+      } else if (err.code === 'EADDRINUSE' && attemptsLeft > 0) {
         tryListen(port + 1, attemptsLeft - 1);
       } else if (err.code === 'EADDRINUSE') {
         // All nearby ports busy — let the OS pick an ephemeral one.

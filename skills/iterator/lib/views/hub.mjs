@@ -19,7 +19,9 @@
  *   output: one JSON line to stdout —
  *     { type:"action", action:"plan"|"chunk"|"test"|"implement"|"review"|"okf-init"
  *                             |"view-archive"        // chunk = archive name for view-archive
- *                             |"auto-implement",     // run the whole loop agent-driven
+ *                             |"auto-implement"      // run the whole loop agent-driven
+ *                             |"cancel-chunk"        // archive one chunk (deterministic)
+ *                             |"cancel-plan",        // abandon plan + delete branch/worktree (deterministic)
  *       chunk:"<slug>"|null,
  *       prompt:"<typed plan goal>"|null }          // hero goal box, plan/okf-init only
  *     plus the shared { type:"cancel" } / { type:"timeout" }.
@@ -45,6 +47,9 @@ button.act:disabled{opacity:.4;cursor:not-allowed}
 button.act.primary-act{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
 button.act.primary-act:hover:not(:disabled){filter:brightness(1.06);color:var(--accent-fg)}
 button.act.primary-act:active:not(:disabled){transform:translateY(1px)}
+button.act.danger{color:var(--del-fg);border-color:var(--border)}
+button.act.danger:hover:not(:disabled){border-color:var(--del-fg);color:var(--del-fg)}
+button.act.danger-armed{background:var(--bg-red);border-color:var(--del-fg);color:var(--del-fg)}
 .cyclewarn{background:var(--bg-red);border:1px solid var(--dot-red);border-radius:var(--radius-sm);padding:10px 14px;
   font-size:var(--fs-sm);color:var(--dot-red);margin-bottom:12px}
 .graph{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);box-shadow:var(--shadow-card);padding:var(--sp-3);overflow-x:auto}
@@ -77,6 +82,13 @@ button.act.primary-act:active:not(:disabled){transform:translateY(1px)}
   background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);color:var(--text);
   font-size:var(--fs-sm);font-family:inherit;resize:vertical;min-height:72px;outline:none;line-height:1.5;text-align:left}
 .hero textarea.goal:focus{border-color:var(--accent)}
+.goal-wrap{position:relative;width:100%;max-width:560px;margin:0 auto var(--sp-4)}
+.goal-wrap textarea.goal{max-width:none;margin:0}
+.at-menu{position:absolute;top:100%;left:0;right:0;margin-top:2px;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-sm);box-shadow:var(--shadow-card);z-index:20;max-height:220px;overflow:auto;text-align:left;display:none}
+.at-menu.open{display:block}
+.at-menu div{padding:6px 10px;font-family:var(--font-mono);font-size:var(--fs-xs);cursor:pointer;color:var(--text)}
+.at-menu div.sel{background:var(--code-bg);color:var(--accent)}
 .hero .btns-center{display:flex;gap:var(--sp-2);justify-content:center;flex-wrap:wrap}
 .hero .initnote{font-size:var(--fs-xs);color:var(--dot-yellow);margin-bottom:var(--sp-3)}
 .sdot{display:inline-block;width:8px;height:8px;border-radius:50%;background:currentColor;margin-right:4px;vertical-align:1px}
@@ -108,6 +120,70 @@ function sizeChip(c){
   return '<span class="chip '+cls+'">'+esc(c.size||'small')+'</span>';
 }
 
+// Two-step inline confirm: first click arms the button with a warning label,
+// the second click (within 5s) fires. Destructive actions only.
+function confirmButton(btn, armedLabel, fire){
+  btn.addEventListener('click', () => {
+    if(btn.dataset.armed){ fire(); return; }
+    btn.dataset.armed = '1';
+    btn.dataset.orig = btn.textContent;
+    btn.textContent = armedLabel;
+    btn.classList.add('danger-armed');
+    setTimeout(() => {
+      delete btn.dataset.armed;
+      btn.textContent = btn.dataset.orig;
+      btn.classList.remove('danger-armed');
+    }, 5000);
+  });
+}
+
+// Minimal @-file suggestions on the goal box: substring filter over the
+// gathered tracked-file list, arrow keys + Enter/Tab to accept.
+function wireAtMenu(ta, menu){
+  const FILES = Array.isArray(D.files) ? D.files : [];
+  let hits = [], sel = 0;
+  function token(){
+    const m = ta.value.slice(0, ta.selectionStart).match(/@([\\w./-]*)$/);
+    return m ? m[1] : null;
+  }
+  function close(){ menu.classList.remove('open'); hits = []; }
+  function show(){
+    const t = token();
+    if(t === null || !FILES.length){ close(); return; }
+    const q = t.toLowerCase();
+    hits = FILES.filter(f => f.toLowerCase().includes(q)).slice(0, 8);
+    if(!hits.length){ close(); return; }
+    sel = Math.min(sel, hits.length - 1);
+    menu.innerHTML = hits.map((f, i) =>
+      '<div class="'+(i===sel?'sel':'')+'" data-i="'+i+'">'+esc(f)+'</div>').join('');
+    menu.classList.add('open');
+    menu.querySelectorAll('[data-i]').forEach(el => {
+      el.addEventListener('mousedown', e => { e.preventDefault(); accept(+el.dataset.i); });
+    });
+  }
+  function accept(i){
+    const t = token();
+    if(t === null || !hits[i]) return;
+    const end = ta.selectionStart;
+    const start = end - t.length - 1;
+    ta.value = ta.value.slice(0, start) + '@' + hits[i] + ' ' + ta.value.slice(end);
+    const caret = start + hits[i].length + 2;
+    ta.setSelectionRange(caret, caret);
+    close();
+    ta.focus();
+  }
+  ta.addEventListener('input', () => { sel = 0; show(); });
+  ta.addEventListener('click', () => { sel = 0; show(); });
+  ta.addEventListener('blur', () => setTimeout(close, 150));
+  ta.addEventListener('keydown', e => {
+    if(!menu.classList.contains('open')) return;
+    if(e.key === 'ArrowDown'){ e.preventDefault(); sel = (sel + 1) % hits.length; show(); }
+    else if(e.key === 'ArrowUp'){ e.preventDefault(); sel = (sel + hits.length - 1) % hits.length; show(); }
+    else if(e.key === 'Enter' || e.key === 'Tab'){ e.preventDefault(); accept(sel); }
+    else if(e.key === 'Escape'){ close(); }
+  });
+}
+
 render();
 
 function render(){
@@ -127,8 +203,15 @@ function render(){
       '<h2>No plan yet</h2><p>iterator keeps its state in a memory/ bundle in your repo.<br>Type a goal and start turning it into a reviewable plan.</p>';
     const goal = document.createElement('textarea');
     goal.className = 'goal';
-    goal.placeholder = 'What are you building and why? (1\\u20133 sentences \\u2014 optional, saves a question round)';
-    hero.appendChild(goal);
+    goal.placeholder = 'What are you building and why? (1\\u20133 sentences \\u2014 optional, saves a question round; @ mentions repo files)';
+    const goalWrap = document.createElement('div');
+    goalWrap.className = 'goal-wrap';
+    goalWrap.appendChild(goal);
+    const atMenu = document.createElement('div');
+    atMenu.className = 'at-menu';
+    goalWrap.appendChild(atMenu);
+    wireAtMenu(goal, atMenu);
+    hero.appendChild(goalWrap);
     const btns = document.createElement('div'); btns.className = 'btns-center';
     // Knowledge side missing → initializing memory first is the primary path
     // (soft gate: "Create plan" still works and the goal rides along either way).
@@ -198,6 +281,19 @@ function render(){
     retire.addEventListener('click', () => action('retire', null, 'Starting plan retirement'));
     bar.insertBefore(retire, bar.querySelector('.pbar'));
   }
+  // Cancel: abandon the plan entirely — archives the bundle side and deletes
+  // the plan branch/worktree, so the armed label spells out what is at stake.
+  const cancelPlan = document.createElement('button');
+  cancelPlan.className = 'act danger';
+  cancelPlan.textContent = 'Cancel plan';
+  const dirtyWarn = (D.dirty && D.dirty.count)
+    ? D.dirty.count + ' uncommitted file' + (D.dirty.count!==1?'s':'') + ' + '
+    : '';
+  cancelPlan.title = 'Abandon this plan: archive it and DELETE its branch/worktree'
+    + (dirtyWarn ? ' \\u2014 \\u26a0 ' + dirtyWarn + 'unmerged commits will be lost' : '');
+  confirmButton(cancelPlan, '\\u26a0 Deletes ' + dirtyWarn + 'branch \\u2014 click again', () =>
+    action('cancel-plan', null, 'Cancelling plan'));
+  bar.insertBefore(cancelPlan, bar.querySelector('.pbar'));
   w.appendChild(bar);
 
   // graph
@@ -288,7 +384,14 @@ function makeCard(c){
   if(!c.hasDiff && !c.hasCommits){ rev.disabled = true; rev.title = 'Nothing to review — no working-tree changes or recorded commits'; }
   rev.addEventListener('click', () => action('review', c.name, 'Starting /iterator-review'));
 
-  btns.appendChild(impl); btns.appendChild(test); btns.appendChild(rev);
+  const cancel = document.createElement('button');
+  cancel.className = 'act danger';
+  cancel.textContent = 'Cancel';
+  cancel.title = 'Remove this chunk from the plan (its file is archived; dependents are unwired)';
+  confirmButton(cancel, 'Really cancel \\u2014 click again', () =>
+    action('cancel-chunk', c.name, 'Cancelling chunk'));
+
+  btns.appendChild(impl); btns.appendChild(test); btns.appendChild(rev); btns.appendChild(cancel);
   card.appendChild(btns);
   return card;
 }
