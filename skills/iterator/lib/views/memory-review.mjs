@@ -1,6 +1,6 @@
 /**
- * iterator: memory review view — shared by /okf-init, /okf-consolidate, and
- * /okf-memorize on the shared shell (../ui.mjs, ../server.mjs). Renders the
+ * iterator: memory review view — shared by /iterator-init, /iterator-consolidate, and
+ * /iterator-memorize on the shared shell (../ui.mjs, ../server.mjs). Renders the
  * drafted memory cards (create/update/delete/keep) grouped by knowledge
  * area, with per-card verdicts, comments, stale panels, and conflict
  * cross-links.

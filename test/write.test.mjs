@@ -48,9 +48,9 @@ const PLAN_OP = {
 	dependencies: ["jsonwebtoken — token signing/verification"],
 };
 
-const CHUNKS_OP = {
-	op: "chunks",
-	chunks: [
+const FEATURES_OP = {
+	op: "features",
+	features: [
 		{
 			name: "auth-middleware",
 			title: "Auth middleware",
@@ -108,22 +108,22 @@ test("plan op writes a conformant bundle and log entry", () => {
 	}
 });
 
-test("chunks op writes files, topo-orders the index, regenerates plan # Chunks", () => {
+test("features op writes files, topo-orders the index, regenerates plan # Features", () => {
 	const root = makeRepo();
 	try {
 		applyOp(PLAN_OP, root);
-		const res = applyOp(CHUNKS_OP, root);
+		const res = applyOp(FEATURES_OP, root);
 		assert.deepEqual(res.written.sort(), ["auth-middleware", "config-module"]);
 
-		const auth = read(root, "chunks", "auth-middleware.md");
+		const auth = read(root, "features", "auth-middleware.md");
 		const fm = frontmatter(auth);
-		assert.equal(fm.type, "Chunk");
+		assert.equal(fm.type, "Feature");
 		assert.deepEqual(fm.depends_on, ["config-module"]);
 		assert.match(auth, /# Implementation notes\n\nVerify token/);
 		assert.match(auth, /```ts\nexport function requireAuth/);
-		assert.match(auth, /\* \[Config module\]\(\/chunks\/config-module\.md\)/);
+		assert.match(auth, /\* \[Config module\]\(\/features\/config-module\.md\)/);
 
-		const index = read(root, "chunks", "index.md");
+		const index = read(root, "features", "index.md");
 		assert.ok(
 			index.indexOf("config-module.md") < index.indexOf("auth-middleware.md"),
 			"dependency-first order",
@@ -131,14 +131,14 @@ test("chunks op writes files, topo-orders the index, regenerates plan # Chunks",
 		assert.match(index, /⬜ pending · small · depends: config-module/);
 		assert.match(
 			read(root, "plan.md"),
-			/# Chunks\n\n\* \[Config module\]\(\/chunks\/config-module\.md\) - Centralize env access/,
+			/# Features\n\n\* \[Config module\]\(\/features\/config-module\.md\) - Centralize env access/,
 		);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
 });
 
-test("chunks op rejects cycles and missing references before writing", () => {
+test("features op rejects cycles and missing references before writing", () => {
 	const root = makeRepo();
 	try {
 		applyOp(PLAN_OP, root);
@@ -146,8 +146,8 @@ test("chunks op rejects cycles and missing references before writing", () => {
 			() =>
 				applyOp(
 					{
-						op: "chunks",
-						chunks: [
+						op: "features",
+						features: [
 							{ name: "a", description: "a", files: [], dependsOn: ["b"] },
 							{ name: "b", description: "b", files: [], dependsOn: ["a"] },
 						],
@@ -160,8 +160,8 @@ test("chunks op rejects cycles and missing references before writing", () => {
 			() =>
 				applyOp(
 					{
-						op: "chunks",
-						chunks: [
+						op: "features",
+						features: [
 							{ name: "a", description: "a", files: [], dependsOn: ["ghost"] },
 						],
 					},
@@ -170,7 +170,7 @@ test("chunks op rejects cycles and missing references before writing", () => {
 			/missing/,
 		);
 		assert.ok(
-			!existsSync(join(root, "memory", "chunks", "a.md")),
+			!existsSync(join(root, "memory", "features", "a.md")),
 			"nothing written on failure",
 		);
 	} finally {
@@ -178,27 +178,27 @@ test("chunks op rejects cycles and missing references before writing", () => {
 	}
 });
 
-test("update-chunk flips status, appends commits and review notes", () => {
+test("update-feature flips status, appends commits and review notes", () => {
 	const root = makeRepo();
 	try {
 		applyOp(PLAN_OP, root);
-		applyOp(CHUNKS_OP, root);
+		applyOp(FEATURES_OP, root);
 		applyOp(
 			{
-				op: "update-chunk",
-				chunk: "config-module",
+				op: "update-feature",
+				feature: "config-module",
 				set: {
 					status: "done",
 					tests: ["test/config.test.ts"],
 					tests_status: "green",
 				},
 				appendCommit: { sha: "abc1234", kind: "implement" },
-				log: "**Implementation**: Committed chunk(config-module).",
+				log: "**Implementation**: Committed feature(config-module).",
 			},
 			root,
 		);
 
-		const raw = read(root, "chunks", "config-module.md");
+		const raw = read(root, "features", "config-module.md");
 		const fm = frontmatter(raw);
 		assert.equal(fm.status, "done");
 		assert.equal(fm.done, "2026-07-06", "done date derived from ITERATOR_NOW");
@@ -207,25 +207,25 @@ test("update-chunk flips status, appends commits and review notes", () => {
 			raw,
 			/commits:\n {2}- sha: abc1234\n {4}kind: implement\n {4}date: 2026-07-06/,
 		);
-		assert.match(read(root, "chunks", "index.md"), /✅ done · 🟢 tests green/);
-		assert.match(read(root, "log.md"), /Committed chunk\(config-module\)/);
+		assert.match(read(root, "features", "index.md"), /✅ done · 🟢 tests green/);
+		assert.match(read(root, "log.md"), /Committed feature\(config-module\)/);
 
 		applyOp(
 			{
-				op: "update-chunk",
-				chunk: "config-module",
+				op: "update-feature",
+				feature: "config-module",
 				appendReview: "* **Approved** — no changes requested.",
 			},
 			root,
 		);
-		const reviewed = read(root, "chunks", "config-module.md");
+		const reviewed = read(root, "features", "config-module.md");
 		assert.match(reviewed, /# Review\n\n## 2026-07-06\n\* \*\*Approved\*\*/);
 		assert.equal(frontmatter(reviewed).reviewed, "2026-07-06");
 
 		assert.throws(
 			() =>
 				applyOp(
-					{ op: "update-chunk", chunk: "config-module", set: { files: [] } },
+					{ op: "update-feature", feature: "config-module", set: { files: [] } },
 					root,
 				),
 			/cannot set/,
@@ -233,55 +233,55 @@ test("update-chunk flips status, appends commits and review notes", () => {
 		assert.throws(
 			() =>
 				applyOp(
-					{ op: "update-chunk", chunk: "nope", set: { status: "done" } },
+					{ op: "update-feature", feature: "nope", set: { status: "done" } },
 					root,
 				),
-			/no chunk/,
+			/no feature/,
 		);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
 });
 
-test("chunks op never rewrites or deletes a done chunk", () => {
+test("features op never rewrites or deletes a done feature", () => {
 	const root = makeRepo();
 	try {
 		applyOp(PLAN_OP, root);
-		applyOp(CHUNKS_OP, root);
+		applyOp(FEATURES_OP, root);
 		applyOp(
-			{ op: "update-chunk", chunk: "config-module", set: { status: "done" } },
+			{ op: "update-feature", feature: "config-module", set: { status: "done" } },
 			root,
 		);
 
-		const before = read(root, "chunks", "config-module.md");
+		const before = read(root, "features", "config-module.md");
 		const res = applyOp(
 			{
-				op: "chunks",
-				chunks: [
-					{ ...CHUNKS_OP.chunks[1], description: "REWRITTEN" },
-					CHUNKS_OP.chunks[0],
+				op: "features",
+				features: [
+					{ ...FEATURES_OP.features[1], description: "REWRITTEN" },
+					FEATURES_OP.features[0],
 				],
 			},
 			root,
 		);
 		assert.deepEqual(res.skipped, ["config-module"]);
 		assert.equal(
-			read(root, "chunks", "config-module.md"),
+			read(root, "features", "config-module.md"),
 			before,
-			"done chunk untouched",
+			"done feature untouched",
 		);
 
 		assert.throws(
 			() =>
 				applyOp(
 					{
-						op: "chunks",
-						chunks: [CHUNKS_OP.chunks[0]],
+						op: "features",
+						features: [FEATURES_OP.features[0]],
 						deletes: ["config-module"],
 					},
 					root,
 				),
-			/done chunk/,
+			/done feature/,
 		);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
@@ -292,7 +292,7 @@ test("adjustments op applies moves, renames (with rewiring), and descUpdates", (
 	const root = makeRepo();
 	try {
 		applyOp(PLAN_OP, root);
-		applyOp(CHUNKS_OP, root);
+		applyOp(FEATURES_OP, root);
 		const res = applyOp(
 			{
 				type: "plan-adjustments", // server output pipes in verbatim
@@ -306,7 +306,7 @@ test("adjustments op applies moves, renames (with rewiring), and descUpdates", (
 				renames: [{ from: "config-module", to: "app-config" }],
 				descUpdates: [
 					{
-						chunk: "auth-middleware",
+						feature: "auth-middleware",
 						description: "JWT middleware for every protected route",
 					},
 				],
@@ -315,9 +315,9 @@ test("adjustments op applies moves, renames (with rewiring), and descUpdates", (
 		);
 		assert.equal(res.applied.length, 3);
 
-		assert.ok(existsSync(join(root, "memory", "chunks", "app-config.md")));
-		assert.ok(!existsSync(join(root, "memory", "chunks", "config-module.md")));
-		const auth = frontmatter(read(root, "chunks", "auth-middleware.md"));
+		assert.ok(existsSync(join(root, "memory", "features", "app-config.md")));
+		assert.ok(!existsSync(join(root, "memory", "features", "config-module.md")));
+		const auth = frontmatter(read(root, "features", "auth-middleware.md"));
 		assert.deepEqual(auth.depends_on, ["app-config"], "depends_on rewired");
 		assert.deepEqual(
 			auth.files,
@@ -326,13 +326,13 @@ test("adjustments op applies moves, renames (with rewiring), and descUpdates", (
 		);
 		assert.equal(auth.description, "JWT middleware for every protected route");
 		assert.deepEqual(
-			frontmatter(read(root, "chunks", "app-config.md")).files,
+			frontmatter(read(root, "features", "app-config.md")).files,
 			[],
 			"file moved out",
 		);
 		assert.match(
-			read(root, "chunks", "auth-middleware.md"),
-			/\(\/chunks\/app-config\.md\)/,
+			read(root, "features", "auth-middleware.md"),
+			/\(\/features\/app-config\.md\)/,
 			"body links rewired",
 		);
 	} finally {
@@ -352,7 +352,7 @@ test("topoSort orders dependency-first and reports cycles", () => {
 });
 
 test("setFmKeys replaces existing keys and appends new ones", () => {
-	const fm = setFmKeys("type: Chunk\nstatus: pending", {
+	const fm = setFmKeys("type: Feature\nstatus: pending", {
 		status: "done",
 		done: "2026-07-06",
 	});
@@ -361,87 +361,87 @@ test("setFmKeys replaces existing keys and appends new ones", () => {
 	assert.doesNotMatch(fm, /pending/);
 });
 
-test("chunks op writes drafts, badges them, and validates size", () => {
+test("features op writes drafts, badges them, and validates size", () => {
 	const root = makeRepo();
 	try {
 		applyOp(PLAN_OP, root);
 		applyOp(
 			{
-				op: "chunks",
-				chunks: [
-					{ ...CHUNKS_OP.chunks[1], status: "draft", size: "medium" },
-					{ ...CHUNKS_OP.chunks[0], status: "draft", size: "large" },
+				op: "features",
+				features: [
+					{ ...FEATURES_OP.features[1], status: "draft", size: "medium" },
+					{ ...FEATURES_OP.features[0], status: "draft", size: "large" },
 				],
 			},
 			root,
 		);
 		assert.equal(
-			frontmatter(read(root, "chunks", "auth-middleware.md")).status,
+			frontmatter(read(root, "features", "auth-middleware.md")).status,
 			"draft",
 		);
 		assert.equal(
-			frontmatter(read(root, "chunks", "auth-middleware.md")).size,
+			frontmatter(read(root, "features", "auth-middleware.md")).size,
 			"large",
 		);
-		assert.match(read(root, "chunks", "index.md"), /📝 draft/);
+		assert.match(read(root, "features", "index.md"), /📝 draft/);
 		assert.throws(
 			() =>
-				applyOp({ op: "chunks", chunks: [{ name: "x", size: "huge" }] }, root),
-			/invalid chunk size 'huge'/,
+				applyOp({ op: "features", features: [{ name: "x", size: "huge" }] }, root),
+			/invalid feature size 'huge'/,
 		);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
 });
 
-test("chunks op rejects a status other than draft|pending", () => {
+test("features op rejects a status other than draft|pending", () => {
 	const root = makeRepo();
 	try {
 		applyOp(PLAN_OP, root);
 		assert.throws(
 			() =>
 				applyOp(
-					{ op: "chunks", chunks: [{ name: "x", status: "done" }] },
+					{ op: "features", features: [{ name: "x", status: "done" }] },
 					root,
 				),
-			/invalid chunk status 'done'/,
+			/invalid feature status 'done'/,
 		);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
 });
 
-test("accepting the chunk set promotes drafts to pending (accept flag and plan-approved verbatim)", () => {
+test("accepting the feature set promotes drafts to pending (accept flag and plan-approved verbatim)", () => {
 	const root = makeRepo();
 	try {
 		applyOp(PLAN_OP, root);
 		applyOp(
 			{
-				op: "chunks",
-				chunks: CHUNKS_OP.chunks.map((c) => ({ ...c, status: "draft" })),
+				op: "features",
+				features: FEATURES_OP.features.map((c) => ({ ...c, status: "draft" })),
 			},
 			root,
 		);
 
-		// The chunk UI's Accept line pipes in verbatim.
+		// The feature UI's Accept line pipes in verbatim.
 		const res = applyOp({ type: "plan-approved", branch: "test" }, root);
 		assert.equal(res.op, "adjustments");
 		assert.equal(res.applied.filter((a) => a.startsWith("accept ")).length, 2);
 		assert.equal(
-			frontmatter(read(root, "chunks", "auth-middleware.md")).status,
+			frontmatter(read(root, "features", "auth-middleware.md")).status,
 			"pending",
 		);
 		assert.equal(
-			frontmatter(read(root, "chunks", "config-module.md")).status,
+			frontmatter(read(root, "features", "config-module.md")).status,
 			"pending",
 		);
-		assert.doesNotMatch(read(root, "chunks", "index.md"), /📝 draft/);
+		assert.doesNotMatch(read(root, "features", "index.md"), /📝 draft/);
 
 		// accept:true on a normal adjustments payload does the same.
 		applyOp(
 			{
-				op: "chunks",
-				chunks: [
+				op: "features",
+				features: [
 					{
 						name: "late-extra",
 						title: "Late",
@@ -455,7 +455,7 @@ test("accepting the chunk set promotes drafts to pending (accept flag and plan-a
 		);
 		applyOp({ op: "adjustments", accept: true }, root);
 		assert.equal(
-			frontmatter(read(root, "chunks", "late-extra.md")).status,
+			frontmatter(read(root, "features", "late-extra.md")).status,
 			"pending",
 		);
 	} finally {
@@ -463,37 +463,37 @@ test("accepting the chunk set promotes drafts to pending (accept flag and plan-a
 	}
 });
 
-test("update-chunk accepts draft and pending status values", () => {
+test("update-feature accepts draft and pending status values", () => {
 	const root = makeRepo();
 	try {
 		applyOp(PLAN_OP, root);
-		applyOp(CHUNKS_OP, root);
+		applyOp(FEATURES_OP, root);
 		applyOp(
-			{ op: "update-chunk", chunk: "config-module", set: { status: "draft" } },
+			{ op: "update-feature", feature: "config-module", set: { status: "draft" } },
 			root,
 		);
 		assert.equal(
-			frontmatter(read(root, "chunks", "config-module.md")).status,
+			frontmatter(read(root, "features", "config-module.md")).status,
 			"draft",
 		);
 		applyOp(
 			{
-				op: "update-chunk",
-				chunk: "config-module",
+				op: "update-feature",
+				feature: "config-module",
 				set: { status: "pending" },
 			},
 			root,
 		);
 		assert.equal(
-			frontmatter(read(root, "chunks", "config-module.md")).status,
+			frontmatter(read(root, "features", "config-module.md")).status,
 			"pending",
 		);
 		assert.throws(
 			() =>
 				applyOp(
 					{
-						op: "update-chunk",
-						chunk: "config-module",
+						op: "update-feature",
+						feature: "config-module",
 						set: { status: "wip" },
 					},
 					root,
@@ -600,7 +600,7 @@ test("design op validates plan, required sections, and register", () => {
 	}
 });
 
-test("design op re-run preserves created and logs an update; chunk writes keep the index line", () => {
+test("design op re-run preserves created and logs an update; feature writes keep the index line", () => {
 	const root = makeRepo();
 	try {
 		applyOp(PLAN_OP, root);
@@ -621,7 +621,7 @@ test("design op re-run preserves created and logs an update; chunk writes keep t
 		);
 
 		// Regression: regenerate() runs on every op and must keep the Design line.
-		applyOp(CHUNKS_OP, root);
+		applyOp(FEATURES_OP, root);
 		assert.match(
 			read(root, "index.md"),
 			/\* \[Design\]\(design\.md\) - Bolder second pass\./,
@@ -651,13 +651,13 @@ Agent knowledge for this repo.
 
 # Workflow
 
-* Use /okf-memorize after notable commits.
+* Use /iterator-memorize after notable commits.
 `;
 
 test("regenerate merges into an okf root index instead of overwriting it", () => {
 	const root = makeRepo();
 	try {
-		// The okf index as okf-init would have written it, before any iterator op.
+		// The okf index as iterator-init would have written it, before any iterator op.
 		mkdirSync(join(root, "memory"), { recursive: true });
 		writeFileSync(join(root, "memory", "index.md"), OKF_INDEX);
 		applyOp(PLAN_OP, root);
@@ -680,10 +680,10 @@ test("regenerate merges into an okf root index instead of overwriting it", () =>
 			/\* \[Plan\]\(plan\.md\) - Protect the API with JWT\./,
 			"iterator link added",
 		);
-		assert.match(idx, /\* \[Chunks\]\(chunks\/\)/, "chunks link added");
+		assert.match(idx, /\* \[Features\]\(features\/\)/, "features link added");
 
 		// Idempotent: further ops must not duplicate iterator's lines.
-		applyOp(CHUNKS_OP, root);
+		applyOp(FEATURES_OP, root);
 		const idx2 = read(root, "index.md");
 		assert.equal(
 			(idx2.match(/\]\(plan\.md\)/g) || []).length,
@@ -826,8 +826,8 @@ test("memorize op validates areas, slugs, actions, and the pointer", () => {
 			],
 		});
 		assert.throws(
-			() => applyOp(create({ area: "chunks" }), root),
-			/owned by the plan\/chunk ops/,
+			() => applyOp(create({ area: "features" }), root),
+			/owned by the plan\/feature ops/,
 		);
 		assert.throws(
 			() => applyOp(create({ area: "nope" }), root),
@@ -894,21 +894,21 @@ test("memorize op with only advanceTo works in an okf-only bundle (no plan)", ()
 // ---------------------------------------------------------------------------
 // deterministic result processing (accept-commit / record-review)
 
-const WAVE_CHUNKS_OP = {
-	op: "chunks",
-	chunks: [
+const WAVE_FEATURES_OP = {
+	op: "features",
+	features: [
 		{
-			name: "chunk-a",
-			title: "Chunk A",
-			description: "First independent chunk",
+			name: "feature-a",
+			title: "Feature A",
+			description: "First independent feature",
 			files: ["src/a.ts"],
 			dependsOn: [],
 			size: "small",
 		},
 		{
-			name: "chunk-b",
-			title: "Chunk B",
-			description: "Second independent chunk",
+			name: "feature-b",
+			title: "Feature B",
+			description: "Second independent feature",
 			files: ["src/b.ts"],
 			dependsOn: [],
 			size: "small",
@@ -916,33 +916,33 @@ const WAVE_CHUNKS_OP = {
 	],
 };
 
-/** Plan + two independent chunks, committed on the default branch. */
+/** Plan + two independent features, committed on the default branch. */
 function makeWaveRepo() {
 	const root = makeRepo();
 	git(root, "config", "user.email", "t@t");
 	git(root, "config", "user.name", "t");
 	applyOp(PLAN_OP, root);
-	applyOp(WAVE_CHUNKS_OP, root);
+	applyOp(WAVE_FEATURES_OP, root);
 	mkdirSync(join(root, "src"), { recursive: true });
 	writeFileSync(join(root, "src", "base.ts"), "export {};\n");
 	git(root, "add", ".");
 	git(root, "commit", "-qm", "init");
-	// The implemented wave: one new file per chunk, staged like the review saw it.
+	// The implemented wave: one new file per feature, staged like the review saw it.
 	writeFileSync(join(root, "src", "a.ts"), "export const a = 1;\n");
 	writeFileSync(join(root, "src", "b.ts"), "export const b = 1;\n");
 	git(root, "add", "src/a.ts", "src/b.ts");
 	return root;
 }
 
-test("accept-commit lands the wave: branch safety, per-chunk commits, done flips, shas, memory", () => {
+test("accept-commit lands the wave: branch safety, per-feature commits, done flips, shas, memory", () => {
 	const root = makeWaveRepo();
 	try {
 		const res = applyOp(
 			{
 				op: "accept-commit",
-				chunks: [
-					"chunk-a",
-					{ slug: "chunk-b", testsStatus: "green", summary: "custom summary" },
+				features: [
+					"feature-a",
+					{ slug: "feature-b", testsStatus: "green", summary: "custom summary" },
 				],
 				memory: {
 					proposals: [
@@ -974,34 +974,34 @@ test("accept-commit lands the wave: branch safety, per-chunk commits, done flips
 
 		assert.match(
 			res.branch,
-			/^iterator\/chunk-a$/,
+			/^iterator\/feature-a$/,
 			"moved off the default branch",
 		);
 		assert.equal(git(root, "rev-parse", "--abbrev-ref", "HEAD"), res.branch);
 		assert.equal(res.committed.length, 2);
 		assert.deepEqual(res.uncommitted, []);
 
-		// One commit per chunk with the trailer; bookkeeping commit on top.
+		// One commit per feature with the trailer; bookkeeping commit on top.
 		const log = git(root, "log", "--format=%s");
 		assert.match(
 			log,
-			/chore\(iterator\): record chunk commits and memory updates/,
+			/chore\(iterator\): record feature commits and memory updates/,
 		);
-		assert.match(log, /chunk\(chunk-a\): Chunk A/);
-		assert.match(log, /chunk\(chunk-b\): custom summary/);
+		assert.match(log, /feature\(feature-a\): Feature A/);
+		assert.match(log, /feature\(feature-b\): custom summary/);
 		assert.equal(
-			git(root, "log", "--format=%H", "--grep", "^Chunk: chunk-a$"),
+			git(root, "log", "--format=%H", "--grep", "^Feature: feature-a$"),
 			res.committed[0].sha,
 		);
 
 		// Bundle state: done, tests_status, recorded shas.
-		const a = frontmatter(read(root, "chunks", "chunk-a.md"));
-		const bFm = frontmatter(read(root, "chunks", "chunk-b.md"));
+		const a = frontmatter(read(root, "features", "feature-a.md"));
+		const bFm = frontmatter(read(root, "features", "feature-b.md"));
 		assert.equal(a.status, "done");
 		assert.equal(bFm.status, "done");
 		assert.equal(bFm.tests_status, "green");
 		assert.match(
-			read(root, "chunks", "chunk-a.md"),
+			read(root, "features", "feature-a.md"),
 			new RegExp(`sha: ${res.committed[0].sha}`),
 		);
 
@@ -1023,28 +1023,28 @@ test("accept-commit lands the wave: branch safety, per-chunk commits, done flips
 	}
 });
 
-test("accept-commit validates chunks and dependencies, and skips already-done chunks on rerun", () => {
+test("accept-commit validates features and dependencies, and skips already-done features on rerun", () => {
 	const root = makeWaveRepo();
 	try {
 		assert.throws(
-			() => applyOp({ op: "accept-commit", chunks: ["nope"] }, root),
-			/no chunk 'nope'/,
+			() => applyOp({ op: "accept-commit", features: ["nope"] }, root),
+			/no feature 'nope'/,
 		);
 		assert.throws(
-			() => applyOp({ op: "accept-commit", chunks: [] }, root),
-			/non-empty chunks list/,
+			() => applyOp({ op: "accept-commit", features: [] }, root),
+			/non-empty features list/,
 		);
 
 		applyOp(
 			{
-				op: "chunks",
-				chunks: [
+				op: "features",
+				features: [
 					{
 						name: "dependent",
 						title: "Dependent",
 						description: "d",
 						files: ["src/d.ts"],
-						dependsOn: ["chunk-a"],
+						dependsOn: ["feature-a"],
 						size: "small",
 					},
 				],
@@ -1052,24 +1052,24 @@ test("accept-commit validates chunks and dependencies, and skips already-done ch
 			root,
 		);
 		assert.throws(
-			() => applyOp({ op: "accept-commit", chunks: ["dependent"] }, root),
-			/waiting on: chunk-a/,
+			() => applyOp({ op: "accept-commit", features: ["dependent"] }, root),
+			/waiting on: feature-a/,
 		);
 
-		applyOp({ op: "accept-commit", chunks: ["chunk-a"] }, root);
-		// Rerun with a done chunk in the list: resumable, not an error.
+		applyOp({ op: "accept-commit", features: ["feature-a"] }, root);
+		// Rerun with a done feature in the list: resumable, not an error.
 		const res = applyOp(
 			{
 				type: "accept-commit",
-				chunk: "chunk-a",
-				chunks: ["chunk-a", "chunk-b"],
+				feature: "feature-a",
+				features: ["feature-a", "feature-b"],
 			},
 			root,
 		);
-		assert.deepEqual(res.skipped, ["chunk-a"]);
+		assert.deepEqual(res.skipped, ["feature-a"]);
 		assert.deepEqual(
-			res.committed.map((c) => c.chunk),
-			["chunk-b"],
+			res.committed.map((c) => c.feature),
+			["feature-b"],
 		);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
@@ -1084,31 +1084,31 @@ test("record-review consumes the review-feedback payload verbatim", () => {
 				type: "review-feedback",
 				branch: "test",
 				features: [
-					{ name: "chunk-a", status: "approved", note: null },
+					{ name: "feature-a", status: "approved", note: null },
 					{
-						name: "chunk-b",
+						name: "feature-b",
 						status: "changes",
 						note: "tighten error handling",
 					},
 					{ name: "uncategorized", status: "question", note: "ignored" },
 				],
-				lineComments: [{ chunk: "chunk-a", file: "src/a.ts", comment: "why?" }],
+				lineComments: [{ feature: "feature-a", file: "src/a.ts", comment: "why?" }],
 			},
 			root,
 		);
-		assert.deepEqual(res.recorded, ["chunk-a", "chunk-b"]);
+		assert.deepEqual(res.recorded, ["feature-a", "feature-b"]);
 		assert.equal(res.lineComments, 1);
 
-		const a = read(root, "chunks", "chunk-a.md");
+		const a = read(root, "features", "feature-a.md");
 		assert.match(a, /\* \*\*Approved\*\* — no changes requested/);
 		assert.equal(frontmatter(a).reviewed, "2026-07-06");
 		assert.match(
-			read(root, "chunks", "chunk-b.md"),
+			read(root, "features", "feature-b.md"),
 			/\* \*\*Needs changes\*\* — tighten error handling/,
 		);
 		assert.match(
 			read(root, "log.md"),
-			/\*\*Review\*\*: Reviewed \[Chunk A\]\(\/chunks\/chunk-a\.md\); approved\./,
+			/\*\*Review\*\*: Reviewed \[Feature A\]\(\/features\/feature-a\.md\); approved\./,
 		);
 
 		assert.throws(
@@ -1294,8 +1294,8 @@ test("apply-review validates verdicts, ids, ownership, and card completeness bef
 			/invalid concept id/,
 		);
 		assert.throws(
-			() => apply({ decisions: [{ id: "chunks/auth", verdict: "accept" }] }),
-			/owned by the plan\/chunk ops/,
+			() => apply({ decisions: [{ id: "features/auth", verdict: "accept" }] }),
+			/owned by the plan\/feature ops/,
 		);
 		assert.throws(
 			() => apply({ decisions: [{ id: "extras/x", verdict: "keep" }] }),
@@ -1333,7 +1333,7 @@ test("apply-review validates verdicts, ids, ownership, and card completeness bef
 	}
 });
 
-test("apply-review works without a plan (okf-init on a plan-less repo)", () => {
+test("apply-review works without a plan (iterator-init on a plan-less repo)", () => {
 	const root = makeRepo();
 	try {
 		const res = applyOp(
@@ -1383,14 +1383,14 @@ test("retire-plan condenses a finished plan into a decision and archives the wor
 	const root = makeRepo();
 	try {
 		applyOp(PLAN_OP, root);
-		applyOp(CHUNKS_OP, root);
+		applyOp(FEATURES_OP, root);
 		applyOp({ op: "adjustments", accept: true }, root);
 		applyOp(
-			{ op: "update-chunk", chunk: "config-module", set: { status: "done" } },
+			{ op: "update-feature", feature: "config-module", set: { status: "done" } },
 			root,
 		);
 
-		// Refuses while chunks are pending.
+		// Refuses while features are pending.
 		assert.throws(
 			() =>
 				applyOp(
@@ -1405,11 +1405,11 @@ test("retire-plan condenses a finished plan into a decision and archives the wor
 					},
 					root,
 				),
-			/chunks not done: auth-middleware/,
+			/features not done: auth-middleware/,
 		);
 
 		applyOp(
-			{ op: "update-chunk", chunk: "auth-middleware", set: { status: "done" } },
+			{ op: "update-feature", feature: "auth-middleware", set: { status: "done" } },
 			root,
 		);
 		const res = applyOp(
@@ -1428,31 +1428,31 @@ test("retire-plan condenses a finished plan into a decision and archives the wor
 		assert.equal(res.concept, "decisions/jwt-auth");
 		assert.equal(res.validation.ok, true, res.validation.errors?.join("\n"));
 
-		// The decision concept exists, anchored to the chunks' files by default.
+		// The decision concept exists, anchored to the features' files by default.
 		const concept = read(root, "decisions", "jwt-auth.md");
 		assert.match(concept, /type: Decision/);
 		assert.match(concept, /src\/auth\/\*\.ts/);
 		assert.match(concept, /src\/config\.ts/);
 		assert.match(concept, /# Retired plan/);
 
-		// Plan + chunks moved to the archive, invisible to the gathers.
+		// Plan + features moved to the archive, invisible to the gathers.
 		assert.ok(!existsSync(join(root, "memory", "plan.md")));
 		assert.ok(
-			!existsSync(join(root, "memory", "chunks", "auth-middleware.md")),
+			!existsSync(join(root, "memory", "features", "auth-middleware.md")),
 		);
-		assert.match(res.archived, /^chunks\/archive\//);
+		assert.match(res.archived, /^features\/archive\//);
 		assert.ok(existsSync(join(root, "memory", res.archived, "plan.md")));
 		assert.ok(
 			existsSync(join(root, "memory", res.archived, "auth-middleware.md")),
 		);
 		const hub = gather(root);
 		assert.equal(hub.plan, null, "hub shows the create-plan hero again");
-		assert.deepEqual(hub.chunks, [], "archived chunks are invisible");
+		assert.deepEqual(hub.features, [], "archived features are invisible");
 
 		// Root index: work links gone, knowledge side present.
 		const idx = read(root, "index.md");
 		assert.doesNotMatch(idx, /\]\(plan\.md\)/);
-		assert.doesNotMatch(idx, /\]\(chunks\/\)/);
+		assert.doesNotMatch(idx, /\]\(features\/\)/);
 		assert.match(idx, /\]\(\/decisions\/\)/);
 		assert.match(
 			read(root, "log.md"),
@@ -1478,7 +1478,7 @@ test("retire-plan validates the concept and honors force for unfinished plans", 
 			/no memory\/plan\.md/,
 		);
 		applyOp(PLAN_OP, root);
-		applyOp(CHUNKS_OP, root);
+		applyOp(FEATURES_OP, root);
 		assert.throws(
 			() =>
 				applyOp(
@@ -1523,11 +1523,11 @@ test("retire-plan validates the concept and honors force for unfinished plans", 
 	}
 });
 
-test("accept-commit includes untracked files matching the chunk and never unrelated ones", () => {
+test("accept-commit includes untracked files matching the feature and never unrelated ones", () => {
 	const root = makeWaveRepo();
 	try {
 		// a.ts/b.ts were staged by makeWaveRepo; add a brand-new UNSTAGED file
-		// for chunk-a's glob and one unrelated stray.
+		// for feature-a's glob and one unrelated stray.
 		git(root, "reset");
 		writeFileSync(join(root, "src", "unrelated.txt"), "stray\n");
 
@@ -1536,8 +1536,8 @@ test("accept-commit includes untracked files matching the chunk and never unrela
 		const res = applyOp(
 			{
 				op: "accept-commit",
-				chunks: ["chunk-a"],
-				uncategorized: [{ path: "src/unrelated.txt", chunk: "skip" }],
+				features: ["feature-a"],
+				uncategorized: [{ path: "src/unrelated.txt", feature: "skip" }],
 			},
 			root,
 		);
@@ -1550,41 +1550,41 @@ test("accept-commit includes untracked files matching the chunk and never unrela
 		)
 			.split("\n")
 			.filter(Boolean);
-		assert.ok(shown.includes("src/a.ts"), "untracked chunk file committed");
+		assert.ok(shown.includes("src/a.ts"), "untracked feature file committed");
 		assert.ok(
 			!shown.includes("src/unrelated.txt"),
-			"unrelated stray stays out of the chunk commit",
+			"unrelated stray stays out of the feature commit",
 		);
 		assert.ok(
 			!shown.includes("src/b.ts"),
-			"other chunk's file stays out of the chunk commit",
+			"other feature's file stays out of the feature commit",
 		);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
 });
 
-test("accept-commit refuses to stage the whole tree when a chunk matches nothing", () => {
+test("accept-commit refuses to stage the whole tree when a feature matches nothing", () => {
 	const root = makeWaveRepo();
 	const memAbs = mkdtempSync(join(tmpdir(), "iterator-absmem-"));
 	try {
-		// Absolute bundle dir → memory/ is not stageable; chunk-a's diff exists
-		// but chunk-b... give chunk-a no matching changes at all by resetting
+		// Absolute bundle dir → memory/ is not stageable; feature-a's diff exists
+		// but feature-b... give feature-a no matching changes at all by resetting
 		// and removing its file.
 		git(root, "reset");
 		rmSync(join(root, "src", "a.ts"));
 		writeFileSync(join(root, "src", "innocent.txt"), "must never be committed\n");
 		process.env.ITERATOR_MEMORY_DIR = memAbs;
-		// Rebuild an absolute-dir bundle so the op can load chunks from it.
+		// Rebuild an absolute-dir bundle so the op can load features from it.
 		applyOp(PLAN_OP, root);
-		applyOp(WAVE_CHUNKS_OP, root);
+		applyOp(WAVE_FEATURES_OP, root);
 		assert.throws(
 			() =>
 				applyOp(
 					{
 						op: "accept-commit",
-						chunks: ["chunk-a"],
-						uncategorized: [{ path: "src/innocent.txt", chunk: "skip" }],
+						features: ["feature-a"],
+						uncategorized: [{ path: "src/innocent.txt", feature: "skip" }],
 					},
 					root,
 				),
@@ -1606,22 +1606,22 @@ test("adjustments validates the whole batch before writing anything", () => {
 	const root = makeRepo();
 	try {
 		applyOp(PLAN_OP, root);
-		applyOp(WAVE_CHUNKS_OP, root);
-		const before = read(root, "chunks", "chunk-a.md");
+		applyOp(WAVE_FEATURES_OP, root);
+		const before = read(root, "features", "feature-a.md");
 		assert.throws(
 			() =>
 				applyOp(
 					{
 						op: "adjustments",
-						moves: [{ file: "src/a.ts", from: "chunk-a", to: "chunk-b" }],
+						moves: [{ file: "src/a.ts", from: "feature-a", to: "feature-b" }],
 						renames: [{ from: "nope", to: "new-name" }],
 					},
 					root,
 				),
-			/rename: no chunk 'nope'/,
+			/rename: no feature 'nope'/,
 		);
 		assert.equal(
-			read(root, "chunks", "chunk-a.md"),
+			read(root, "features", "feature-a.md"),
 			before,
 			"a failing batch must leave earlier items unapplied",
 		);
@@ -1645,14 +1645,14 @@ test("memorize resolves advanceTo HEAD and advance:true to the real sha", () => 
 	}
 });
 
-test("chunks op auto-normalizes fixable slugs and reports the repair", () => {
+test("features op auto-normalizes fixable slugs and reports the repair", () => {
 	const root = makeRepo();
 	try {
 		applyOp(PLAN_OP, root);
 		const res = applyOp(
 			{
-				op: "chunks",
-				chunks: [
+				op: "features",
+				features: [
 					{ name: "Config Module!", description: "d", files: ["src/c.ts"] },
 					{
 						name: "auth-middleware",
@@ -1667,7 +1667,7 @@ test("chunks op auto-normalizes fixable slugs and reports the repair", () => {
 		assert.deepEqual(res.normalized, [
 			{ from: "Config Module!", to: "config-module" },
 		]);
-		const fm = frontmatter(read(root, "chunks", "auth-middleware.md"));
+		const fm = frontmatter(read(root, "features", "auth-middleware.md"));
 		assert.deepEqual(fm.depends_on, ["config-module"]);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
@@ -1681,22 +1681,22 @@ test("commit-tests commits test files with trailer, records status and sha", () 
 		mkdirSync(join(root, "test"), { recursive: true });
 		writeFileSync(join(root, "test", "a.test.ts"), "assert(true);\n");
 		const res = applyOp(
-			{ op: "commit-tests", chunk: "chunk-a", files: ["test/a.test.ts"] },
+			{ op: "commit-tests", feature: "feature-a", files: ["test/a.test.ts"] },
 			root,
 		);
-		assert.equal(res.testsStatus, "red", "pending chunk defaults to red");
-		assert.match(res.branch, /^iterator\/chunk-a$/, "moved off main");
+		assert.equal(res.testsStatus, "red", "pending feature defaults to red");
+		assert.match(res.branch, /^iterator\/feature-a$/, "moved off main");
 		const subject = git(root, "log", "--format=%s%n%b", "-1", res.sha);
-		assert.match(subject, /test\(chunk-a\):/);
+		assert.match(subject, /test\(feature-a\):/);
 		assert.match(
 			git(root, "log", "--format=%B", "-1", res.sha),
-			/Chunk: chunk-a/,
+			/Feature: feature-a/,
 		);
-		const fm = frontmatter(read(root, "chunks", "chunk-a.md"));
+		const fm = frontmatter(read(root, "features", "feature-a.md"));
 		assert.deepEqual(fm.tests, ["test/a.test.ts"]);
 		assert.equal(fm.tests_status, "red");
 		assert.match(
-			read(root, "chunks", "chunk-a.md"),
+			read(root, "features", "feature-a.md"),
 			new RegExp(`sha: ${res.sha}[\\s\\S]*kind: test`),
 		);
 		assert.match(git(root, "log", "--format=%s"), /chore\(iterator\): record test commit/);
@@ -1729,20 +1729,20 @@ test("extensions op writes the contract file and links it from the root index", 
 	}
 });
 
-test("chunks op warns about globs that match nothing in the repo", () => {
+test("features op warns about globs that match nothing in the repo", () => {
 	const root = makeWaveRepo();
 	try {
 		const res = applyOp(
 			{
-				op: "chunks",
-				chunks: [
-					{ name: "typo-chunk", description: "d", files: ["src/doesnotexist/**"] },
+				op: "features",
+				features: [
+					{ name: "typo-feature", description: "d", files: ["src/doesnotexist/**"] },
 				],
 			},
 			root,
 		);
 		assert.deepEqual(res.warnings.unmatchedGlobs, [
-			{ chunk: "typo-chunk", globs: ["src/doesnotexist/**"] },
+			{ feature: "typo-feature", globs: ["src/doesnotexist/**"] },
 		]);
 		assert.equal(res.validation.ok, true);
 	} finally {
@@ -1767,7 +1767,7 @@ test("plan op warns on todo-shaped dependencies and uninitialized knowledge", ()
 		assert.equal(res.warnings.length, 3, "2 dep lints + knowledge warning");
 		assert.match(res.warnings[0], /add axum routes/);
 		assert.match(res.warnings[1], /no-why-separator/);
-		assert.match(res.warnings[2], /okf-init/);
+		assert.match(res.warnings[2], /iterator-init/);
 
 		// Knowledge side present → only real dep lints remain.
 		mkdirSync(join(root, "memory", "architecture"), { recursive: true });
@@ -1813,13 +1813,13 @@ test("state op tracks mode/phase/pause and strike bookkeeping", () => {
 	const root = makeRepo();
 	try {
 		let res = applyOp(
-			{ op: "state", set: { mode: "auto", phase: "implementing", active_chunk: "auth" } },
+			{ op: "state", set: { mode: "auto", phase: "implementing", active_feature: "auth" } },
 			root,
 		);
 		assert.equal(res.op, "state");
 		assert.equal(res.state.mode, "auto");
 		assert.equal(res.state.phase, "implementing");
-		assert.equal(res.state.active_chunk, "auth");
+		assert.equal(res.state.active_feature, "auth");
 		assert.equal(res.state.paused, false);
 
 		res = applyOp({ op: "state", strike: "auth" }, root);
@@ -1851,7 +1851,7 @@ test("accept-commit enforces uncategorized dispositions (block, skip, assign)", 
 		// Undisposed leftover + block_commit_on_leftovers on (default) → fail
 		// BEFORE any commit or branch creation.
 		assert.throws(
-			() => applyOp({ op: "accept-commit", chunks: ["chunk-a"] }, root),
+			() => applyOp({ op: "accept-commit", features: ["feature-a"] }, root),
 			/uncommitted leftovers: src\/stray\.txt/,
 		);
 		assert.equal(
@@ -1863,30 +1863,30 @@ test("accept-commit enforces uncategorized dispositions (block, skip, assign)", 
 				applyOp(
 					{
 						op: "accept-commit",
-						chunks: ["chunk-a"],
-						uncategorized: [{ path: "src/stray.txt", chunk: "no-such-chunk" }],
+						features: ["feature-a"],
+						uncategorized: [{ path: "src/stray.txt", feature: "no-such-feature" }],
 					},
 					root,
 				),
-			/unknown chunk 'no-such-chunk'/,
+			/unknown feature 'no-such-feature'/,
 		);
 
-		// Assigning the stray to chunk-a lands it in chunk-a's commit; the
+		// Assigning the stray to feature-a lands it in feature-a's commit; the
 		// result reports the truthful post-commit leftovers.
 		const res = applyOp(
 			{
 				op: "accept-commit",
-				chunks: ["chunk-a"],
-				uncategorized: [{ path: "src/stray.txt", chunk: "chunk-a" }],
+				features: ["feature-a"],
+				uncategorized: [{ path: "src/stray.txt", feature: "feature-a" }],
 			},
 			root,
 		);
 		const shown = git(root, "show", "--name-only", "--format=", res.committed[0].sha)
 			.split("\n")
 			.filter(Boolean);
-		assert.ok(shown.includes("src/stray.txt"), "assigned stray committed with the chunk");
+		assert.ok(shown.includes("src/stray.txt"), "assigned stray committed with the feature");
 		assert.deepEqual(res.uncommitted, []);
-		// b.ts is still staged for the other (unaccepted) chunk → a leftover.
+		// b.ts is still staged for the other (unaccepted) feature → a leftover.
 		assert.ok(res.leftovers.includes("src/b.ts"), "leftovers reports remaining dirt");
 	} finally {
 		rmSync(root, { recursive: true, force: true });
@@ -1898,7 +1898,7 @@ test("accept-commit with block off returns undisposed files instead of failing",
 	try {
 		applyOp({ op: "settings", values: { block_commit_on_leftovers: "off" } }, root);
 		writeFileSync(join(root, "src", "stray.txt"), "stray\n");
-		const res = applyOp({ op: "accept-commit", chunks: ["chunk-a"] }, root);
+		const res = applyOp({ op: "accept-commit", features: ["feature-a"] }, root);
 		assert.ok(res.uncommitted.includes("src/stray.txt"));
 		assert.ok(res.leftovers.includes("src/stray.txt"));
 	} finally {
@@ -1906,11 +1906,11 @@ test("accept-commit with block off returns undisposed files instead of failing",
 	}
 });
 
-test("chunks op stores writer-computed memories and model-flagged conflicts", () => {
+test("features op stores writer-computed memories and model-flagged conflicts", () => {
 	const root = makeRepo();
 	try {
 		applyOp(PLAN_OP, root);
-		// A knowledge concept anchored to the chunk's files.
+		// A knowledge concept anchored to the feature's files.
 		mkdirSync(join(root, "memory", "patterns"), { recursive: true });
 		writeFileSync(
 			join(root, "memory", "patterns", "middleware.md"),
@@ -1918,8 +1918,8 @@ test("chunks op stores writer-computed memories and model-flagged conflicts", ()
 		);
 		const res = applyOp(
 			{
-				op: "chunks",
-				chunks: [
+				op: "features",
+				features: [
 					{
 						name: "auth-middleware",
 						description: "JWT middleware",
@@ -1932,8 +1932,8 @@ test("chunks op stores writer-computed memories and model-flagged conflicts", ()
 			},
 			root,
 		);
-		assert.equal(res.op, "chunks");
-		const raw = read(root, "chunks", "auth-middleware.md");
+		assert.equal(res.op, "features");
+		const raw = read(root, "features", "auth-middleware.md");
 		const fm = frontmatter(raw);
 		assert.deepEqual(fm.memories, ["patterns/middleware"], "anchor match stored");
 		assert.match(String(fm.conflicts), /no-external-auth/);
@@ -1944,8 +1944,8 @@ test("chunks op stores writer-computed memories and model-flagged conflicts", ()
 			() =>
 				applyOp(
 					{
-						op: "chunks",
-						chunks: [{ name: "x", description: "d", files: [], conflicts: [{}] }],
+						op: "features",
+						features: [{ name: "x", description: "d", files: [], conflicts: [{}] }],
 					},
 					root,
 				),
@@ -1963,7 +1963,7 @@ test("usage op merges increment rows into per-step × model aggregates", () => {
 			{
 				op: "usage",
 				rows: [
-					{ step: "implement", chunk: "auth", provider: "openai", model: "gpt-5.5", input: 100, output: 50, cacheRead: 20, cacheWrite: 5 },
+					{ step: "implement", feature: "auth", provider: "openai", model: "gpt-5.5", input: 100, output: 50, cacheRead: 20, cacheWrite: 5 },
 					{ step: "implement", provider: "openai", model: "gpt-5.5", input: 10, output: 5 },
 				],
 			},
@@ -1973,7 +1973,7 @@ test("usage op merges increment rows into per-step × model aggregates", () => {
 			{
 				op: "usage",
 				rows: [
-					{ step: "review", chunk: "auth", provider: "anthropic", model: "claude-opus-4-8", input: 7, output: 3 },
+					{ step: "review", feature: "auth", provider: "anthropic", model: "claude-opus-4-8", input: 7, output: 3 },
 				],
 			},
 			root,
@@ -1987,7 +1987,7 @@ test("usage op merges increment rows into per-step × model aggregates", () => {
 		assert.equal(totals.steps.implement["openai/gpt-5.5"].input, 110);
 		assert.equal(totals.steps.implement["openai/gpt-5.5"].turns, 2);
 		assert.equal(totals.steps.review["anthropic/claude-opus-4-8"].output, 3);
-		assert.equal(totals.chunks.auth.input, 107, "chunk rollup spans steps");
+		assert.equal(totals.features.auth.input, 107, "feature rollup spans steps");
 		assert.match(raw, /\| openai\/gpt-5\.5 \| 110 \| 55 \| 20 \| 5 \| 2 \|/);
 
 		assert.throws(() => applyOp({ op: "usage", rows: [] }, root), /non-empty rows/);
@@ -2004,9 +2004,9 @@ test("retire-plan archives the usage ledger and keeps totals in the decision", (
 	const root = makeRepo();
 	try {
 		applyOp(PLAN_OP, root);
-		applyOp(CHUNKS_OP, root);
-		applyOp({ op: "update-chunk", chunk: "config-module", set: { status: "done" } }, root);
-		applyOp({ op: "update-chunk", chunk: "auth-middleware", set: { status: "done" } }, root);
+		applyOp(FEATURES_OP, root);
+		applyOp({ op: "update-feature", feature: "config-module", set: { status: "done" } }, root);
+		applyOp({ op: "update-feature", feature: "auth-middleware", set: { status: "done" } }, root);
 		applyOp(
 			{ op: "usage", rows: [{ step: "implement", provider: "openai", model: "gpt-5.5", input: 500, output: 200 }] },
 			root,
@@ -2039,7 +2039,7 @@ test("record-review tags agent reviews with reviewer and model", () => {
 	const root = makeRepo();
 	try {
 		applyOp(PLAN_OP, root);
-		applyOp(CHUNKS_OP, root);
+		applyOp(FEATURES_OP, root);
 		applyOp(
 			{
 				op: "record-review",
@@ -2049,7 +2049,7 @@ test("record-review tags agent reviews with reviewer and model", () => {
 			},
 			root,
 		);
-		const raw = read(root, "chunks", "config-module.md");
+		const raw = read(root, "features", "config-module.md");
 		assert.match(raw, /\*\*Needs changes\*\* _\(agent review: anthropic\/claude-opus-4-8\)_ — missing env validation/);
 		assert.match(read(root, "log.md"), /changes \(agent\)/);
 
@@ -2106,38 +2106,38 @@ test("plan approval on main creates the plan branch (worktree by default, in pla
 });
 
 // ---------------------------------------------------------------------------
-// ops: cancel-chunk / cancel-plan
+// ops: cancel-feature / cancel-plan
 
-test("cancel-chunk archives the file, scrubs dependents, and regenerates indexes", () => {
+test("cancel-feature archives the file, scrubs dependents, and regenerates indexes", () => {
 	const root = makeRepo();
 	try {
 		applyOp(PLAN_OP, root);
-		applyOp(CHUNKS_OP, root);
+		applyOp(FEATURES_OP, root);
 
-		const res = applyOp({ op: "cancel-chunk", chunk: "config-module" }, root);
-		assert.equal(res.op, "cancel-chunk");
-		assert.match(res.archived, /^chunks\/archive\/cancelled-.*-config-module$/);
+		const res = applyOp({ op: "cancel-feature", feature: "config-module" }, root);
+		assert.equal(res.op, "cancel-feature");
+		assert.match(res.archived, /^features\/archive\/cancelled-.*-config-module$/);
 		assert.deepEqual(res.dependentsScrubbed, ["auth-middleware"]);
 
 		assert.ok(
-			!existsSync(join(root, "memory", "chunks", "config-module.md")),
-			"chunk file moved out of the live set",
+			!existsSync(join(root, "memory", "features", "config-module.md")),
+			"feature file moved out of the live set",
 		);
 		assert.ok(
 			existsSync(join(root, "memory", res.archived, "config-module.md")),
-			"chunk file archived",
+			"feature file archived",
 		);
-		const auth = frontmatter(read(root, "chunks", "auth-middleware.md"));
+		const auth = frontmatter(read(root, "features", "auth-middleware.md"));
 		assert.deepEqual(auth.depends_on, [], "dangling dependency scrubbed");
 		assert.ok(
-			!read(root, "chunks", "index.md").includes("config-module"),
-			"chunks index regenerated without the cancelled chunk",
+			!read(root, "features", "index.md").includes("config-module"),
+			"features index regenerated without the cancelled feature",
 		);
-		assert.match(read(root, "log.md"), /\*\*Cancellation\*\*: Chunk/);
+		assert.match(read(root, "log.md"), /\*\*Cancellation\*\*: Feature/);
 
 		assert.throws(
-			() => applyOp({ op: "cancel-chunk", chunk: "nope" }, root),
-			/no chunk 'nope'/,
+			() => applyOp({ op: "cancel-feature", feature: "nope" }, root),
+			/no feature 'nope'/,
 		);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
@@ -2156,14 +2156,14 @@ test("cancel-plan archives everything, resets state, and tears down branch+workt
 
 		const planRes = applyOp(PLAN_OP, root); // worktree_per_plan default: on
 		assert.ok(planRes.worktree, "fixture must create a worktree");
-		applyOp(CHUNKS_OP, root);
+		applyOp(FEATURES_OP, root);
 		applyOp({ op: "state", set: { mode: "auto", phase: "implementing" } }, root);
 		// Uncommitted work inside the worktree — cancel must report and discard it.
 		writeFileSync(join(planRes.worktree, "leftover.txt"), "x");
 
 		const res = applyOp({ op: "cancel-plan" }, root);
 		assert.equal(res.op, "cancel-plan");
-		assert.match(res.archived, /^chunks\/archive\/cancelled-/);
+		assert.match(res.archived, /^features\/archive\/cancelled-/);
 		assert.ok(res.archivedFiles.includes("plan.md"));
 		assert.ok(res.discarded.uncommittedFiles >= 1, "discarded work reported");
 		assert.equal(res.worktree, planRes.worktree, "worktree removed");

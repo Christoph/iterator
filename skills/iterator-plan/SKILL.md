@@ -1,14 +1,14 @@
 ---
 name: iterator-plan
-description: Create or revise the plan for a piece of work and store it in an OKF memory/ bundle. Opens an interactive plan-review UI in the browser; on acceptance it writes memory/plan.md and auto-continues into /iterator-chunk to break the plan into chunks. Use when the user types /iterator-plan, wants to plan work, or starts a new piece of work with iterator.
+description: Create or revise the plan for a piece of work and store it in an OKF memory/ bundle. Opens an interactive plan-review UI in the browser; on acceptance it writes memory/plan.md and auto-continues into /iterator-feature to break the plan into features. Use when the user types /iterator-plan, wants to plan work, or starts a new piece of work with iterator.
 ---
 
 # iterator-plan
 
-The first step of the iterator flow: **plan → chunk → implement → review**.
+The first step of the iterator flow: **plan → feature → implement → review**.
 Turns a goal into a structured plan stored as one OKF concept document
 (`memory/plan.md`, `type: Plan`; schema in `memory/format.md`). Accepting the
-plan immediately continues into `/iterator-chunk` in the same session.
+plan immediately continues into `/iterator-feature` in the same session.
 
 **pi mode:** see `<skill-dir>/../iterator/PI.md`.
 
@@ -41,7 +41,7 @@ node <skill-dir>/../iterator/gather.mjs --step plan
 ```
 
 It reports whether a plan `exists` (with its sections pre-parsed for
-revising), whether `legacy` `PLAN.md`/`CHUNKS.md` files exist, whether the
+revising), whether `legacy` `PLAN.md`/`FEATURES.md` files exist, whether the
 knowledge side is set up (`knowledgeInitialized`), and the project's design
 params path (`designFile`) — do **not** read bundle files or run git
 yourself.
@@ -56,14 +56,14 @@ carried goal always means "create a new plan", even when one `exists`.
 sections pre-filled) vs. "Create a new plan" — remind the user they can pick
 **Other and type the new goal directly** to skip the follow-up question.
 
-**If `knowledgeInitialized` is false**, recommend running `/okf-init` first
-so chunks and implementers get relevant memories (soft gate — offer it, and
+**If `knowledgeInitialized` is false**, recommend running `/iterator-init` first
+so features and implementers get relevant memories (soft gate — offer it, and
 continue into planning afterward with the same goal; if the user declines,
 proceed and note the writer will record a warning).
 
 **If `legacy` files exist but no bundle**, offer a one-time migration with
 `AskUserQuestion` (header `Migrate`): "Migrate into memory/ bundle" (parse
-the old files into `plan.md` + one chunk file each) vs. "Start fresh". Never
+the old files into `plan.md` + one feature file each) vs. "Start fresh". Never
 silently delete the legacy files.
 
 ### 2. Ask for the goal (only when still unknown)
@@ -92,7 +92,7 @@ their `path`. Then:
   pitfall**. Follow each relevant one; where the goal genuinely requires
   deviating, add an explicit Key Decisions bullet naming the concept id and
   the deviation, and tell the user (in chat and in the review round) that
-  the deviation must be memorized after acceptance (`/okf-memorize`).
+  the deviation must be memorized after acceptance (`/iterator-memorize`).
 
 ### 3. Draft the plan and open the review UI
 
@@ -106,7 +106,7 @@ missing, tell the user to install the full iterator plugin and stop.)
 `dependencies` lists **only new external packages, libraries, crates, or
 services the plan requires** — `"<name> <version?> — <why>"`, e.g.
 `"axum 0.7 — HTTP server"`. It is **never** a todo/task list (work items
-belong in the sections and later in chunks). Use an empty list when the plan
+belong in the sections and later in features). Use an empty list when the plan
 needs nothing new.
 
 ```sh
@@ -122,7 +122,7 @@ PLAN_DATA
 ### 4. Process the server output (one JSON line)
 
 - `{ "type": "plan-approved", "sections": {...}, "dependencies": [...] }` →
-  write the bundle (step 5), then **auto-continue into `/iterator-chunk`** in
+  write the bundle (step 5), then **auto-continue into `/iterator-feature`** in
   this session using the approved plan.
 - `{ "type": "plan-feedback", ... }` → revise using the edited
   sections/dependencies as the new base, apply each `comments[]` entry and
@@ -133,7 +133,7 @@ PLAN_DATA
 
 Pipe the approved content into the shared writer — it owns everything
 mechanical (`format.md` copy, frontmatter, timestamps, `index.md`, `log.md`,
-OKF conformance; a re-plan preserves the existing `# Chunks` section):
+OKF conformance; a re-plan preserves the existing `# Features` section):
 
 ```sh
 node <skill-dir>/../iterator/write.mjs << 'PLAN_WRITE'
@@ -157,6 +157,6 @@ out in place (`result.branch`).
 
 ### 6. Continue
 
-Continue straight into `/iterator-chunk` to break the plan into chunks. If
-chunking is unavailable, tell the user: "Plan saved to `memory/plan.md`. Run
-`/iterator-chunk` to break it into chunks."
+Continue straight into `/iterator-feature` to break the plan into features. If
+slicing is unavailable, tell the user: "Plan saved to `memory/plan.md`. Run
+`/iterator-feature` to break it into features."

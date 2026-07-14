@@ -1,7 +1,7 @@
 # iterator Architecture
 
 **iterator** is a Claude Code plugin that helps developers iterate on code
-together with AI by forcing work into small, reviewable **chunks**. Devs still
+together with AI by forcing work into small, reviewable **features**. Devs still
 lean on AI for planning and implementation, but the unit of change stays
 human-reviewable (~200 lines), dependency-ordered, and durable across sessions.
 
@@ -9,7 +9,7 @@ human-reviewable (~200 lines), dependency-ordered, and durable across sessions.
 
 Classical diff tools group changes by file. A developer's mental model is
 organized around *what changed and why* — a unit of work often touches several
-files at once. iterator makes the **chunk** the primary unit: a meaningful,
+files at once. iterator makes the **feature** the primary unit: a meaningful,
 connected slice of implementation of roughly 200 lines, in dependency order.
 
 Review-effectiveness research (Cisco/SmartBear) shows defect detection degrades
@@ -23,23 +23,23 @@ past ~200–400 lines, so ~200 is a conservative, reviewable default.
 /iterator-plan       create/revise the plan            → memory/plan.md
       │  (accept auto-continues)
       ▼
-/iterator-chunk      break the plan into chunks        → memory/chunks/<slug>.md
+/iterator-feature      break the plan into features        → memory/features/<slug>.md
       │
-      ├─ (optional) /iterator-test   RED: failing tests from the chunk contract
+      ├─ (optional) /iterator-test   RED: failing tests from the feature contract
       ▼
-/iterator-implement  build the next dependency-ready chunk
-      │  (green gate: drives the chunk's tests green; auto-starts the review)
+/iterator-implement  build the next dependency-ready feature
+      │  (green gate: drives the feature's tests green; auto-starts the review)
       ▼
-/iterator-review     chunk-vs-git-diff review          → outcome written into the chunk file
+/iterator-review     feature-vs-git-diff review          → outcome written into the feature file
 
-/iterator-test       GREEN: tests for an already-done chunk
+/iterator-test       GREEN: tests for an already-done feature
 ```
 
 All step skills share the `iterator-` prefix so they group in autocomplete.
 
 **The UI is the control plane; the skills are the logic.** One server —
 `skills/iterator/server.mjs`, shipped with the hub skill — renders every
-step's view (`hub`, `plan`, `chunk`, `test`, `review`, selected by the
+step's view (`hub`, `plan`, `feature`, `test`, `review`, selected by the
 payload's `step` field) on one fixed port. The step skills never own a server:
 they gather state, assemble a payload, pipe it into the hub's server
 (`<skill-dir>/../iterator/server.mjs`), and process the single JSON line that
@@ -48,7 +48,7 @@ comes back. All views are built on the same shared shell (`lib/ui.mjs` +
 look and behave the same.
 
 **The hub is a router, not a replacement.** `/iterator` gathers bundle + git
-state, renders the dashboard (cards, badges, dependency graph, per-chunk
+state, renders the dashboard (cards, badges, dependency graph, per-feature
 Test/Implement/Review buttons with enablement rules), and exits with one
 `{ type: "action" }` payload; the skill dispatches into the chosen step flow
 and reopens the dashboard when it finishes. The one-shot round-trip model is
@@ -58,19 +58,19 @@ each new server run shuts down a lingering predecessor and rebinds the same
 port, so the flow feels like one continuously-updating dashboard tab.
 
 **Red/green testing.** `tests_status` (`none | red | green`) is independent of
-`status` (`pending | done`): `/iterator-test` on a pending chunk writes
+`status` (`pending | done`): `/iterator-test` on a pending feature writes
 contract-derived failing tests (red is the *success* condition — failing on
 assertions/missing exports, not test-file bugs); `/iterator-implement` treats
 those tests as the definition of done and only normally commits green.
-`status` stays binary; an implemented-but-red chunk is representable as
+`status` stays binary; an implemented-but-red feature is representable as
 `status: done, tests_status: red` when the user explicitly accepts red.
 
-**Commit tracking.** Test and implement commits carry a `Chunk: <slug>`
-trailer and are recorded as `{ sha, kind, date }` in the chunk's `commits`.
+**Commit tracking.** Test and implement commits carry a `Feature: <slug>`
+trailer and are recorded as `{ sha, kind, date }` in the feature's `commits`.
 Recorded shas are an optimization (they go stale on rebase/amend); the trailer
 grep is the resilient lookup. A commit cannot contain its own sha, so shas are
 recorded in the next bundle write. This is what lets `/iterator-review`
-rebuild the diff of an already-committed chunk.
+rebuild the diff of an already-committed feature.
 
 ## Plugin structure
 
@@ -96,20 +96,20 @@ iterator/
 │   └── views/                   # one view module per step (render(data) → html)
 │       ├── hub.mjs              #   dashboard: cards, badges, graph → dispatches actions
 │       ├── plan.mjs             #   plan review: sections, comments, dependency chips
-│       ├── chunk.mjs            #   chunk breakdown: graph, cards, split/merge
-│       ├── test.mjs             #   per-chunk test plan; red/green mode banner
-│       ├── review.mjs           #   chunk-grouped diff review (+ implement's commit mode)
-│       ├── knowledge.mjs        #   okf memory plane dashboard
+│       ├── feature.mjs            #   feature breakdown: graph, cards, split/merge
+│       ├── test.mjs             #   per-feature test plan; red/green mode banner
+│       ├── review.mjs           #   feature-grouped diff review (+ implement's commit mode)
+│       ├── knowledge.mjs        #   OKF memory plane dashboard
 │       └── memory-review.mjs    #   memory card review (init/consolidate/memorize)
 ├── skills/
 │   ├── iterator/                # hub skill — thin shims (server/gather/write.mjs) + lib/ copy + PI.md
 │   ├── iterator-plan/           # logic-only; carries templates/format.md
-│   ├── iterator-chunk/          # logic-only
+│   ├── iterator-feature/          # logic-only
 │   ├── iterator-implement/     # logic-only; green gate; auto-review; Accept and commit
 │   ├── iterator-design/         # logic-only; design params + UI quality rules
 │   ├── iterator-review/         # logic-only
 │   ├── iterator-test/           # logic-only
-│   └── okf*, okf-init, …        # knowledge plane skills + shared okf/PROTOCOL.md
+│   └── iterator-knowledge, iterator-init, …  # knowledge skills + shared PROTOCOL.md
 ├── templates/
 │   └── format.md                # self-describing bundle schema, copied into every bundle
 ├── scripts/
@@ -157,18 +157,18 @@ memory/
 ├── state.md          # optional — type: State — runtime flow state (op `state`)
 ├── usage.md          # optional — type: Usage — per-plan token ledger (op `usage`)
 ├── log.md            # OKF §7 update log; skills append entries
-└── chunks/
-    ├── index.md      # chunk listing with status, for progressive disclosure
+└── features/
+    ├── index.md      # feature listing with status, for progressive disclosure
     ├── archive/      # retired plans (<created>-<slug>/ incl. their usage.md)
-    └── <slug>.md     # type: Chunk — one concept per chunk
+    └── <slug>.md     # type: Feature — one concept per feature
 ```
 
 Key decisions:
 
-- **One file per chunk.** The chunk **slug** (filename without `.md`) is the
-  chunk's OKF concept ID, its `depends_on` key, and its commit-message name.
+- **One file per feature.** The feature **slug** (filename without `.md`) is the
+  feature's OKF concept ID, its `depends_on` key, and its commit-message name.
   This replaces the old monolithic file + line-number index (whose references
-  broke on any edit above a chunk) and gives per-chunk git history for free.
+  broke on any edit above a feature) and gives per-feature git history for free.
 - **`timestamp`, not `last_updated`.** OKF §4.1 already defines `timestamp` as
   "last meaningful change", so iterator uses the spec field rather than
   inventing a synonym, keeping the bundle interoperable.
@@ -193,23 +193,23 @@ resolved relative to the git root.
 against it (op `settings`), `loadBundle()` merges it into always-present
 effective `settings`/`state` objects on every gather, and the settings view
 renders its form from the same table. Machine runtime state (op `state`)
-tracks `mode/paused/phase/active_chunk/strikes` — what makes Pause/Continue
+tracks `mode/paused/phase/active_feature/strikes` — what makes Pause/Continue
 and cross-session auto-mode resume possible.
 
 **Auto mode** is a deterministic driver, not model prose:
 
 - `nextAutoAction(session, settings, state)` (`lib/pi-tools.mjs`) is a pure
-  function deciding the next dispatch — test → implement → review per chunk,
+  function deciding the next dispatch — test → implement → review per feature,
   verdicts read from the bundle (an agent review either drove `accept-commit`
-  and flipped the chunk to `done`, or it recorded needs-work), strikes
-  counted per chunk, escalation to the human at `max_review_iterations`,
+  and flipped the feature to `done`, or it recorded needs-work), strikes
+  counted per feature, escalation to the human at `max_review_iterations`,
   and hard escalations for decision `conflicts`, draft-only sets, and stuck
   graphs. Exhaustively unit-tested.
 - The pi extension is glue: on every `agent_end` it asks `nextAutoAction`,
   writes the phase via the `state` op, applies the role's model/thinking
   (`roleModelSpec` + `pi.setModel`/`pi.setThinkingLevel`, restoring the
   user's model on done/escalate/pause), and dispatches
-  `/skill:iterator-<step> <chunk> --auto` (review: `--agent`). A per-session
+  `/skill:iterator-<step> <feature> --auto` (review: `--agent`). A per-session
   circuit breaker caps runaway loops.
 - The skills carry the mode-specific behavior: `--auto` implement/test skip
   their browser gates; `--agent` review makes the model the reviewer,
@@ -220,7 +220,7 @@ and cross-session auto-mode resume possible.
 `message.usage` (attributed to a flow step via `attributionFromInput`) and
 flushes once per loop through the `usage` op; the Usage tab renders the
 aggregates. **Git flow:** plan approval creates `iterator/<plan-slug>`
-(worktree by default); `accept-commit` resets the index before per-chunk
+(worktree by default); `accept-commit` resets the index before per-feature
 staging, requires an explicit disposition for every uncategorized file
 (`block_commit_on_leftovers`), and reports truthful post-commit `leftovers`.
 
@@ -293,7 +293,7 @@ browser JS; the shell provides the rest:
   it, implement's commit mode) builds on.
 
 Step-specific browser handlers are wired with `addEventListener` + closures,
-never inline `on*` attribute strings built from data — so chunk names
+never inline `on*` attribute strings built from data — so feature names
 containing quotes or backslashes can't break the markup or inject script.
 
 This is what makes "each step has its own view with the same base structure
@@ -303,11 +303,11 @@ and flow" true by construction rather than by copy-paste discipline.
 
 1. A skill pipes a JSON payload to the hub's `server.mjs` — nothing is written
    to `/tmp`. For most steps this is the **one-command request form**
-   `{"gather":true,"step":"<step>","chunk"?,"project"?,"extra"?}`: the server
+   `{"gather":true,"step":"<step>","feature"?,"project"?,"extra"?}`: the server
    gathers the step payload itself (in-process, same `lib/` cores) and merges
    the small agent-authored `extra` on top. A fully-gathered payload with a
    `step` field keeps working (implement's commit review uses it to inject
-   per-chunk test state).
+   per-feature test state).
 2. `server.mjs` replaces any lingering iterator server, serves the page (data
    embedded inline, safely escaped), and opens the browser on
    `127.0.0.1:<port>`.
@@ -325,7 +325,7 @@ exits on submit or timeout.
 
 **Why LLM-driven split/merge via round-trip?** The browser can't call an LLM, so
 Split/Merge `POST` a request; Claude performs the semantic split/merge, rewrites
-the affected chunk files, and re-opens the UI.
+the affected feature files, and re-opens the UI.
 
 ## Skills
 
@@ -334,51 +334,51 @@ Turns a goal into a plan and creates the `memory/` bundle (`index.md`,
 `format.md`, `log.md`, `plan.md`). Offers one-time migration if legacy state
 files are present. The plan-review UI renders sections as markdown
 (click-to-edit, per-section comments, editable dependency chips). On acceptance
-it sets `status: approved` and auto-continues into `/iterator-chunk`.
+it sets `status: approved` and auto-continues into `/iterator-feature`.
 
-### `/iterator-chunk`
-Splits the approved plan into chunks: one OKF file per chunk, regenerating
-`chunks/index.md` and the plan's `# Chunks` section. The chunk-plan UI shows a
-dependency-graph visualization, code snippets, per-chunk comments, drag-to-move
+### `/iterator-feature`
+Splits the approved plan into features: one OKF file per feature, regenerating
+`features/index.md` and the plan's `# Features` section. The feature-plan UI shows a
+dependency-graph visualization, code snippets, per-feature comments, drag-to-move
 files, and **Split**/**Merge** buttons that round-trip to Claude. Split/merge
-create/delete chunk files and rewire `depends_on`; cycle detection lives in both
-the UI and the skill. Re-runnable to re-chunk, preserving `status: done` chunks.
+create/delete feature files and rewire `depends_on`; cycle detection lives in both
+the UI and the skill. Re-runnable to re-feature, preserving `status: done` features.
 
 ### `/iterator` (hub)
 Reads the bundle + git state, opens the dashboard (plan bar, dependency graph,
-chunk cards with status/size/🔴🟢 badges, per-chunk **Test** / **Implement** /
-**Review** buttons plus **Revise plan** / **Re-chunk**), and dispatches the
+feature cards with status/size/🔴🟢 badges, per-feature **Test** / **Implement** /
+**Review** buttons plus **Revise plan** / **Re-feature**), and dispatches the
 single action payload into the matching step flow, reopening the dashboard
 when it finishes. Button enablement encodes the process rules (Implement only
 when dependencies are done; Review only when a diff or recorded commits
 exist); the step flows still re-validate, since a dashboard can be stale.
 
 ### `/iterator-implement`
-Picks the next chunk whose `depends_on` are all `done` (topological order;
-reports cycles/stuck states), implements it from the chunk file +
-`ARCHITECTURE.md` (+ `GUIDELINES.md` if present). **Green gate:** if the chunk
+Picks the next feature whose `depends_on` are all `done` (topological order;
+reports cycles/stuck states), implements it from the feature file +
+`ARCHITECTURE.md` (+ `GUIDELINES.md` if present). **Green gate:** if the feature
 has tests, they define done — implement → run → fix until green before the
 review opens (red results are surfaced honestly, never papered over).
-UI-surface chunks go through `/iterator-design`: the gather payload's
+UI-surface features go through `/iterator-design`: the gather payload's
 `designFile` says whether `memory/design.md` exists, and its params + rules
 apply while building. Then it auto-opens the `/iterator-review` UI scoped to
-that chunk — test badge
+that feature — test badge
 visible — with **Accept and commit** as the primary. On accept: branch safety
-(never commit to `main`/`master`), one commit `chunk(<slug>): <summary>` with
-a `Chunk: <slug>` trailer that includes the code, the chunk-file flip
+(never commit to `main`/`master`), one commit `feature(<slug>): <summary>` with
+a `Feature: <slug>` trailer that includes the code, the feature-file flip
 (`status: done`, `done:` date, `tests_status`, `timestamp`), the regenerated
-indexes, and a `log.md` entry; the sha is recorded in the chunk's `commits` on
-the next bundle write — then it offers the next ready chunk.
+indexes, and a `log.md` entry; the sha is recorded in the feature's `commits` on
+the next bundle write — then it offers the next ready feature.
 
 ### `/iterator-design`
-The project's design parameters, captured once and reused. On the first chunk
+The project's design parameters, captured once and reused. On the first feature
 with UI surface (or a manual `/iterator-design`) it derives a proposal from
 the plan (`# Goal` / `# Product fit`) and the codebase (existing Tailwind
 config, CSS custom properties, fonts), confirms it with the user in one round,
 and persists it via the writer's `design` op → `memory/design.md`
 (`type: Design`: direction, typography, color, spacing, responsive,
-signature). Every later UI chunk reads the same file, so the project's UIs
-stay consistent across chunks and sessions. The skill also carries the
+signature). Every later UI feature reads the same file, so the project's UIs
+stay consistent across features and sessions. The skill also carries the
 condensed built-in design rules (typography scale, 60-30-10 color + WCAG
 contrast, 4pt spatial rhythm, mobile-first responsive) that fill whatever the
 params don't pin down. Invoked manually it also runs an audit → fix pass over
@@ -388,33 +388,33 @@ Re-running it revises the params (`created` is preserved, `timestamp`
 refreshed, `log.md` gets an entry).
 
 ### `/iterator-review`
-Standalone chunk review: pick a chunk (pending first, dependency order, then
-done chunks, plus "All pending"), diff from open git changes (`git diff HEAD`,
-with fallbacks) — or, for a done chunk with a clean tree, from the chunk's
-recorded `commits` / `Chunk: <slug>` trailer — map hunks to chunks via each
-chunk's `files` globs (first match wins, rest → Uncategorized). Outcomes are
-written into the chunk file: `reviewed:` date refreshed, notes appended under
+Standalone feature review: pick a feature (pending first, dependency order, then
+done features, plus "All pending"), diff from open git changes (`git diff HEAD`,
+with fallbacks) — or, for a done feature with a clean tree, from the feature's
+recorded `commits` / `Feature: <slug>` trailer — map hunks to features via each
+feature's `files` globs (first match wins, rest → Uncategorized). Outcomes are
+written into the feature file: `reviewed:` date refreshed, notes appended under
 `# Review`, indexes and `log.md` regenerated. Review never sets
 `status: done` — that stays owned by implement.
 
 ### `/iterator-test`
-Opt-in per chunk, mode picked from the chunk's `status`: **red** on a pending
-chunk (contract-derived failing tests — red is the success condition),
-**green** on a done chunk (tests against the real code must pass). Detects the
+Opt-in per feature, mode picked from the feature's `status`: **red** on a pending
+feature (contract-derived failing tests — red is the success condition),
+**green** on a done feature (tests against the real code must pass). Detects the
 project's test runner and conventions, proposes a **test plan** (happy path /
 edge / integration cases, each with a rationale and a comment box) in the
 shared UI — which shows the mode banner — then on accept writes the tests,
 runs them, verifies the expected color, commits them (`test(<slug>)` +
-trailer), and records `tests`/`tests_status` in the chunk file plus a `log.md`
-entry. Never changes chunk `status`.
+trailer), and records `tests`/`tests_status` in the feature file plus a `log.md`
+entry. Never changes feature `status`.
 
-## Chunking
+## Feature slicing
 
-Chunks are cut **by feature**: one user-visible capability per chunk — a
+Features are cut **by feature**: one user-visible capability per feature — a
 vertical slice including its own tests — implementable, testable, and
 reviewable on its own. `size` (`small | medium | large`) is a judgment call
 on how big the feature feels, not a line estimate; `large` means "probably
 two features" and is flagged in the UIs with Split on offer. Predicted line
 counts proved unreliable, so reviewability is enforced against the **actual**
-diff instead: `/iterator-review` computes real code-line stats per chunk and
+diff instead: `/iterator-review` computes real code-line stats per feature and
 warns above ~200 changed code lines (comments/docs excluded).

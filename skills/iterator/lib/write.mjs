@@ -13,18 +13,18 @@
  * Ops:
  *   plan          write memory/plan.md (+ format.md/index.md/log.md on first
  *                 run) from approved sections + dependencies; preserves an
- *                 existing `# Chunks` section on re-plan
- *   chunks        write the full chunk set (one OKF file per chunk, status
- *                 draft|pending — the chunker writes drafts), delete removed
+ *                 existing `# Features` section on re-plan
+ *   features        write the full feature set (one OKF file per feature, status
+ *                 draft|pending — the featureer writes drafts), delete removed
  *                 slugs, validate acyclic deps + references BEFORE writing,
- *                 regenerate all indexes; never rewrites a done chunk
+ *                 regenerate all indexes; never rewrites a done feature
  *   design        write memory/design.md (type: Design) — the project's design
  *                 parameters captured by /iterator-design; preserves `created`
  *                 on re-run so revisions keep the original capture date
- *   update-chunk  targeted frontmatter update on one chunk (status flips,
+ *   update-feature  targeted frontmatter update on one feature (status flips,
  *                 tests, reviewed, done) + optional `# Review` note and
  *                 commits-list entry; regenerates indexes
- *   adjustments   apply the chunk UI's mechanical edits verbatim (moves,
+ *   adjustments   apply the feature UI's mechanical edits verbatim (moves,
  *                 renames incl. depends_on rewiring, description updates) —
  *                 the server's `plan-adjustments` output pipes in unchanged;
  *                 `accept: true` additionally promotes every draft to pending
@@ -32,20 +32,20 @@
  *                 (architecture/decisions/patterns/pitfalls/setup areas),
  *                 regenerate their area indexes, and/or advance
  *                 `last_memorized_commit` in the root index
- *   apply-review  the okf skills' verdict-based writer: the memory review
+ *   apply-review  the knowledge skills' verdict-based writer: the memory review
  *                 UI's decisions plus the original draft cards pipe in
  *                 verbatim (accept/keep/reject/delete per concept), the
  *                 pointer advances to headCommit, the bundle is validated
  *   accept-commit process the review UI's accept-commit result end to end:
- *                 branch safety, per-chunk staging + chunk(<slug>) commits,
- *                 done flips, sha recording, okf memory verdicts, pointer
+ *                 branch safety, per-feature staging + feature(<slug>) commits,
+ *                 done flips, sha recording, OKF memory verdicts, pointer
  *                 advance, bookkeeping commit (the UI result pipes verbatim)
  *   record-review record a standalone review's outcome from the UI's
  *                 review-feedback payload verbatim (statuses + notes; line
  *                 comments stay with the model)
  *
  * Every op updates timestamps (override with $ITERATOR_NOW for tests),
- * regenerates memory/chunks/index.md + the plan `# Chunks` section +
+ * regenerates memory/features/index.md + the plan `# Features` section +
  * memory/index.md, and prepends a memory/log.md entry. On success prints
  * {"ok":true,...}; on any validation error prints {"ok":false,"error":...}
  * and exits 1 without writing.
@@ -220,9 +220,9 @@ export function topoSort(items) {
 }
 
 // ---------------------------------------------------------------------------
-// Generated files (chunks/index.md, plan # Chunks, memory/index.md, log.md)
+// Generated files (features/index.md, plan # Features, memory/index.md, log.md)
 
-function chunkIndexLine(c) {
+function featureIndexLine(c) {
 	const status =
 		c.fm.status === "done"
 			? "✅ done"
@@ -267,15 +267,15 @@ function iteratorIndexLinks(b) {
 			"* [Settings](settings.md) - Project settings (auto mode, models, git flow).",
 		]);
 	}
-	if (existsSync(join(b.memDir, "chunks"))) {
+	if (existsSync(join(b.memDir, "features"))) {
 		links.push([
-			"chunks/",
-			"* [Chunks](chunks/) - One document per implementation chunk.",
+			"features/",
+			"* [Features](features/) - One document per implementation feature.",
 		]);
 	}
 	links.push([
 		"log.md",
-		"* [Log](log.md) - Chronological history of plan/chunk/implement/review events.",
+		"* [Log](log.md) - Chronological history of plan/feature/implement/review events.",
 	]);
 	return links;
 }
@@ -284,17 +284,17 @@ function iteratorIndexLinks(b) {
 export function regenerate(root) {
 	const b = loadBundle(root);
 	const { order } = topoSort(
-		b.chunks.map((c) => ({ slug: c.slug, dependsOn: listy(c.fm.depends_on) })),
+		b.features.map((c) => ({ slug: c.slug, dependsOn: listy(c.fm.depends_on) })),
 	);
 	const ordered = [
 		...order,
-		...b.chunks.map((c) => c.slug).filter((s) => !order.includes(s)),
-	].map((s) => b.chunks.find((c) => c.slug === s));
+		...b.features.map((c) => c.slug).filter((s) => !order.includes(s)),
+	].map((s) => b.features.find((c) => c.slug === s));
 
-	if (existsSync(join(b.memDir, "chunks")) && ordered.length) {
+	if (existsSync(join(b.memDir, "features")) && ordered.length) {
 		writeFileSync(
-			join(b.memDir, "chunks", "index.md"),
-			`# Chunks\n\n${ordered.map(chunkIndexLine).join("\n")}\n`,
+			join(b.memDir, "features", "index.md"),
+			`# Features\n\n${ordered.map(featureIndexLine).join("\n")}\n`,
 		);
 	}
 
@@ -302,12 +302,12 @@ export function regenerate(root) {
 		const links = ordered
 			.map(
 				(c) =>
-					`* [${c.fm.title || c.slug}](/chunks/${c.slug}.md) - ${c.fm.description || ""}`,
+					`* [${c.fm.title || c.slug}](/features/${c.slug}.md) - ${c.fm.description || ""}`,
 			)
 			.join("\n");
 		writeFileSync(
 			join(b.memDir, "plan.md"),
-			replaceSection(b.plan.raw, "Chunks", links),
+			replaceSection(b.plan.raw, "Features", links),
 		);
 	}
 
@@ -331,7 +331,7 @@ function writePlan(payload, root) {
 	const title = payload.title || fail("plan op needs a title");
 	const s = payload.sections || {};
 	if (!s.goal) fail("plan op needs sections.goal");
-	mkdirSync(join(b.memDir, "chunks"), { recursive: true });
+	mkdirSync(join(b.memDir, "features"), { recursive: true });
 
 	// format.md: the self-describing schema, copied verbatim once.
 	const formatDest = join(b.memDir, "format.md");
@@ -366,9 +366,9 @@ function writePlan(payload, root) {
 		const m = String(d).match(/^(.+?)\s+—\s+(.*)$/);
 		return m ? `* \`${m[1].trim().replaceAll("`", "")}\` — ${m[2]}` : `* ${d}`;
 	});
-	const chunksSection =
-		b.plan?.sections["Chunks"] ||
-		"<!-- regenerated by /iterator-chunk; empty until chunks exist -->";
+	const featuresSection =
+		b.plan?.sections["Features"] ||
+		"<!-- regenerated by /iterator-feature; empty until features exist -->";
 
 	// Branch/worktree per plan (settings): approving a plan on main/master
 	// moves the work onto iterator/<plan-slug> — in a separate git worktree by
@@ -423,9 +423,9 @@ ${deps.join("\n") || "(none)"}
 
 ${s.keyDecisions || ""}
 
-# Chunks
+# Features
 
-${chunksSection}
+${featuresSection}
 `.replace(/\n{3,}/g, "\n\n");
 
 	writeFileSync(join(b.memDir, "plan.md"), joinDoc(fm, bodyText));
@@ -435,11 +435,11 @@ ${chunksSection}
 		payload.log ||
 			`**${b.plan ? "Update" : "Creation"}**: Plan "${title}" approved on branch ${payload.branch || b.branch}.`,
 	);
-	// Soft memory-init gate: planning without the knowledge side means chunks
+	// Soft memory-init gate: planning without the knowledge side means features
 	// get no relevant memories — surface it, never block.
 	if (!Object.keys(OKF_AREAS).some((a) => existsSync(join(b.memDir, a)))) {
 		warnings.push(
-			"knowledge memory is not initialized — run /okf-init so chunks and implementers get relevant memories",
+			"knowledge memory is not initialized — run /iterator-init so features and implementers get relevant memories",
 		);
 	}
 
@@ -495,12 +495,12 @@ ${chunksSection}
 }
 
 // ---------------------------------------------------------------------------
-// op: chunks
+// op: features
 
-function chunkDoc(c, titles, existingReview) {
+function featureDoc(c, titles, existingReview) {
 	const conflicts = listy(c.conflicts).filter((x) => x && x.decision);
 	const fm = [
-		"type: Chunk",
+		"type: Feature",
 		`title: ${fmScalar(c.title || c.name)}`,
 		`description: ${fmScalar(c.description || "")}`,
 		`status: ${c.status || "pending"}`,
@@ -509,12 +509,12 @@ function chunkDoc(c, titles, existingReview) {
 		`files: [${listy(c.files)
 			.map((f) => JSON.stringify(String(f)))
 			.join(", ")}]`,
-		// Writer-computed relevant memories (anchor match at chunk time) — the
+		// Writer-computed relevant memories (anchor match at feature time) — the
 		// implementer's reading list, stored so it survives without a re-gather.
 		...(listy(c.memories).length
 			? [`memories: [${listy(c.memories).join(", ")}]`]
 			: []),
-		// Decision conflicts flagged by the chunking model (JSON scalar — the
+		// Decision conflicts flagged by the slicing model (JSON scalar — the
 		// readable rendering lives in the body's Decision conflicts section).
 		...(conflicts.length
 			? [
@@ -548,7 +548,7 @@ function chunkDoc(c, titles, existingReview) {
 	if (listy(c.dependsOn).length) {
 		parts.push("# Depends on", "");
 		for (const d of c.dependsOn)
-			parts.push(`* [${titles.get(d) || d}](/chunks/${d}.md)`);
+			parts.push(`* [${titles.get(d) || d}](/features/${d}.md)`);
 		parts.push("");
 	}
 	if (c.blastRadius) parts.push("# Blast radius", "", c.blastRadius, "");
@@ -568,13 +568,13 @@ function chunkDoc(c, titles, existingReview) {
 	);
 }
 
-function writeChunks(payload, root) {
+function writeFeatures(payload, root) {
 	const b = loadBundle(root);
 	if (!b.plan) fail("no memory/plan.md — run the plan op first");
-	const incoming = listy(payload.chunks);
-	if (!incoming.length) fail("chunks op needs a non-empty chunks list");
+	const incoming = listy(payload.features);
+	if (!incoming.length) fail("features op needs a non-empty features list");
 	const deletes = listy(payload.deletes);
-	const existing = new Map(b.chunks.map((c) => [c.slug, c]));
+	const existing = new Map(b.features.map((c) => [c.slug, c]));
 
 	// Auto-repair fixable slugs instead of bouncing the whole breakdown back:
 	// the normalization is deterministic and reported in the result.
@@ -596,30 +596,30 @@ function writeChunks(payload, root) {
 		const seen = new Set();
 		for (const c of incoming) {
 			if (seen.has(c.name))
-				fail(`duplicate chunk slug '${c.name}' after normalization`);
+				fail(`duplicate feature slug '${c.name}' after normalization`);
 			seen.add(c.name);
 		}
 	}
 
 	for (const c of incoming) {
 		if (!c.name || !/^[a-z0-9][a-z0-9-]*$/.test(c.name))
-			fail(`invalid chunk slug '${c.name || ""}' (kebab-case required)`);
+			fail(`invalid feature slug '${c.name || ""}' (kebab-case required)`);
 		if (c.status && !["draft", "pending"].includes(c.status)) {
 			fail(
-				`invalid chunk status '${c.status}' (chunks op writes draft|pending; done is owned by update-chunk)`,
+				`invalid feature status '${c.status}' (features op writes draft|pending; done is owned by update-feature)`,
 			);
 		}
 		if (c.size && !["small", "medium", "large"].includes(c.size)) {
-			fail(`invalid chunk size '${c.size}' (small|medium|large)`);
+			fail(`invalid feature size '${c.size}' (small|medium|large)`);
 		}
 		for (const x of listy(c.conflicts)) {
 			if (!x || typeof x.decision !== "string" || !x.decision.trim())
-				fail(`chunk '${c.name}': conflicts entries need { decision: '<area>/<slug>', note? }`);
+				fail(`feature '${c.name}': conflicts entries need { decision: '<area>/<slug>', note? }`);
 		}
 	}
 	for (const d of deletes) {
 		if (existing.get(d)?.fm.status === "done")
-			fail(`refusing to delete done chunk '${d}'`);
+			fail(`refusing to delete done feature '${d}'`);
 	}
 
 	// Final set = existing − deletes ∪ incoming; validate deps + cycles first.
@@ -627,7 +627,7 @@ function writeChunks(payload, root) {
 		.filter((c) => existing.get(c.name)?.fm.status === "done")
 		.map((c) => c.name);
 	const finalSlugs = new Set([
-		...b.chunks.map((c) => c.slug).filter((s) => !deletes.includes(s)),
+		...b.features.map((c) => c.slug).filter((s) => !deletes.includes(s)),
 		...incoming.map((c) => c.name),
 	]);
 	const metas = [...finalSlugs].map((slug) => {
@@ -640,11 +640,11 @@ function writeChunks(payload, root) {
 	});
 	const { cycle, missing } = topoSort(metas);
 	if (missing.length)
-		fail(`depends_on references missing chunks: ${missing.join(", ")}`);
+		fail(`depends_on references missing features: ${missing.join(", ")}`);
 	if (cycle.length) fail(`dependency cycle between: ${cycle.join(", ")}`);
 
-	const chunksDir = join(b.memDir, "chunks");
-	mkdirSync(chunksDir, { recursive: true });
+	const featuresDir = join(b.memDir, "features");
+	mkdirSync(featuresDir, { recursive: true });
 	const titles = new Map(
 		metas.map((m) => {
 			const inc = incoming.find((c) => c.name === m.slug);
@@ -655,36 +655,36 @@ function writeChunks(payload, root) {
 		}),
 	);
 
-	// Anchor-match each chunk's files against the knowledge concepts ONCE at
+	// Anchor-match each feature's files against the knowledge concepts ONCE at
 	// write time: the stored `memories:` list is the implementer's reading
 	// list (issue: start directly, no re-derivation). Conflicts arrive from
-	// the chunking model; both render in the chunk/hub views.
+	// the slicing model; both render in the feature/hub views.
 	const concepts = loadConcepts(b.memDir);
 	const written = [];
 	for (const c of incoming) {
-		if (doneProtected.includes(c.name)) continue; // never rewrite a done chunk
+		if (doneProtected.includes(c.name)) continue; // never rewrite a done feature
 		const prev = existing.get(c.name);
 		c.memories = relevantMemories(concepts, listy(c.files)).map((m) => m.id);
 		writeFileSync(
-			join(chunksDir, `${c.name}.md`),
-			chunkDoc(c, titles, prev?.sections["Review"]),
+			join(featuresDir, `${c.name}.md`),
+			featureDoc(c, titles, prev?.sections["Review"]),
 		);
 		written.push(c.name);
 	}
 	for (const d of deletes) {
-		if (existing.has(d)) rmSync(join(chunksDir, `${d}.md`));
+		if (existing.has(d)) rmSync(join(featuresDir, `${d}.md`));
 	}
 
 	regenerate(root);
 	prependLog(
 		b.memDir,
 		payload.log ||
-			`**${b.chunks.length ? "Update" : "Creation"}**: ${written.length} chunk(s) written${deletes.length ? `, ${deletes.length} removed` : ""}.`,
+			`**${b.features.length ? "Update" : "Creation"}**: ${written.length} feature(s) written${deletes.length ? `, ${deletes.length} removed` : ""}.`,
 	);
 
 	// Surface globs that match nothing NOW (warn, never fail — files may be
 	// written later): a typo'd glob would otherwise silently never map diffs
-	// to this chunk, discovered three steps downstream.
+	// to this feature, discovered three steps downstream.
 	const known = [
 		...gitSoft(["ls-files"], b.root).split("\n"),
 		...gitSoft(["ls-files", "--others", "--exclude-standard"], b.root).split(
@@ -695,7 +695,7 @@ function writeChunks(payload, root) {
 		? incoming
 				.filter((c) => !doneProtected.includes(c.name))
 				.map((c) => ({
-					chunk: c.name,
+					feature: c.name,
 					globs: listy(c.files)
 						.map(String)
 						.filter((g) => !known.some((p) => globToRegExp(g).test(p))),
@@ -704,7 +704,7 @@ function writeChunks(payload, root) {
 		: [];
 
 	return {
-		op: "chunks",
+		op: "features",
 		written,
 		skipped: doneProtected,
 		deleted: deletes,
@@ -859,11 +859,11 @@ function writeState(payload, root) {
 	if (set.mode) next.mode = set.mode;
 	if ("paused" in set) next.paused = set.paused;
 	if (set.phase) next.phase = set.phase;
-	if ("active_chunk" in set) next.active_chunk = set.active_chunk || null;
+	if ("active_feature" in set) next.active_feature = set.active_feature || null;
 	if (set.strikes && typeof set.strikes === "object") {
 		next.strikes = { ...set.strikes };
 	}
-	// Convenience bookkeeping: `strike` increments one chunk's counter,
+	// Convenience bookkeeping: `strike` increments one feature's counter,
 	// `clearStrike` resets it — saves the caller a read-modify-write.
 	if (payload.strike) {
 		next.strikes = {
@@ -884,7 +884,7 @@ function writeState(payload, root) {
 		`mode: ${next.mode}`,
 		`paused: ${next.paused}`,
 		`phase: ${next.phase}`,
-		`active_chunk: ${next.active_chunk || "null"}`,
+		`active_feature: ${next.active_feature || "null"}`,
 		`strikes: ${fmScalar(JSON.stringify(next.strikes))}`,
 		`timestamp: ${nowIso()}`,
 	].join("\n");
@@ -913,10 +913,10 @@ function parseUsageTotals(fm) {
 		const v = JSON.parse(String(fm?.totals || "{}"));
 		return {
 			steps: v.steps && typeof v.steps === "object" ? v.steps : {},
-			chunks: v.chunks && typeof v.chunks === "object" ? v.chunks : {},
+			features: v.features && typeof v.features === "object" ? v.features : {},
 		};
 	} catch {
-		return { steps: {}, chunks: {} };
+		return { steps: {}, features: {} };
 	}
 }
 
@@ -952,12 +952,12 @@ function usageBody(totals) {
 		}
 		lines.push("");
 	}
-	const chunks = Object.keys(totals.chunks);
-	if (chunks.length) {
-		lines.push("## Per chunk", "");
-		lines.push("| chunk | input | output | cache read | cache write | turns |");
+	const features = Object.keys(totals.features);
+	if (features.length) {
+		lines.push("## Per feature", "");
+		lines.push("| feature | input | output | cache read | cache write | turns |");
 		lines.push("| --- | ---: | ---: | ---: | ---: | ---: |");
-		for (const [slug, u] of Object.entries(totals.chunks)) {
+		for (const [slug, u] of Object.entries(totals.features)) {
 			lines.push(
 				`| ${slug} | ${u.input || 0} | ${u.output || 0} | ${u.cacheRead || 0} | ${u.cacheWrite || 0} | ${u.turns || 0} |`,
 			);
@@ -995,8 +995,8 @@ function writeUsage(payload, root) {
 		const norm = Object.fromEntries(USAGE_FIELDS.map((f) => [f, Number(r[f] || 0)]));
 		totals.steps[step] = totals.steps[step] || {};
 		totals.steps[step][model] = addUsage(totals.steps[step][model] || {}, norm);
-		if (r.chunk) {
-			totals.chunks[r.chunk] = addUsage(totals.chunks[r.chunk] || {}, norm);
+		if (r.feature) {
+			totals.features[r.feature] = addUsage(totals.features[r.feature] || {}, norm);
 		}
 	}
 
@@ -1019,15 +1019,15 @@ function writeUsage(payload, root) {
 }
 
 // ---------------------------------------------------------------------------
-// op: update-chunk
+// op: update-feature
 
-function updateChunk(payload, root, { regen = true } = {}) {
+function updateFeature(payload, root, { regen = true } = {}) {
 	const b = loadBundle(root);
 	const c =
-		b.chunks.find((x) => x.slug === payload.chunk) ||
-		fail(`no chunk '${payload.chunk || ""}'`);
+		b.features.find((x) => x.slug === payload.feature) ||
+		fail(`no feature '${payload.feature || ""}'`);
 	let { fm, body: bodyText } = splitDoc(c.raw);
-	if (fm === null) fail(`chunk '${c.slug}' has no frontmatter`);
+	if (fm === null) fail(`feature '${c.slug}' has no frontmatter`);
 
 	const allowed = [
 		"status",
@@ -1043,7 +1043,7 @@ function updateChunk(payload, root, { regen = true } = {}) {
 	const bad = Object.keys(set).filter((k) => !allowed.includes(k));
 	if (bad.length)
 		fail(
-			`update-chunk cannot set: ${bad.join(", ")} (allowed: ${allowed.join(", ")})`,
+			`update-feature cannot set: ${bad.join(", ")} (allowed: ${allowed.join(", ")})`,
 		);
 	if (set.status && !["draft", "pending", "done"].includes(set.status))
 		fail(`invalid status '${set.status}'`);
@@ -1062,62 +1062,62 @@ function updateChunk(payload, root, { regen = true } = {}) {
 	}
 
 	writeFileSync(
-		join(b.memDir, "chunks", `${c.slug}.md`),
+		join(b.memDir, "features", `${c.slug}.md`),
 		joinDoc(fm, bodyText),
 	);
 	// acceptCommit batches many updates and regenerates once at the end —
-	// regenerate() reloads every chunk and rewrites three files per call.
+	// regenerate() reloads every feature and rewrites three files per call.
 	if (regen) regenerate(root);
 	if (payload.log) prependLog(b.memDir, payload.log);
-	return { op: "update-chunk", chunk: c.slug, memoryDir: b.memDir };
+	return { op: "update-feature", feature: c.slug, memoryDir: b.memDir };
 }
 
 // ---------------------------------------------------------------------------
-// op: adjustments (the chunk UI's plan-adjustments output, piped verbatim)
+// op: adjustments (the feature UI's plan-adjustments output, piped verbatim)
 
 function applyAdjustments(payload, root) {
 	const b = loadBundle(root);
-	const chunksDir = join(b.memDir, "chunks");
+	const featuresDir = join(b.memDir, "features");
 	const applied = [];
 	const reload = () => loadBundle(root);
 
 	// Validate the WHOLE batch against a snapshot before the first write —
 	// a bad third item must not leave the first two applied with no
-	// regenerate/log (writeChunks has the same all-or-nothing contract).
+	// regenerate/log (writeFeatures has the same all-or-nothing contract).
 	{
-		const slugs = new Set(b.chunks.map((c) => c.slug));
-		const status = new Map(b.chunks.map((c) => [c.slug, c.fm.status]));
+		const slugs = new Set(b.features.map((c) => c.slug));
+		const status = new Map(b.features.map((c) => [c.slug, c.fm.status]));
 		for (const mv of listy(payload.moves)) {
-			if (!slugs.has(mv.from)) fail(`move: no chunk '${mv.from}'`);
-			if (!slugs.has(mv.to)) fail(`move: no chunk '${mv.to}'`);
+			if (!slugs.has(mv.from)) fail(`move: no feature '${mv.from}'`);
+			if (!slugs.has(mv.to)) fail(`move: no feature '${mv.to}'`);
 		}
 		for (const rn of listy(payload.renames)) {
-			if (!slugs.has(rn.from)) fail(`rename: no chunk '${rn.from}'`);
+			if (!slugs.has(rn.from)) fail(`rename: no feature '${rn.from}'`);
 			if (!/^[a-z0-9][a-z0-9-]*$/.test(rn.to || ""))
 				fail(`rename: invalid slug '${rn.to || ""}'`);
 			if (slugs.has(rn.to)) fail(`rename: '${rn.to}' already exists`);
 			if (status.get(rn.from) === "done")
-				fail(`refusing to rename done chunk '${rn.from}'`);
+				fail(`refusing to rename done feature '${rn.from}'`);
 			slugs.delete(rn.from);
 			slugs.add(rn.to);
 		}
 		for (const du of listy(payload.descUpdates)) {
-			if (!slugs.has(du.chunk)) fail(`descUpdate: no chunk '${du.chunk}'`);
+			if (!slugs.has(du.feature)) fail(`descUpdate: no feature '${du.feature}'`);
 		}
 	}
 
 	for (const mv of listy(payload.moves)) {
 		const cur = reload();
 		const from =
-			cur.chunks.find((c) => c.slug === mv.from) ||
-			fail(`move: no chunk '${mv.from}'`);
+			cur.features.find((c) => c.slug === mv.from) ||
+			fail(`move: no feature '${mv.from}'`);
 		const to =
-			cur.chunks.find((c) => c.slug === mv.to) ||
-			fail(`move: no chunk '${mv.to}'`);
+			cur.features.find((c) => c.slug === mv.to) ||
+			fail(`move: no feature '${mv.to}'`);
 		const fromDoc = splitDoc(from.raw);
 		const toDoc = splitDoc(to.raw);
 		writeFileSync(
-			join(chunksDir, `${from.slug}.md`),
+			join(featuresDir, `${from.slug}.md`),
 			joinDoc(
 				setFmKeys(fromDoc.fm, {
 					files: listy(from.fm.files).filter((f) => f !== mv.file),
@@ -1126,7 +1126,7 @@ function applyAdjustments(payload, root) {
 			),
 		);
 		writeFileSync(
-			join(chunksDir, `${to.slug}.md`),
+			join(featuresDir, `${to.slug}.md`),
 			joinDoc(
 				setFmKeys(toDoc.fm, { files: [...listy(to.fm.files), mv.file] }),
 				toDoc.body,
@@ -1138,24 +1138,24 @@ function applyAdjustments(payload, root) {
 	for (const rn of listy(payload.renames)) {
 		const cur = reload();
 		const c =
-			cur.chunks.find((x) => x.slug === rn.from) ||
-			fail(`rename: no chunk '${rn.from}'`);
+			cur.features.find((x) => x.slug === rn.from) ||
+			fail(`rename: no feature '${rn.from}'`);
 		if (!/^[a-z0-9][a-z0-9-]*$/.test(rn.to || ""))
 			fail(`rename: invalid slug '${rn.to || ""}'`);
-		if (cur.chunks.some((x) => x.slug === rn.to))
+		if (cur.features.some((x) => x.slug === rn.to))
 			fail(`rename: '${rn.to}' already exists`);
 		if (c.fm.status === "done")
-			fail(`refusing to rename done chunk '${rn.from}'`);
+			fail(`refusing to rename done feature '${rn.from}'`);
 		renameSync(
-			join(chunksDir, `${rn.from}.md`),
-			join(chunksDir, `${rn.to}.md`),
+			join(featuresDir, `${rn.from}.md`),
+			join(featuresDir, `${rn.to}.md`),
 		);
 		// Rewire every reference: depends_on entries and bundle-absolute links.
-		for (const other of reload().chunks) {
+		for (const other of reload().features) {
 			const deps = listy(other.fm.depends_on);
 			let raw = other.raw.replaceAll(
-				`/chunks/${rn.from}.md`,
-				`/chunks/${rn.to}.md`,
+				`/features/${rn.from}.md`,
+				`/features/${rn.to}.md`,
 			);
 			if (deps.includes(rn.from)) {
 				const doc = splitDoc(raw);
@@ -1167,7 +1167,7 @@ function applyAdjustments(payload, root) {
 				);
 			}
 			if (raw !== other.raw)
-				writeFileSync(join(chunksDir, `${other.slug}.md`), raw);
+				writeFileSync(join(featuresDir, `${other.slug}.md`), raw);
 		}
 		applied.push(`rename ${rn.from} → ${rn.to}`);
 	}
@@ -1175,28 +1175,28 @@ function applyAdjustments(payload, root) {
 	for (const du of listy(payload.descUpdates)) {
 		const cur = reload();
 		const c =
-			cur.chunks.find((x) => x.slug === du.chunk) ||
-			fail(`descUpdate: no chunk '${du.chunk}'`);
+			cur.features.find((x) => x.slug === du.feature) ||
+			fail(`descUpdate: no feature '${du.feature}'`);
 		const doc = splitDoc(c.raw);
 		writeFileSync(
-			join(chunksDir, `${c.slug}.md`),
+			join(featuresDir, `${c.slug}.md`),
 			joinDoc(
 				setFmKeys(doc.fm, { description: du.description, timestamp: nowIso() }),
 				doc.body,
 			),
 		);
-		applied.push(`describe ${du.chunk}`);
+		applied.push(`describe ${du.feature}`);
 	}
 
-	// accept: the user approved the chunk set — promote every draft to pending
-	// (the mechanical half of the chunk UI's Accept; comments stay semantic).
-	// The chunk UI's { type:"plan-approved" } line pipes in verbatim as accept.
+	// accept: the user approved the feature set — promote every draft to pending
+	// (the mechanical half of the feature UI's Accept; comments stay semantic).
+	// The feature UI's { type:"plan-approved" } line pipes in verbatim as accept.
 	if (payload.accept || payload.type === "plan-approved") {
-		for (const c of reload().chunks) {
+		for (const c of reload().features) {
 			if (c.fm.status !== "draft") continue;
 			const doc = splitDoc(c.raw);
 			writeFileSync(
-				join(chunksDir, `${c.slug}.md`),
+				join(featuresDir, `${c.slug}.md`),
 				joinDoc(
 					setFmKeys(doc.fm, { status: "pending", timestamp: nowIso() }),
 					doc.body,
@@ -1211,7 +1211,7 @@ function applyAdjustments(payload, root) {
 		prependLog(
 			b.memDir,
 			payload.log ||
-				`**Update**: Applied ${applied.length} chunk adjustment(s).`,
+				`**Update**: Applied ${applied.length} feature adjustment(s).`,
 		);
 	}
 	return { op: "adjustments", applied, memoryDir: b.memDir };
@@ -1224,47 +1224,47 @@ function applyAdjustments(payload, root) {
 
 /**
  * Process the review UI's `accept-commit` result end to end: branch safety,
- * per-chunk staging (the same diff→chunk mapping the review showed), one
- * `chunk(<slug>)` commit per chunk with a `Chunk:` trailer, `status: done`
+ * per-feature staging (the same diff→feature mapping the review showed), one
+ * `feature(<slug>)` commit per feature with a `Feature:` trailer, `status: done`
  * flips, commit-sha recording, okf-memory verdict application, and an
  * optional `last_memorized_commit` advance — then one bookkeeping commit.
- * Resumable: chunks already done are skipped, so a rerun after a mid-way
+ * Resumable: features already done are skipped, so a rerun after a mid-way
  * failure completes the remainder.
  */
 function acceptCommit(payload, root) {
 	const b = loadBundle(root);
-	const entries = listy(payload.chunks || payload.chunk).map((c) =>
+	const entries = listy(payload.features || payload.feature).map((c) =>
 		typeof c === "string" ? { slug: c } : c,
 	);
-	if (!entries.length) fail("accept-commit needs a non-empty chunks list");
+	if (!entries.length) fail("accept-commit needs a non-empty features list");
 
-	const bySlug = new Map(b.chunks.map((c) => [c.slug, c]));
+	const bySlug = new Map(b.features.map((c) => [c.slug, c]));
 	const done = new Set(
-		b.chunks.filter((c) => c.fm.status === "done").map((c) => c.slug),
+		b.features.filter((c) => c.fm.status === "done").map((c) => c.slug),
 	);
 	for (const e of entries) {
-		const c = bySlug.get(e.slug) || fail(`no chunk '${e.slug || ""}'`);
+		const c = bySlug.get(e.slug) || fail(`no feature '${e.slug || ""}'`);
 		if (c.fm.status === "done") continue; // already landed — resumable rerun
 		if ((c.fm.status || "pending") !== "pending")
-			fail(`chunk '${e.slug}' is ${c.fm.status}, not pending`);
+			fail(`feature '${e.slug}' is ${c.fm.status}, not pending`);
 		const waiting = listy(c.fm.depends_on).filter((d) => !done.has(d));
 		if (waiting.length)
-			fail(`chunk '${e.slug}' is waiting on: ${waiting.join(", ")}`);
+			fail(`feature '${e.slug}' is waiting on: ${waiting.join(", ")}`);
 	}
 
 	// Uncategorized dispositions: every changed file outside the accepted
-	// chunks' surface must be explicitly assigned to a chunk or skipped
-	// (`payload.uncategorized: [{path, chunk|'skip'}]`) — silent leftovers are
+	// features' surface must be explicitly assigned to a feature or skipped
+	// (`payload.uncategorized: [{path, feature|'skip'}]`) — silent leftovers are
 	// the tight-git-flow gap. Validated BEFORE any mutation.
 	const review = gatherReview(root, {});
-	const assignedTo = new Map(); // slug -> [paths staged with that chunk]
+	const assignedTo = new Map(); // slug -> [paths staged with that feature]
 	const skips = [];
 	for (const d of listy(payload.uncategorized)) {
-		if (!d || !d.path) fail("uncategorized entries need { path, chunk|'skip' }");
-		if (d.chunk === "skip") skips.push(d.path);
-		else if (bySlug.has(d.chunk)) {
-			assignedTo.set(d.chunk, [...(assignedTo.get(d.chunk) || []), d.path]);
-		} else fail(`uncategorized '${d.path}': unknown chunk '${d.chunk || ""}' (use a slug or 'skip')`);
+		if (!d || !d.path) fail("uncategorized entries need { path, feature|'skip' }");
+		if (d.feature === "skip") skips.push(d.path);
+		else if (bySlug.has(d.feature)) {
+			assignedTo.set(d.feature, [...(assignedTo.get(d.feature) || []), d.path]);
+		} else fail(`uncategorized '${d.path}': unknown feature '${d.feature || ""}' (use a slug or 'skip')`);
 	}
 	const disposed = new Set([...skips, ...[...assignedTo.values()].flat()]);
 	const unassigned = (review.uncategorized || [])
@@ -1272,7 +1272,7 @@ function acceptCommit(payload, root) {
 		.filter((p) => !disposed.has(p));
 	if (unassigned.length && b.settings.block_commit_on_leftovers === "on") {
 		fail(
-			`uncommitted leftovers: ${unassigned.join(", ")} — assign each uncategorized file to a chunk or skip it explicitly (uncategorized: [{path, chunk|'skip'}]), or set block_commit_on_leftovers: off`,
+			`uncommitted leftovers: ${unassigned.join(", ")} — assign each uncategorized file to a feature or skip it explicitly (uncategorized: [{path, feature|'skip'}]), or set block_commit_on_leftovers: off`,
 		);
 	}
 
@@ -1284,19 +1284,19 @@ function acceptCommit(payload, root) {
 	}
 
 	// git commit commits the WHOLE index, so anything pre-staged (another
-	// chunk's files, unrelated work) would silently ride into the first chunk
-	// commit. Unstage everything first: each chunk commit then contains
+	// feature's files, unrelated work) would silently ride into the first feature
+	// commit. Unstage everything first: each feature commit then contains
 	// exactly its own staged paths. The working tree is untouched.
 	if (gitSoft(["rev-parse", "--verify", "HEAD"], b.root) !== "") {
 		gitSoft(["reset", "-q"], b.root);
 	}
 
-	// Stage what the review showed (the diff mapped chunk-by-chunk — gather
+	// Stage what the review showed (the diff mapped feature-by-feature — gather
 	// intent-to-adds untracked files, so new files are included), unioned with
-	// any changed/untracked file matching the chunk's `files:` globs — the
-	// chunk's declared surface wins over diff-mapping gaps.
+	// any changed/untracked file matching the feature's `files:` globs — the
+	// feature's declared surface wins over diff-mapping gaps.
 	const filesFor = new Map(
-		review.chunks.map((rc) => [rc.name, rc.files.map((f) => f.path)]),
+		review.features.map((rc) => [rc.name, rc.files.map((f) => f.path)]),
 	);
 	const changed = gitW(["status", "--porcelain"], b.root)
 		.split("\n")
@@ -1321,11 +1321,11 @@ function acceptCommit(payload, root) {
 		const set = { status: "done" };
 		if (e.testsStatus && e.testsStatus !== "none")
 			set.tests_status = e.testsStatus;
-		updateChunk(
+		updateFeature(
 			{
-				chunk: e.slug,
+				feature: e.slug,
 				set,
-				log: `**Implementation**: Committed chunk(${e.slug}) on branch ${branch}.`,
+				log: `**Implementation**: Committed feature(${e.slug}) on branch ${branch}.`,
 			},
 			root,
 			{ regen: false },
@@ -1345,28 +1345,28 @@ function acceptCommit(payload, root) {
 		if (pathspecs.length) gitW(["add", "-A", "--", ...pathspecs], b.root);
 		if (!hasStaged(b.root)) {
 			fail(
-				`chunk '${e.slug}': nothing to stage (no changed files matched its diff or globs)`,
+				`feature '${e.slug}': nothing to stage (no changed files matched its diff or globs)`,
 			);
 		}
 		const c = bySlug.get(e.slug);
 		const summary = e.summary || c.fm.title || c.fm.description || e.slug;
 		gitW(
-			["commit", "-m", `chunk(${e.slug}): ${summary}\n\nChunk: ${e.slug}`],
+			["commit", "-m", `feature(${e.slug}): ${summary}\n\nFeature: ${e.slug}`],
 			b.root,
 		);
-		committed.push({ chunk: e.slug, sha: gitW(["rev-parse", "HEAD"], b.root) });
+		committed.push({ feature: e.slug, sha: gitW(["rev-parse", "HEAD"], b.root) });
 	}
 
 	// A commit cannot contain its own sha — record them all afterwards.
-	for (const { chunk, sha } of committed) {
-		updateChunk({ chunk, appendCommit: { sha, kind: "implement" } }, root, {
+	for (const { feature, sha } of committed) {
+		updateFeature({ feature, appendCommit: { sha, kind: "implement" } }, root, {
 			regen: false,
 		});
 	}
 	if (entries.length) regenerate(root);
 
 	// okf-memory: apply the user's card decisions and advance the pointer to
-	// the last chunk commit (`advance: true` — the skill asserts the pointer
+	// the last feature commit (`advance: true` — the skill asserts the pointer
 	// rules). The writes land in the bookkeeping commit, which touches only
 	// the bundle and is therefore excluded from the memorize pending range.
 	let memorize = null;
@@ -1388,7 +1388,7 @@ function acceptCommit(payload, root) {
 				[
 					"commit",
 					"-m",
-					"chore(iterator): record chunk commits and memory updates",
+					"chore(iterator): record feature commits and memory updates",
 				],
 				b.root,
 			);
@@ -1419,17 +1419,17 @@ function acceptCommit(payload, root) {
 }
 
 /**
- * Commit a chunk's test files end to end — the deterministic twin of
+ * Commit a feature's test files end to end — the deterministic twin of
  * accept-commit for /iterator-test: branch safety, staging (test files +
- * bundle), one `test(<slug>)` commit with the `Chunk:` trailer, tests/
+ * bundle), one `test(<slug>)` commit with the `Feature:` trailer, tests/
  * tests_status recording, and the sha bookkeeping commit. Replaces the
  * two-phase choreography the skill used to drive by prose.
  */
 function commitTests(payload, root) {
 	const b = loadBundle(root);
 	const c =
-		b.chunks.find((x) => x.slug === payload.chunk) ||
-		fail(`no chunk '${payload.chunk || ""}'`);
+		b.features.find((x) => x.slug === payload.feature) ||
+		fail(`no feature '${payload.feature || ""}'`);
 	const files = listy(payload.files).map(String);
 	if (!files.length) fail("commit-tests needs files (the test files written)");
 	const status =
@@ -1445,11 +1445,11 @@ function commitTests(payload, root) {
 	}
 
 	// Record tests/tests_status first so the bundle update rides the commit.
-	updateChunk(
+	updateFeature(
 		{
-			chunk: c.slug,
+			feature: c.slug,
 			set: { tests: files, tests_status: status },
-			log: `**Tests**: ${status} tests committed for [${c.fm.title || c.slug}](/chunks/${c.slug}.md).`,
+			log: `**Tests**: ${status} tests committed for [${c.fm.title || c.slug}](/features/${c.slug}.md).`,
 		},
 		root,
 	);
@@ -1458,23 +1458,23 @@ function commitTests(payload, root) {
 	const pathspecs = [...files, ...(memStageable ? [b.memName] : [])];
 	gitW(["add", "-A", "--", ...pathspecs], b.root);
 	if (!hasStaged(b.root))
-		fail(`commit-tests: nothing to stage for chunk '${c.slug}'`);
+		fail(`commit-tests: nothing to stage for feature '${c.slug}'`);
 	const summary = payload.summary || `${status} tests for ${c.slug}`;
 	gitW(
-		["commit", "-m", `test(${c.slug}): ${summary}\n\nChunk: ${c.slug}`],
+		["commit", "-m", `test(${c.slug}): ${summary}\n\nFeature: ${c.slug}`],
 		b.root,
 	);
 	const sha = gitW(["rev-parse", "HEAD"], b.root);
 
 	// A commit cannot contain its own sha — record it and bookkeeping-commit.
-	updateChunk({ chunk: c.slug, appendCommit: { sha, kind: "test" } }, root);
+	updateFeature({ feature: c.slug, appendCommit: { sha, kind: "test" } }, root);
 	if (memStageable) {
 		gitW(["add", "-A", "--", b.memName], b.root);
 		if (hasStaged(b.root)) {
 			gitW(["commit", "-m", "chore(iterator): record test commit"], b.root);
 		}
 	}
-	return { op: "commit-tests", chunk: c.slug, branch, sha, testsStatus: status };
+	return { op: "commit-tests", feature: c.slug, branch, sha, testsStatus: status };
 }
 
 /**
@@ -1506,13 +1506,13 @@ function recordReview(payload, root) {
 	const recorded = [];
 	for (const f of feats) {
 		const c =
-			b.chunks.find((x) => x.slug === f.name) || fail(`no chunk '${f.name}'`);
+			b.features.find((x) => x.slug === f.name) || fail(`no feature '${f.name}'`);
 		const lead = LEAD[f.status] || "Note";
-		updateChunk(
+		updateFeature(
 			{
-				chunk: f.name,
+				feature: f.name,
 				appendReview: `* **${lead}**${byTag} — ${f.note || "no changes requested"}`,
-				log: `**Review**: Reviewed [${c.fm.title || f.name}](/chunks/${f.name}.md); ${f.status || "note"}${payload.by === "agent" ? " (agent)" : ""}.`,
+				log: `**Review**: Reviewed [${c.fm.title || f.name}](/features/${f.name}.md); ${f.status || "note"}${payload.by === "agent" ? " (agent)" : ""}.`,
 			},
 			root,
 		);
@@ -1528,7 +1528,7 @@ function recordReview(payload, root) {
 // ---------------------------------------------------------------------------
 // op: memorize (okf-memory knowledge areas — shared-bundle integration)
 
-/** Build a fresh okf memory concept document. */
+/** Build a fresh OKF memory concept document. */
 function memoryDoc(m) {
 	const fm = [
 		`type: ${fmScalar(m.type)}`,
@@ -1552,7 +1552,7 @@ function memoryDoc(m) {
 
 /**
  * Apply okf-memory concept writes (create/update/delete) and/or advance
- * `last_memorized_commit` in the root index. Never touches chunks/plan —
+ * `last_memorized_commit` in the root index. Never touches features/plan —
  * this op is the shared-bundle bridge to okf-memory's knowledge areas.
  */
 function writeMemorize(payload, root) {
@@ -1579,8 +1579,8 @@ function writeMemorize(payload, root) {
 		const action = m.action || "create";
 		if (!["create", "update", "delete"].includes(action))
 			fail(`memorize: invalid action '${m.action}'`);
-		if (["chunks", "plans"].includes(m.area))
-			fail(`memorize: area '${m.area}' is owned by the plan/chunk ops`);
+		if (["features", "plans"].includes(m.area))
+			fail(`memorize: area '${m.area}' is owned by the plan/feature ops`);
 		if (
 			!OKF_AREAS[m.area] &&
 			!existsSync(join(b.memDir, String(m.area || ""), "index.md"))
@@ -1698,8 +1698,8 @@ function refreshFormat(payload, root) {
 }
 
 // ---------------------------------------------------------------------------
-// op: apply-review (the okf skills' verdict-based writer — okf-init,
-// okf-consolidate, and okf-memorize pipe the review server's output plus the
+// op: apply-review (the knowledge skills' verdict-based writer — iterator-init,
+// iterator-consolidate, and iterator-memorize pipe the review server's output plus the
 // original draft cards in verbatim)
 
 function conceptFmValue(key, value) {
@@ -1709,7 +1709,7 @@ function conceptFmValue(key, value) {
 	}
 	const s = String(value).replace(/\s+/g, " ").trim();
 	// ISO timestamps/dates stay bare (house style); everything else follows
-	// the one shared quoting rule (fmScalar) so concept and chunk frontmatter
+	// the one shared quoting rule (fmScalar) so concept and feature frontmatter
 	// cannot drift apart.
 	if (/^[0-9][0-9T:.Z+-]*$/.test(s)) return `${key}: ${s}`;
 	return `${key}: ${fmScalar(s)}`;
@@ -1792,8 +1792,8 @@ function applyReview(payload, root) {
 			fail(`invalid concept id '${d.id || ""}' (expected <area>/<slug>)`);
 		}
 		const area = String(d.id).split("/")[0];
-		if (["chunks", "plans"].includes(area)) {
-			fail(`apply-review: area '${area}' is owned by the plan/chunk ops`);
+		if (["features", "plans"].includes(area)) {
+			fail(`apply-review: area '${area}' is owned by the plan/feature ops`);
 		}
 		if (!OKF_AREAS[area]) {
 			fail(
@@ -1879,7 +1879,7 @@ const EXTENSIONS_BODY = `Guidance for agents and extensions reading or updating 
 
 * Start at \`memory/index.md\`, follow the area indexes, then open only the
   relevant concept files (progressive disclosure — never bulk-read the bundle).
-* A concept ID is the bundle-relative path without \`.md\`; chunk IDs/slugs
+* A concept ID is the bundle-relative path without \`.md\`; feature IDs/slugs
   are their filenames without \`.md\` and are the stable identity used by tools.
 * Non-reserved concept files require YAML frontmatter with a non-empty
   \`type\`; preserve unknown keys and tolerate unknown concept types.
@@ -1891,7 +1891,7 @@ const EXTENSIONS_BODY = `Guidance for agents and extensions reading or updating 
   indexes, and append a newest-first \`memory/log.md\` entry for meaningful
   changes.
 * Knowledge writes should go through the iterator writer (\`write.mjs\` ops
-  \`memorize\` / \`apply-review\`); plan/chunk writes through its plan/chunk ops.
+  \`memorize\` / \`apply-review\`); plan/feature writes through its plan/feature ops.
 `;
 
 /**
@@ -1953,8 +1953,8 @@ function writeExtensions(payload, root) {
 
 /**
  * A finished plan is knowledge: condense it into a decisions/ concept (the
- * semantic text comes from the model) and archive the plan + chunk files to
- * memory/chunks/archive/<created>-<slug>/ — loadBundle reads chunks/
+ * semantic text comes from the model) and archive the plan + feature files to
+ * memory/features/archive/<created>-<slug>/ — loadBundle reads features/
  * non-recursively, so archived work is invisible to every gather step while
  * staying browsable in git. The bundle is left plan-less, ready for the next
  * /iterator-plan.
@@ -1973,12 +1973,12 @@ function retirePlan(payload, root) {
 			"retire-plan: concept needs title, description, body (what was built, why, key trade-offs)",
 		);
 	}
-	const unfinished = b.chunks
+	const unfinished = b.features
 		.filter((ch) => (ch.fm.status || "pending") !== "done")
 		.map((ch) => ch.slug);
 	if (unfinished.length && !payload.force) {
 		fail(
-			`retire-plan: chunks not done: ${unfinished.join(", ")} (pass force:true to retire anyway)`,
+			`retire-plan: features not done: ${unfinished.join(", ")} (pass force:true to retire anyway)`,
 		);
 	}
 
@@ -1986,7 +1986,7 @@ function retirePlan(payload, root) {
 	//    (area index + root area link + log all handled there).
 	const files = listy(c.files).length
 		? listy(c.files)
-		: [...new Set(b.chunks.flatMap((ch) => listy(ch.fm.files)))];
+		: [...new Set(b.features.flatMap((ch) => listy(ch.fm.files)))];
 	const archiveName = `${b.plan.fm.created || today()}-${c.slug}`;
 	// The plan's token ledger rides into the archive; its totals line survives
 	// in the decision concept so retired-plan costs stay visible (issue 12).
@@ -2011,7 +2011,7 @@ function retirePlan(payload, root) {
 					date: today(),
 					tags: listy(c.tags),
 					files,
-					body: `${String(c.body).trim()}\n\n# Retired plan\n\nCondensed from plan "${b.plan.fm.title || ""}" (${b.chunks.length} chunks, archived under /chunks/archive/${archiveName}/).${usageLine}`,
+					body: `${String(c.body).trim()}\n\n# Retired plan\n\nCondensed from plan "${b.plan.fm.title || ""}" (${b.features.length} features, archived under /features/archive/${archiveName}/).${usageLine}`,
 				},
 			],
 			log: `**Retirement**: Plan "${b.plan.fm.title || ""}" condensed into [${c.title}](/decisions/${c.slug}.md).`,
@@ -2019,9 +2019,9 @@ function retirePlan(payload, root) {
 		root,
 	);
 
-	// 2. Archive plan.md + chunks (incl. their index) out of the readers' view.
-	const chunksDir = join(b.memDir, "chunks");
-	const archiveDir = join(chunksDir, "archive", archiveName);
+	// 2. Archive plan.md + features (incl. their index) out of the readers' view.
+	const featuresDir = join(b.memDir, "features");
+	const archiveDir = join(featuresDir, "archive", archiveName);
 	mkdirSync(archiveDir, { recursive: true });
 	renameSync(join(b.memDir, "plan.md"), join(archiveDir, "plan.md"));
 	const archived = ["plan.md"];
@@ -2030,15 +2030,15 @@ function retirePlan(payload, root) {
 		renameSync(usageFile, join(archiveDir, "usage.md"));
 		archived.push("usage.md");
 	}
-	if (existsSync(chunksDir)) {
-		for (const f of readdirSync(chunksDir)) {
+	if (existsSync(featuresDir)) {
+		for (const f of readdirSync(featuresDir)) {
 			if (!f.endsWith(".md")) continue;
-			renameSync(join(chunksDir, f), join(archiveDir, f));
+			renameSync(join(featuresDir, f), join(archiveDir, f));
 			archived.push(f);
 		}
 	}
 
-	// 3. Root index: drop the plan/chunks bullets (regenerate() only merges,
+	// 3. Root index: drop the plan/features bullets (regenerate() only merges,
 	//    never removes); the knowledge side of the file stays untouched.
 	const indexFile = join(b.memDir, "index.md");
 	if (existsSync(indexFile)) {
@@ -2047,7 +2047,7 @@ function retirePlan(payload, root) {
 			.split("\n")
 			.filter(
 				(l) =>
-					!(/^\s*[*-]\s+\[/.test(l) && /\]\(\/?(plan\.md|chunks\/)\)/.test(l)),
+					!(/^\s*[*-]\s+\[/.test(l) && /\]\(\/?(plan\.md|features\/)\)/.test(l)),
 			);
 		writeFileSync(
 			indexFile,
@@ -2102,7 +2102,7 @@ function retirePlan(payload, root) {
 	return {
 		op: "retire-plan",
 		concept: `decisions/${c.slug}`,
-		archived: `chunks/archive/${archiveName}`,
+		archived: `features/archive/${archiveName}`,
 		archivedFiles: archived,
 		...(Object.keys(removed).length ? removed : {}),
 		...(notes.length ? { notes } : {}),
@@ -2111,35 +2111,35 @@ function retirePlan(payload, root) {
 }
 
 // ---------------------------------------------------------------------------
-// ops: cancel-chunk / cancel-plan — remove work without the retire ceremony.
+// ops: cancel-feature / cancel-plan — remove work without the retire ceremony.
 // Cancelled work is not knowledge: nothing is condensed, files are archived
-// under chunks/archive/cancelled-… so they stay browsable in git while
-// invisible to every gather (loadBundle reads chunks/ non-recursively).
+// under features/archive/cancelled-… so they stay browsable in git while
+// invisible to every gather (loadBundle reads features/ non-recursively).
 
 /**
- * Cancel one chunk regardless of status (the dashboard confirms first):
- * archive its file and scrub it from the remaining chunks' depends_on lists.
+ * Cancel one feature regardless of status (the dashboard confirms first):
+ * archive its file and scrub it from the remaining features' depends_on lists.
  */
-function cancelChunk(payload, root) {
+function cancelFeature(payload, root) {
 	const b = loadBundle(root);
-	const slug = payload.chunk || fail("cancel-chunk needs a chunk slug");
+	const slug = payload.feature || fail("cancel-feature needs a feature slug");
 	const c =
-		b.chunks.find((ch) => ch.slug === slug) ||
-		fail(`cancel-chunk: no chunk '${slug}'`);
-	const chunksDir = join(b.memDir, "chunks");
+		b.features.find((ch) => ch.slug === slug) ||
+		fail(`cancel-feature: no feature '${slug}'`);
+	const featuresDir = join(b.memDir, "features");
 	const archiveName = `cancelled-${today()}-${slug}`;
-	const archiveDir = join(chunksDir, "archive", archiveName);
+	const archiveDir = join(featuresDir, "archive", archiveName);
 	mkdirSync(archiveDir, { recursive: true });
-	renameSync(join(chunksDir, `${slug}.md`), join(archiveDir, `${slug}.md`));
+	renameSync(join(featuresDir, `${slug}.md`), join(archiveDir, `${slug}.md`));
 
 	const scrubbed = [];
-	for (const other of b.chunks) {
+	for (const other of b.features) {
 		if (other.slug === slug) continue;
 		const deps = listy(other.fm.depends_on);
 		if (!deps.includes(slug)) continue;
 		const doc = splitDoc(other.raw);
 		writeFileSync(
-			join(chunksDir, `${other.slug}.md`),
+			join(featuresDir, `${other.slug}.md`),
 			joinDoc(
 				setFmKeys(doc.fm, { depends_on: deps.filter((d) => d !== slug) }),
 				doc.body,
@@ -2147,23 +2147,23 @@ function cancelChunk(payload, root) {
 		);
 		scrubbed.push(other.slug);
 	}
-	regenerate(root); // rebuilds chunks/index.md and the plan's Chunks section
+	regenerate(root); // rebuilds features/index.md and the plan's Features section
 	prependLog(
 		b.memDir,
 		payload.log ||
-			`**Cancellation**: Chunk "${c.fm.title || slug}" cancelled and archived under /chunks/archive/${archiveName}/.`,
+			`**Cancellation**: Feature "${c.fm.title || slug}" cancelled and archived under /features/archive/${archiveName}/.`,
 	);
 	return {
-		op: "cancel-chunk",
-		chunk: slug,
-		archived: `chunks/archive/${archiveName}`,
+		op: "cancel-feature",
+		feature: slug,
+		archived: `features/archive/${archiveName}`,
 		...(scrubbed.length ? { dependentsScrubbed: scrubbed } : {}),
 		memoryDir: b.memDir,
 	};
 }
 
 /**
- * Cancel the whole plan: archive plan.md + usage.md + every chunk file (no
+ * Cancel the whole plan: archive plan.md + usage.md + every feature file (no
  * all-done gate, no decision condensation), reset state.md to idle, and tear
  * down the plan's recorded branch/worktree. Destructive by design — the
  * dashboard warns about uncommitted/unmerged work before calling; the result
@@ -2191,9 +2191,9 @@ function cancelPlan(payload, root) {
 			? gitSoft(["rev-list", "--count", `${baseBranch}..${planBranch}`], b.root)
 			: "";
 
-	// 1. Archive plan.md + usage.md + chunks out of the readers' view.
-	const chunksDir = join(b.memDir, "chunks");
-	const archiveDir = join(chunksDir, "archive", archiveName);
+	// 1. Archive plan.md + usage.md + features out of the readers' view.
+	const featuresDir = join(b.memDir, "features");
+	const archiveDir = join(featuresDir, "archive", archiveName);
 	mkdirSync(archiveDir, { recursive: true });
 	renameSync(join(b.memDir, "plan.md"), join(archiveDir, "plan.md"));
 	const archived = ["plan.md"];
@@ -2202,15 +2202,15 @@ function cancelPlan(payload, root) {
 		renameSync(usageFile, join(archiveDir, "usage.md"));
 		archived.push("usage.md");
 	}
-	if (existsSync(chunksDir)) {
-		for (const f of readdirSync(chunksDir)) {
+	if (existsSync(featuresDir)) {
+		for (const f of readdirSync(featuresDir)) {
 			if (!f.endsWith(".md")) continue;
-			renameSync(join(chunksDir, f), join(archiveDir, f));
+			renameSync(join(featuresDir, f), join(archiveDir, f));
 			archived.push(f);
 		}
 	}
 
-	// 2. Root index: drop the plan/chunks bullets (same scrub as retire-plan).
+	// 2. Root index: drop the plan/features bullets (same scrub as retire-plan).
 	const indexFile = join(b.memDir, "index.md");
 	if (existsSync(indexFile)) {
 		const doc = splitDoc(readFileSync(indexFile, "utf8"));
@@ -2218,7 +2218,7 @@ function cancelPlan(payload, root) {
 			.split("\n")
 			.filter(
 				(l) =>
-					!(/^\s*[*-]\s+\[/.test(l) && /\]\(\/?(plan\.md|chunks\/)\)/.test(l)),
+					!(/^\s*[*-]\s+\[/.test(l) && /\]\(\/?(plan\.md|features\/)\)/.test(l)),
 			);
 		writeFileSync(
 			indexFile,
@@ -2242,7 +2242,7 @@ function cancelPlan(payload, root) {
 				mode: "manual",
 				paused: false,
 				phase: "idle",
-				active_chunk: null,
+				active_feature: null,
 				strikes: {},
 			},
 		},
@@ -2291,11 +2291,11 @@ function cancelPlan(payload, root) {
 	prependLog(
 		b.memDir,
 		payload.log ||
-			`**Cancellation**: Plan "${b.plan.fm.title || ""}" cancelled — archived under /chunks/archive/${archiveName}/${removed.branch ? `, branch ${removed.branch} deleted` : ""}.`,
+			`**Cancellation**: Plan "${b.plan.fm.title || ""}" cancelled — archived under /features/archive/${archiveName}/${removed.branch ? `, branch ${removed.branch} deleted` : ""}.`,
 	);
 	return {
 		op: "cancel-plan",
-		archived: `chunks/archive/${archiveName}`,
+		archived: `features/archive/${archiveName}`,
 		archivedFiles: archived,
 		discarded: {
 			uncommittedFiles,
@@ -2322,18 +2322,18 @@ export function applyOp(payload, root) {
 					: null);
 	const ops = {
 		plan: writePlan,
-		chunks: writeChunks,
+		features: writeFeatures,
 		design: writeDesign,
 		settings: writeSettings,
 		state: writeState,
 		usage: writeUsage,
-		"update-chunk": updateChunk,
+		"update-feature": updateFeature,
 		adjustments: applyAdjustments,
 		memorize: writeMemorize,
 		"apply-review": applyReview,
 		"refresh-format": refreshFormat,
 		"retire-plan": retirePlan,
-		"cancel-chunk": cancelChunk,
+		"cancel-feature": cancelFeature,
 		"cancel-plan": cancelPlan,
 		"accept-commit": acceptCommit,
 		"commit-tests": commitTests,
@@ -2358,7 +2358,7 @@ function readStdin() {
 	return new Promise((resolve) => {
 		let raw = "";
 		process.stdin.setEncoding("utf8");
-		process.stdin.on("data", (chunk) => (raw += chunk));
+		process.stdin.on("data", (c) => (raw += c));
 		process.stdin.on("end", () => resolve(raw));
 		if (process.stdin.isTTY) resolve("");
 	});
@@ -2386,9 +2386,9 @@ const SCHEMAS = {
 		],
 		"log?": "string",
 	},
-	chunks: {
-		op: "chunks",
-		chunks: [
+	features: {
+		op: "features",
+		features: [
 			{
 				name: "kebab-slug (auto-normalized, reported in result.normalized)",
 				"title?": "string",
@@ -2401,7 +2401,7 @@ const SCHEMAS = {
 				"snippets?": [{ "lang?": "string", code: "string" }],
 				"blastRadius?": "string",
 				"conflicts?": [
-					"{ decision: '<area>/<slug>', note } — set when this chunk contradicts a project decision concept; renders as a red flag",
+					"{ decision: '<area>/<slug>', note } — set when this feature contradicts a project decision concept; renders as a red flag",
 				],
 				"tags?": ["string"],
 			},
@@ -2427,8 +2427,8 @@ const SCHEMAS = {
 		op: "usage",
 		rows: [
 			{
-				step: "plan|chunk|test|implement|review|memory|hub|other",
-				"chunk?": "slug (adds to the per-chunk rollup)",
+				step: "plan|feature|test|implement|review|memory|hub|other",
+				"feature?": "slug (adds to the per-feature rollup)",
 				"provider?": "string",
 				"model?": "string",
 				"input?": "tokens",
@@ -2444,11 +2444,11 @@ const SCHEMAS = {
 			"mode?": "manual|auto",
 			"paused?": "boolean",
 			"phase?": STATE_PHASES.join("|"),
-			"active_chunk?": "slug | null",
+			"active_feature?": "slug | null",
 			"strikes?": "{ <slug>: int } (replaces the whole map)",
 		},
-		"strike?": "slug (increment that chunk's needs-work counter)",
-		"clearStrike?": "slug (reset that chunk's counter)",
+		"strike?": "slug (increment that feature's needs-work counter)",
+		"clearStrike?": "slug (reset that feature's counter)",
 	},
 	design: {
 		op: "design",
@@ -2466,9 +2466,9 @@ const SCHEMAS = {
 			"signature?": "string",
 		},
 	},
-	"update-chunk": {
-		op: "update-chunk",
-		chunk: "slug",
+	"update-feature": {
+		op: "update-feature",
+		feature: "slug",
 		"set?": {
 			"status?": "draft|pending|done",
 			"tests?": ["path"],
@@ -2480,10 +2480,10 @@ const SCHEMAS = {
 		"log?": "string",
 	},
 	adjustments: {
-		op: "adjustments (or pipe the chunk UI's plan-adjustments verbatim)",
+		op: "adjustments (or pipe the feature UI's plan-adjustments verbatim)",
 		"moves?": [{ file: "path", from: "slug", to: "slug" }],
 		"renames?": [{ from: "slug", to: "slug" }],
-		"descUpdates?": [{ chunk: "slug", description: "string" }],
+		"descUpdates?": [{ feature: "slug", description: "string" }],
 		"accept?": "true → promote drafts to pending",
 	},
 	memorize: {
@@ -2521,30 +2521,30 @@ const SCHEMAS = {
 			body: "what was built, why, key trade-offs",
 			"tags?|files?": ["string"],
 		},
-		"force?": "true → retire with unfinished chunks",
+		"force?": "true → retire with unfinished features",
 	},
-	"cancel-chunk": {
-		op: "cancel-chunk",
-		chunk: "slug — archived regardless of status; depends_on references are scrubbed",
+	"cancel-feature": {
+		op: "cancel-feature",
+		feature: "slug — archived regardless of status; depends_on references are scrubbed",
 		"log?": "string",
 	},
 	"cancel-plan": {
 		op: "cancel-plan",
 		"log?": "string",
-		"//": "archives plan+chunks+usage, resets state.md to idle, removes the plan worktree (--force) and deletes its branch; result.discarded reports uncommitted/unmerged work",
+		"//": "archives plan+features+usage, resets state.md to idle, removes the plan worktree (--force) and deletes its branch; result.discarded reports uncommitted/unmerged work",
 	},
 	"accept-commit": {
 		op: "accept-commit (or pipe the review UI's accept-commit result verbatim)",
-		chunks: ["slug or { slug, testsStatus?, summary? }"],
+		features: ["slug or { slug, testsStatus?, summary? }"],
 		"uncategorized?": [
-			"{ path, chunk: '<slug>'|'skip' } — disposition for every file the review left uncategorized; with block_commit_on_leftovers on, undisposed files fail the op",
+			"{ path, feature: '<slug>'|'skip' } — disposition for every file the review left uncategorized; with block_commit_on_leftovers on, undisposed files fail the op",
 		],
 		"memory?": { "proposals?": ["memorize cards"], "accepted?": ["<area>/<slug>"] },
-		"advance?": "true → advance last_memorized_commit to the last chunk commit",
+		"advance?": "true → advance last_memorized_commit to the last feature commit",
 	},
 	"commit-tests": {
 		op: "commit-tests",
-		chunk: "slug",
+		feature: "slug",
 		files: ["test file paths"],
 		"testsStatus?": "red|green (default: red for pending, green for done)",
 		"summary?": "string",

@@ -59,13 +59,13 @@ test("parseState normalizes state.md frontmatter with JSON strikes", () => {
 		mode: "auto",
 		paused: "true",
 		phase: "implementing",
-		active_chunk: "auth-middleware",
+		active_feature: "auth-middleware",
 		strikes: '{"auth-middleware":2,"bad":-1}',
 	});
 	assert.equal(s.mode, "auto");
 	assert.equal(s.paused, true);
 	assert.equal(s.phase, "implementing");
-	assert.equal(s.active_chunk, "auth-middleware");
+	assert.equal(s.active_feature, "auth-middleware");
 	assert.deepEqual(s.strikes, { "auth-middleware": 2 }, "negative counters dropped");
 
 	const empty = parseState(null);
@@ -73,7 +73,7 @@ test("parseState normalizes state.md frontmatter with JSON strikes", () => {
 		mode: "manual",
 		paused: false,
 		phase: "idle",
-		active_chunk: null,
+		active_feature: null,
 		strikes: {},
 	});
 	assert.deepEqual(parseState({ strikes: "not json" }).strikes, {});
@@ -99,15 +99,15 @@ test("question view renders options + free text and posts an answer", async () =
 	const html = render({
 		step: "question",
 		branch: "main",
-		title: "Chunk",
-		question: "Which chunk should be reviewed?",
+		title: "Feature",
+		question: "Which feature should be reviewed?",
 		options: [
 			{ label: "auth-middleware", description: "pending" },
 			{ label: "All pending" },
 		],
 		allowFreeText: true,
 	});
-	assert.ok(html.includes("Which chunk should be reviewed?"));
+	assert.ok(html.includes("Which feature should be reviewed?"));
 	assert.ok(html.includes("auth-middleware"));
 	assert.ok(html.includes("type:'answer'"));
 	assert.ok(html.includes("free-text"));
@@ -118,14 +118,14 @@ test("usage and archive views render their payloads", async () => {
 	const { render: archiveView } = await import("../lib/views/archive.mjs");
 	const uhtml = usageView({
 		step: "usage", branch: "main", plan: "P", exists: true,
-		totals: { steps: { implement: { "openai/gpt-5.5": { input: 1, output: 2, cacheRead: 3, cacheWrite: 4, turns: 1 } } }, chunks: {} },
+		totals: { steps: { implement: { "openai/gpt-5.5": { input: 1, output: 2, cacheRead: 3, cacheWrite: 4, turns: 1 } } }, features: {} },
 		grand: { input: 1, output: 2, cacheRead: 3, cacheWrite: 4, turns: 1 },
 	});
 	assert.ok(uhtml.includes("token usage"));
 	const ahtml = archiveView({
 		step: "archive", branch: "main", name: "2026-07-01-p", title: "P", created: "2026-07-01",
-		sections: { Goal: "g" }, chunks: [{ name: "c", title: "C", description: "d", status: "done", commits: [] }],
-		usage: { totals: { steps: {}, chunks: {} }, grand: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, turns: 0 } },
+		sections: { Goal: "g" }, features: [{ name: "c", title: "C", description: "d", status: "done", commits: [] }],
+		usage: { totals: { steps: {}, features: {} }, grand: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, turns: 0 } },
 	});
 	assert.ok(ahtml.includes("retired plan"));
 	assert.ok(ahtml.includes("view-archive") || ahtml.includes("Back to dashboard"));

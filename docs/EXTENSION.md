@@ -307,7 +307,7 @@ function readStdin() {
   return new Promise((resolve) => {
     let raw = "";
     process.stdin.setEncoding("utf8");
-    process.stdin.on("data", (chunk) => (raw += chunk));
+    process.stdin.on("data", (feature) => (raw += feature));
     process.stdin.on("end", () => resolve(raw));
     if (process.stdin.isTTY) resolve("");
   });
@@ -364,7 +364,7 @@ const server = http.createServer((req, res) => {
 
   if (req.method === "POST" && url.pathname === "/submit") {
     let body = "";
-    req.on("data", (chunk) => (body += chunk));
+    req.on("data", (feature) => (body += feature));
     req.on("end", () => {
       res.writeHead(204).end();
       finish(JSON.parse(body || "{}"));
@@ -503,8 +503,8 @@ rules:
 
 The tools the extension registers (`iterator_gather`, `iterator_write`,
 `iterator_ui`) spawn the same `gather.mjs`/`write.mjs` CLIs the skills use.
-`iterator_ui` takes only `{ step, chunk?, extra? }` and gathers the payload
-itself — the model never pipes gathered payloads or chunk bodies around.
+`iterator_ui` takes only `{ step, feature?, extra? }` and gathers the payload
+itself — the model never pipes gathered payloads or feature bodies around.
 
 ### Remote sessions: reaching the UI from the host
 

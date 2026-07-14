@@ -17,7 +17,7 @@ claude --plugin-dir .
 ```
 
 Then, in any git repo, run `/iterator` for the dashboard, or `/iterator-plan`
-to start the flow (plan → chunk → implement → review). (For a persistent
+to start the flow (plan → feature → implement → review). (For a persistent
 install, use `/plugin marketplace add <path>` + `/plugin install iterator` —
 the repo ships a `.claude-plugin/marketplace.json`. pi installs the repo as a
 package: `pi -e .`, which also loads `extensions/iterator.js` for friendly
@@ -46,11 +46,11 @@ scripts:
 ```bash
 npm run preview:hub            # /iterator          dashboard (control plane)
 npm run preview:plan           # /iterator-plan     plan-review view
-npm run preview:chunk          # /iterator-chunk    chunk-plan view (graph, cards, split/merge)
-npm run preview:review         # /iterator-review   chunk-grouped diff review
+npm run preview:feature          # /iterator-feature    feature-plan view (graph, cards, split/merge)
+npm run preview:review         # /iterator-review   feature-grouped diff review
 npm run preview:test           # /iterator-test     test-plan view
-npm run preview:knowledge      # /okf               knowledge plane dashboard
-npm run preview:memory-review  # /okf-*             memory card review
+npm run preview:knowledge      # /iterator-knowledge               knowledge plane dashboard
+npm run preview:memory-review  # knowledge skills    memory card review
 ```
 
 Each opens `http://127.0.0.1:7777/` (watch stderr for the real URL if a
@@ -72,17 +72,17 @@ iterator/
 │   ├── write.mjs                # deterministic bundle writer (--schema lists op payload shapes)
 │   ├── git.mjs / bundle.mjs     # git helpers; frontmatter/index/log primitives + validation
 │   ├── ui.mjs                   # shared page shell + "ink & ember" design tokens
-│   └── views/                   # one view module per step: hub, plan, chunk, test, review,
+│   └── views/                   # one view module per step: hub, plan, feature, test, review,
 │                                #   knowledge, memory-review
 ├── skills/
 │   ├── iterator/                # hub skill — thin shims (server/gather/write) + bundled lib/ + PI.md
 │   ├── iterator-plan/           # SKILL.md (logic only) + templates/format.md
-│   ├── iterator-chunk/          # SKILL.md (logic only)
+│   ├── iterator-feature/          # SKILL.md (logic only)
 │   ├── iterator-implement/      # SKILL.md (logic only; uses the review view in commit mode)
 │   ├── iterator-design/         # SKILL.md (logic only; design params + UI quality rules)
 │   ├── iterator-review/         # SKILL.md (logic only)
 │   ├── iterator-test/           # SKILL.md (logic only)
-│   └── okf, okf-init, …         # knowledge plane skills + shared okf/PROTOCOL.md
+│   └── iterator-knowledge, iterator-init, …  # knowledge skills + shared PROTOCOL.md
 ├── templates/format.md          # SOURCE OF TRUTH — bundle schema, copied into every memory/ bundle
 ├── scripts/sync.mjs             # copies lib/ (+views) into the hub skill (npm run sync)
 ├── docs/OKF_SPEC.md             # Open Knowledge Format v0.1 spec

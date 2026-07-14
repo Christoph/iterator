@@ -83,7 +83,7 @@ test("gather shim prints a JSON error envelope when gathering throws", () => {
 	try {
 		// A directory named *.md makes loadBundle's readFileSync throw EISDIR —
 		// the CLI must answer with {"ok":false,...}, never a stack trace.
-		execFileSync("mkdir", ["-p", join(dir, "memory", "chunks", "broken.md")]);
+		execFileSync("mkdir", ["-p", join(dir, "memory", "features", "broken.md")]);
 		execFileSync(process.execPath, [GATHER, dir, "--step", "hub"], {
 			encoding: "utf8",
 		});

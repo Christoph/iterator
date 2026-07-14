@@ -19,4 +19,4 @@ pi: `pi install /path/to/iterator` (this repo is installed by local path into `~
 
 # Command surface
 
-The extension registers friendly commands that forward to skills: `/iterator` (hub), `/iterator-plan|chunk|test|implement|design|review`, `/iterator-next` (implement the next ready chunk, no questions), and the knowledge side `/okf`, `/okf-init`, `/okf-consolidate`, `/okf-memorize`. `/iterator-implement` with no argument opens a TUI chunk picker. In pi, prefer the tools (`iterator_gather` / `iterator_write` / `iterator_ui` / `okf_write`) over shell pipelines — same scripts underneath.
+The extension registers friendly commands that forward to skills: `/iterator` (hub), `/iterator-plan|feature|test|implement|design|review`, `/iterator-next` (implement the next ready feature, no questions), and the knowledge side `/iterator-knowledge`, `/iterator-init`, `/iterator-consolidate`, `/iterator-memorize`. `/iterator-implement` with no argument opens a TUI feature picker. In pi, prefer the tools (`iterator_gather` / `iterator_write` / `iterator_ui` / `okf_write`) over shell pipelines — same scripts underneath.
