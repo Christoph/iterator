@@ -91,8 +91,34 @@ const VIEWS = {
 	archive: archiveView,
 };
 
-const GATHER_STEPS = ["hub", "plan", "feature", "implement", "memorize", "range", "session", "settings", "usage", "archive", "knowledge", "test", "review"];
-const UI_STEPS = ["hub", "plan", "feature", "test", "review", "knowledge", "memory-review", "settings", "question", "usage", "archive"];
+const GATHER_STEPS = [
+	"hub",
+	"plan",
+	"feature",
+	"implement",
+	"memorize",
+	"range",
+	"session",
+	"settings",
+	"usage",
+	"archive",
+	"knowledge",
+	"test",
+	"review",
+];
+const UI_STEPS = [
+	"hub",
+	"plan",
+	"feature",
+	"test",
+	"review",
+	"knowledge",
+	"memory-review",
+	"settings",
+	"question",
+	"usage",
+	"archive",
+];
 
 const COMMANDS = [
 	{
@@ -148,8 +174,14 @@ const COMMANDS = [
 	},
 ];
 
-const asText = (obj) => ({ content: [{ type: "text", text: JSON.stringify(obj) }], details: obj });
-const asError = (msg) => ({ content: [{ type: "text", text: String(msg) }], isError: true });
+const asText = (obj) => ({
+	content: [{ type: "text", text: JSON.stringify(obj) }],
+	details: obj,
+});
+const asError = (msg) => ({
+	content: [{ type: "text", text: String(msg) }],
+	isError: true,
+});
 
 export default function iteratorExtension(pi) {
 	let session = null;
@@ -172,7 +204,8 @@ export default function iteratorExtension(pi) {
 		if (!path) return;
 		try {
 			const rel = relative(projectRoot(cwd), resolve(cwd, String(path)))
-				.split("\\").join("/");
+				.split("\\")
+				.join("/");
 			if (!rel || rel.startsWith("..")) return;
 			recentFiles.delete(rel); // re-insert → newest position
 			recentFiles.add(rel);
@@ -217,10 +250,16 @@ export default function iteratorExtension(pi) {
 			}
 			const { hub, implement, memorize } = await gatherSession(ctx.cwd);
 			const pending = memorize.okf ? memorize.pendingCount : 0;
-			ctx.ui.setStatus("iterator", footerText(hub, implement, pending) || undefined);
+			ctx.ui.setStatus(
+				"iterator",
+				footerText(hub, implement, pending) || undefined,
+			);
 
 			if (pending < lastNudgedAt) lastNudgedAt = 0; // pointer advanced — reset
-			const threshold = parseInt(process.env.ITERATOR_MEMORIZE_NUDGE || "5", 10);
+			const threshold = parseInt(
+				process.env.ITERATOR_MEMORIZE_NUDGE || "5",
+				10,
+			);
 			if (memorize.okf && shouldNudge(pending, lastNudgedAt, threshold)) {
 				lastNudgedAt = pending;
 				ctx.ui.notify(
@@ -257,7 +296,10 @@ export default function iteratorExtension(pi) {
 			// Inactive tabs first: their refreshes are stored silently, so the
 			// hub view stays what the user ends up watching.
 			const knowledge = await gatherPayload(cwd, "knowledge");
-			session.showView({ step: "knowledge", render: () => VIEWS.knowledge(knowledge) });
+			session.showView({
+				step: "knowledge",
+				render: () => VIEWS.knowledge(knowledge),
+			});
 			const usage = await gatherPayload(cwd, "usage");
 			session.showView({ step: "usage", render: () => VIEWS.usage(usage) });
 			const { hub } = await gatherSession(cwd);
@@ -299,7 +341,11 @@ export default function iteratorExtension(pi) {
 			}
 			await refreshHub(cwd);
 		} catch (e) {
-			if (lastCtx?.hasUI) lastCtx.ui.notify(`iterator: settings not saved — ${e.message}`, "error");
+			if (lastCtx?.hasUI)
+				lastCtx.ui.notify(
+					`iterator: settings not saved — ${e.message}`,
+					"error",
+				);
 		}
 	};
 
@@ -339,9 +385,15 @@ export default function iteratorExtension(pi) {
 				await writeState({ paused: true });
 				// Stop the in-flight stream too — state is saved after each step,
 				// so Continue simply picks the flow back up.
-				try { lastCtx?.abort?.(); } catch {}
+				try {
+					lastCtx?.abort?.();
+				} catch {}
 				await restoreModel();
-				if (lastCtx?.hasUI) lastCtx.ui.notify("iterator: paused — press Continue in the dashboard to resume", "info");
+				if (lastCtx?.hasUI)
+					lastCtx.ui.notify(
+						"iterator: paused — press Continue in the dashboard to resume",
+						"info",
+					);
 				await pushStatus(cwd);
 			} else if (input.action === "continue") {
 				await writeState({ paused: false });
@@ -352,14 +404,23 @@ export default function iteratorExtension(pi) {
 				// One-click recovery to a clean state: kill the in-flight stream,
 				// reset the runtime flow state, and re-render the hub — works even
 				// when a dispatch stalled, because /control never needs a model turn.
-				try { lastCtx?.abort?.(); } catch {}
+				try {
+					lastCtx?.abort?.();
+				} catch {}
 				await writeState({
-					mode: "manual", paused: false, phase: "idle",
-					active_feature: null, strikes: {},
+					mode: "manual",
+					paused: false,
+					phase: "idle",
+					active_feature: null,
+					strikes: {},
 				});
 				autoSteps = 0;
 				await restoreModel();
-				if (lastCtx?.hasUI) lastCtx.ui.notify("iterator: aborted — flow state reset, hub is fresh", "info");
+				if (lastCtx?.hasUI)
+					lastCtx.ui.notify(
+						"iterator: aborted — flow state reset, hub is fresh",
+						"info",
+					);
 				session?.clearWorking?.(); // the overlay must never wedge
 				await pushStatus(cwd);
 				await refreshHub(cwd);
@@ -410,14 +471,24 @@ export default function iteratorExtension(pi) {
 				if (m) {
 					if (!preAutoModel) preAutoModel = lastCtx?.model || null;
 					const ok = await pi.setModel(m);
-					if (!ok) notifyUi(`no API key for ${spec.model} — staying on the active model`, "warning");
+					if (!ok)
+						notifyUi(
+							`no API key for ${spec.model} — staying on the active model`,
+							"warning",
+						);
 				} else {
-					notifyUi(`unknown model ${spec.model} for ${role} — staying on the active model`, "warning");
+					notifyUi(
+						`unknown model ${spec.model} for ${role} — staying on the active model`,
+						"warning",
+					);
 				}
 			}
 			if (spec.thinking) pi.setThinkingLevel(spec.thinking);
 		} catch (e) {
-			notifyUi(`could not switch model/thinking for ${role}: ${e.message}`, "warning");
+			notifyUi(
+				`could not switch model/thinking for ${role}: ${e.message}`,
+				"warning",
+			);
 		}
 	};
 
@@ -465,7 +536,10 @@ export default function iteratorExtension(pi) {
 				await writeState({ phase: "escalated", paused: true });
 				autoSteps = 0;
 				await restoreModel();
-				notifyUi(`auto mode circuit breaker: ${AUTO_MAX_STEPS} steps in one session — pausing for a human look`, "warning");
+				notifyUi(
+					`auto mode circuit breaker: ${AUTO_MAX_STEPS} steps in one session — pausing for a human look`,
+					"warning",
+				);
 				await refreshHub(cwd);
 				return;
 			}
@@ -512,7 +586,10 @@ export default function iteratorExtension(pi) {
 					text: `Auto mode paused — dispatch failed (${err.message}). Press Continue to retry or Abort to reset.`,
 				});
 				await pushStatus(cwd);
-				notifyUi(`auto mode paused: dispatch failed (${err.message}) — Continue retries`, "warning");
+				notifyUi(
+					`auto mode paused: dispatch failed (${err.message}) — Continue retries`,
+					"warning",
+				);
 			}
 		} catch (e) {
 			notifyUi(`auto mode stopped: ${e.message}`, "error");
@@ -543,9 +620,10 @@ export default function iteratorExtension(pi) {
 			});
 			invalidateSession();
 			const d = result.discarded;
-			const discardNote = d && (d.uncommittedFiles || d.unmergedCommits)
-				? ` — discarded ${d.uncommittedFiles} uncommitted file(s), ${d.unmergedCommits} unmerged commit(s)`
-				: "";
+			const discardNote =
+				d && (d.uncommittedFiles || d.unmergedCommits)
+					? ` — discarded ${d.uncommittedFiles} uncommitted file(s), ${d.unmergedCommits} unmerged commit(s)`
+					: "";
 			notifyUi(
 				`${op === "cancel-plan" ? "plan" : `feature ${feature}`} cancelled (archived under ${result.archived})${discardNote}`,
 			);
@@ -563,7 +641,10 @@ export default function iteratorExtension(pi) {
 		const cwd = ctxCwd();
 		try {
 			const payload = await gatherPayload(cwd, "archive", target);
-			session.showView({ step: "archive", render: () => VIEWS.archive(payload) });
+			session.showView({
+				step: "archive",
+				render: () => VIEWS.archive(payload),
+			});
 		} catch (e) {
 			if (lastCtx?.hasUI) lastCtx.ui.notify(`iterator: ${e.message}`, "error");
 		}
@@ -604,8 +685,10 @@ export default function iteratorExtension(pi) {
 						void startAuto(ctxCwd());
 						return;
 					}
-					if (result?.type === "action"
-						&& ["cancel-feature", "cancel-plan"].includes(result.action)) {
+					if (
+						result?.type === "action" &&
+						["cancel-feature", "cancel-plan"].includes(result.action)
+					) {
 						void cancelWork(result.action, result.feature || null);
 						return;
 					}
@@ -630,7 +713,11 @@ export default function iteratorExtension(pi) {
 			description: command.description,
 			handler: async (args = "", ctx) => {
 				const trimmedArgs = String(args).trim();
-				if (command.name === "iterator-implement" && !trimmedArgs && ctx?.hasUI) {
+				if (
+					command.name === "iterator-implement" &&
+					!trimmedArgs &&
+					ctx?.hasUI
+				) {
 					const picked = await pickReadyFeature(ctx);
 					if (picked === undefined) return; // dismissed / nothing ready
 					dispatch(`/skill:iterator-implement ${picked}`.trim());
@@ -658,7 +745,8 @@ export default function iteratorExtension(pi) {
 	});
 
 	pi.registerCommand("iterator-next", {
-		description: "Implement the next dependency-ready feature, no questions asked.",
+		description:
+			"Implement the next dependency-ready feature, no questions asked.",
 		handler: async (_args, ctx) => {
 			try {
 				const imp = await gatherPayload(ctx.cwd, "implement");
@@ -668,7 +756,8 @@ export default function iteratorExtension(pi) {
 						: imp.stuck
 							? "pending features exist but none is ready (dependency cycle?)"
 							: "no pending features";
-					if (ctx.hasUI) ctx.ui.notify(`iterator: nothing to implement — ${why}`, "warning");
+					if (ctx.hasUI)
+						ctx.ui.notify(`iterator: nothing to implement — ${why}`, "warning");
 					return;
 				}
 				dispatch(`/skill:iterator-implement ${imp.next.name}`);
@@ -719,16 +808,23 @@ export default function iteratorExtension(pi) {
 			"uncovered commits), range (the commit range /iterator-memorize must study), knowledge " +
 			"(the Knowledge view payload: areas, concepts, staleness).",
 		parameters: Type.Object({
-			step: Type.Union(GATHER_STEPS.map((s) => Type.Literal(s)), {
-				description: "Which step payload to gather.",
-			}),
+			step: Type.Union(
+				GATHER_STEPS.map((s) => Type.Literal(s)),
+				{
+					description: "Which step payload to gather.",
+				},
+			),
 			feature: Type.Optional(
-				Type.String({ description: "Feature slug (required for test, optional for review)." }),
+				Type.String({
+					description: "Feature slug (required for test, optional for review).",
+				}),
 			),
 		}),
 		async execute(_id, params, _signal, _onUpdate, ctx) {
 			try {
-				return asText(await gatherPayload(ctx.cwd, params.step, params.feature));
+				return asText(
+					await gatherPayload(ctx.cwd, params.step, params.feature),
+				);
 			} catch (e) {
 				return asError(e.message);
 			}
@@ -760,7 +856,21 @@ export default function iteratorExtension(pi) {
 		parameters: Type.Object(
 			{
 				op: Type.Union(
-					["plan", "features", "design", "settings", "state", "update-feature", "adjustments", "memorize", "apply-review", "refresh-format", "retire-plan", "accept-commit", "record-review"].map((s) => Type.Literal(s)),
+					[
+						"plan",
+						"features",
+						"design",
+						"settings",
+						"state",
+						"update-feature",
+						"adjustments",
+						"memorize",
+						"apply-review",
+						"refresh-format",
+						"retire-plan",
+						"accept-commit",
+						"record-review",
+					].map((s) => Type.Literal(s)),
 					{ description: "Writer operation." },
 				),
 			},
@@ -774,7 +884,7 @@ export default function iteratorExtension(pi) {
 					stdin: JSON.stringify(params),
 				});
 				invalidateSession(); // the bundle just changed under the snapshot
-			void refreshStatus(ctx); // writes move the footer's numbers
+				void refreshStatus(ctx); // writes move the footer's numbers
 				// Issue 5: auto mode starts right after the feature set is approved
 				// (adjustments accept / plan-approved) when the setting is on.
 				const approved =
@@ -784,7 +894,9 @@ export default function iteratorExtension(pi) {
 					try {
 						const { settings, state } = await gatherSession(ctx.cwd);
 						if (settings?.auto_mode === "on" && state?.mode !== "auto") {
-							notifyUi("auto mode: feature set approved — driving test → implement → review automatically");
+							notifyUi(
+								"auto mode: feature set approved — driving test → implement → review automatically",
+							);
 							void startAuto(ctx.cwd);
 						}
 					} catch {
@@ -811,25 +923,41 @@ export default function iteratorExtension(pi) {
 			"when given — memorize/init only, never consolidate), appends the log, and " +
 			"validates the bundle.",
 		parameters: Type.Object({
-			mode: Type.Union(["init", "consolidate", "memorize"].map((s) => Type.Literal(s)), {
-				description: "Which okf flow this review belongs to.",
-			}),
+			mode: Type.Union(
+				["init", "consolidate", "memorize"].map((s) => Type.Literal(s)),
+				{
+					description: "Which okf flow this review belongs to.",
+				},
+			),
 			headCommit: Type.Optional(
-				Type.String({ description: "The reviewed head sha; advances last_memorized_commit. Omit for consolidate." }),
+				Type.String({
+					description:
+						"The reviewed head sha; advances last_memorized_commit. Omit for consolidate.",
+				}),
 			),
 			memories: Type.Array(
 				Type.Object(
 					{
 						id: Type.String({ description: "<area>/<slug>" }),
 						area: Type.Union(OKF_AREA_NAMES.map((a) => Type.Literal(a))),
-						action: Type.Union(["create", "update", "delete", "keep"].map((s) => Type.Literal(s))),
+						action: Type.Union(
+							["create", "update", "delete", "keep"].map((s) =>
+								Type.Literal(s),
+							),
+						),
 						type: Type.Optional(Type.String()),
 						title: Type.Optional(Type.String()),
 						description: Type.Optional(Type.String()),
 						status: Type.Optional(Type.String()),
 						date: Type.Optional(Type.String()),
 						tags: Type.Optional(Type.Array(Type.String())),
-						files: Type.Optional(Type.Array(Type.String({ description: "Repo-relative anchor paths/globs." }))),
+						files: Type.Optional(
+							Type.Array(
+								Type.String({
+									description: "Repo-relative anchor paths/globs.",
+								}),
+							),
+						),
 						body: Type.Optional(Type.String()),
 						sourceCommits: Type.Optional(Type.Array(Type.String())),
 					},
@@ -840,7 +968,9 @@ export default function iteratorExtension(pi) {
 			decisions: Type.Array(
 				Type.Object({
 					id: Type.String(),
-					verdict: Type.Union(["accept", "reject", "keep", "delete"].map((s) => Type.Literal(s))),
+					verdict: Type.Union(
+						["accept", "reject", "keep", "delete"].map((s) => Type.Literal(s)),
+					),
 				}),
 				{ description: "The review's verdicts (review-approved output)." },
 			),
@@ -852,7 +982,7 @@ export default function iteratorExtension(pi) {
 					stdin: JSON.stringify({ op: "apply-review", ...params }),
 				});
 				invalidateSession(); // the bundle just changed under the snapshot
-			void refreshStatus(ctx); // the pointer/counts just changed
+				void refreshStatus(ctx); // the pointer/counts just changed
 				return asText(result);
 			} catch (e) {
 				return asError(e.message);
@@ -871,14 +1001,22 @@ export default function iteratorExtension(pi) {
 			"test → {cases:[...]}; review after implementing → {mode:'commit', tests:{status,total,passing}}; " +
 			"hub/feature/review → none (feature drafts are read from disk).",
 		parameters: Type.Object({
-			step: Type.Union(UI_STEPS.map((s) => Type.Literal(s)), {
-				description: "Which view to show.",
-			}),
+			step: Type.Union(
+				UI_STEPS.map((s) => Type.Literal(s)),
+				{
+					description: "Which view to show.",
+				},
+			),
 			feature: Type.Optional(
-				Type.String({ description: "Feature slug (required for test, optional for review)." }),
+				Type.String({
+					description: "Feature slug (required for test, optional for review).",
+				}),
 			),
 			extra: Type.Optional(
-				Type.Any({ description: "Agent-authored fields merged over the gathered payload." }),
+				Type.Any({
+					description:
+						"Agent-authored fields merged over the gathered payload.",
+				}),
 			),
 		}),
 		async execute(_id, params, signal, _onUpdate, ctx) {
@@ -904,18 +1042,27 @@ export default function iteratorExtension(pi) {
 				// memory-review has no gather step of its own: the cards are
 				// agent-drafted (extra.memories); areas/branch come from the
 				// knowledge payload. question is fully agent-authored (extra).
-				const gathered = params.step === "memory-review"
-					? (({ branch, project, bundlePath, areas }) =>
-						({ step: "memory-review", branch, project, bundlePath, areas }))(
-						await gatherPayload(ctx.cwd, "knowledge"))
-					: params.step === "question"
-						? { step: "question", branch: (await gatherSession(ctx.cwd))?.hub?.branch }
-						: await gatherPayload(ctx.cwd, params.step, params.feature);
+				const gathered =
+					params.step === "memory-review"
+						? (({ branch, project, bundlePath, areas }) => ({
+								step: "memory-review",
+								branch,
+								project,
+								bundlePath,
+								areas,
+							}))(await gatherPayload(ctx.cwd, "knowledge"))
+						: params.step === "question"
+							? {
+									step: "question",
+									branch: (await gatherSession(ctx.cwd))?.hub?.branch,
+								}
+							: await gatherPayload(ctx.cwd, params.step, params.feature);
 				// Deterministic zero-change guard: never open a review on nothing.
 				if (params.step === "review" && gathered.hasChanges === false) {
 					return asText({
 						type: "no-changes",
-						report: "Nothing to review — the chosen scope has no diff and no recorded commits. Relay the progress summary instead of opening a review.",
+						report:
+							"Nothing to review — the chosen scope has no diff and no recorded commits. Relay the progress summary instead of opening a review.",
 						progress: gathered.progress || null,
 					});
 				}
@@ -1027,11 +1174,19 @@ export default function iteratorExtension(pi) {
 				["testing", "implementing", "reviewing"].includes(state.phase)
 			) {
 				await writeState({ paused: true });
-				if (ctx.hasUI) ctx.ui.notify("iterator: an auto-mode run was interrupted — press Continue in the dashboard to resume", "info");
+				if (ctx.hasUI)
+					ctx.ui.notify(
+						"iterator: an auto-mode run was interrupted — press Continue in the dashboard to resume",
+						"info",
+					);
 			}
 			await refreshHub(ctx.cwd);
 		} catch (e) {
-			if (ctx.hasUI) ctx.ui.notify(`iterator: dashboard failed to start: ${e.message}`, "warning");
+			if (ctx.hasUI)
+				ctx.ui.notify(
+					`iterator: dashboard failed to start: ${e.message}`,
+					"warning",
+				);
 		}
 	});
 
@@ -1085,7 +1240,8 @@ export default function iteratorExtension(pi) {
 					? checkWrite({ ...event.input, path: abs }, oldContent, opts)
 					: checkEdit({ ...event.input, path: abs }, oldContent, opts);
 			if (!verdict) return undefined;
-			if (verdict.block) return { block: true, reason: `iterator: ${verdict.reason}` };
+			if (verdict.block)
+				return { block: true, reason: `iterator: ${verdict.reason}` };
 			if (ctx.hasUI) ctx.ui.notify(`iterator: ${verdict.reason}`, "warning");
 			return undefined;
 		}
@@ -1099,7 +1255,8 @@ export default function iteratorExtension(pi) {
 				{ command },
 				{ features: featuresDirEntries(ctx.cwd) },
 			);
-			if (verdict?.warn && ctx.hasUI) ctx.ui.notify(`iterator: ${verdict.reason}`, "warning");
+			if (verdict?.warn && ctx.hasUI)
+				ctx.ui.notify(`iterator: ${verdict.reason}`, "warning");
 		}
 		return undefined;
 	});
