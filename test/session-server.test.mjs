@@ -37,7 +37,16 @@ function firstSseEvent(origin) {
       res.on('data', d => {
         buf += d;
         const m = buf.match(/event: (\w+)\ndata: (.*)\n/);
-        if (m) { req.destroy(); resolve({ event: m[1], data: JSON.parse(m[2]) }); }
+        if (m) {
+          try {
+            const data = JSON.parse(m[2]);
+            req.destroy();
+            resolve({ event: m[1], data });
+          } catch (error) {
+            req.destroy();
+            reject(error);
+          }
+        }
       });
     });
     req.on('error', () => {}); // destroyed on purpose
@@ -119,6 +128,22 @@ test('a /submit with no pending round is handed to onUnsolicited (idle dashboard
     assert.equal(res.status, 200);
     await sleep(20);
     assert.deepEqual(unsolicited, { type: 'action', action: 'implement', feature: 'auth' });
+  } finally {
+    await session.stop();
+  }
+});
+
+test('an idle Settings close is handed to onUnsolicited for Work-tab restoration', async () => {
+  let unsolicited = null;
+  const { session, origin } = await startSession({ onUnsolicited: r => (unsolicited = r) });
+  try {
+    session.showView({ step: 'settings', render: () => viewHtml('SETTINGS') });
+    const res = await fetch(`${origin}/submit?r=${srvMod.RUN_ID}`, {
+      method: 'POST', body: '{"type":"cancel"}',
+    });
+    assert.equal(res.status, 200);
+    await sleep(20);
+    assert.deepEqual(unsolicited, { type: 'cancel' });
   } finally {
     await session.stop();
   }

@@ -579,6 +579,12 @@ export default function iteratorExtension(pi) {
 						void saveSettings(result.values);
 						return;
 					}
+					// Settings is an idle page: its Close button emits cancel, which
+					// must restore the dashboard rather than leave its view in place.
+					if (result?.type === "cancel") {
+						void refreshHub(ctxCwd());
+						return;
+					}
 					if (result?.type === "action" && result.action === "open-settings") {
 						void openSettings();
 						return;

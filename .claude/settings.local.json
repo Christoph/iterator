@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('.claude-plugin/plugin.json','utf8'\\)\\);console.log\\('plugin.json OK'\\)\")",
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('package.json','utf8'\\)\\);console.log\\('package.json OK'\\)\")",
+      "Bash(node -e \"const s=require\\('fs'\\).readFileSync\\('lib/ui.mjs','utf8'\\).split\\('\\\\n'\\).slice\\(22,24\\).join\\('\\\\n'\\); for\\(const ch of s\\){const c=ch.codePointAt\\(0\\); if\\(c>127\\) process.stdout.write\\('U+'+c.toString\\(16\\)+' '\\);}\")",
+      "Bash(node -e \"import\\('./lib/ui.mjs'\\).then\\(m=>{console.log\\('exports:', Object.keys\\(m\\).join\\(', '\\)\\); console.log\\('embed test:', m.embed\\({a:'</script>'}\\)\\); }\\).catch\\(e=>{console.error\\(e\\);process.exit\\(1\\)}\\)\")",
+      "Bash(node \"/private/tmp/claude-501/-Volumes-Extern-Projects-iterator/a9f1b77c-565e-472a-ae32-f29e0fb2b169/scratchpad/patch.mjs\")",
+      "Bash(node -e \"import\\('./lib/ui.mjs'\\).then\\(m=>{console.log\\('exports:', Object.keys\\(m\\).join\\(', '\\)\\); console.log\\('embed:', m.embed\\({a:'</script>'}\\)\\); console.log\\('sep:', m.embed\\({s:'a'+String.fromCodePoint\\(0x2028\\)+'b'}\\)\\); }\\).catch\\(e=>{console.error\\('ERR',e.message\\);process.exit\\(1\\)}\\)\")",
+      "WebFetch(domain:code.claude.com)",
+      "Bash(sed -i '' 's/\"test:chunk-server\"/\"preview:chunk-server\"/; s/\"test:review-server\"/\"preview:review-server\"/; s/\"test:test-server\"/\"preview:test-server\"/' package.json)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(Object.keys\\(p.scripts\\)\\)\")",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(curl -s http://127.0.0.1:7777/?t=0258d553bd8513b8ae8bc2c6c820e027 -o __TRACKED_VAR__/hub-page.html)",
+      "Bash(grep -c 'tests red\\\\|tests green\\\\|Implement\\\\|Dependency graph' __TRACKED_VAR__/hub-page.html)",
+      "Bash(grep -o 'Waiting on[^\"]*\\\\|Test \\(red\\)\\\\|Create plan\\\\|primary-act' __TRACKED_VAR__/hub-page.html)",
+      "Bash(sbx exec *)",
+      "Bash(curl -sv -o /dev/null --max-time 4 http://127.0.0.1:7777/)",
+      "Bash(lsof -nP -iTCP:7777 -sTCP:LISTEN)",
+      "Bash(node scripts/sync.mjs)",
+      "Bash(npm test *)",
+      "Bash(sbx ports *)",
+      "Bash(sbx --help)",
+      "Bash(cp docs/EXTENSION.md /Volumes/Extern/Projects/okf-memory/docs/EXTENSION.md)",
+      "Bash(git -C /Volumes/Extern/Projects/okf-memory status --short)",
+      "Bash(npx --yes markdownlint-cli docs/EXTENSION.md)",
+      "Bash(node -e ' *)",
+      "Bash(node *)",
+      "WebFetch(domain:aiuxplayground.com)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(perl -pi -e 's/process\\\\.stdin\\\\.on\\\\\\(\"data\", \\\\\\(feature\\\\\\) => \\\\\\(raw \\\\+= feature\\\\\\)\\\\\\)/process.stdin.on\\(\"data\", \\(c\\) => \\(raw += c\\)\\)/' lib/write.mjs)",
+      "Bash(npm run *)"
+    ]
+  }
+}

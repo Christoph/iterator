@@ -1,5 +1,13 @@
 # iterator update log
 
+## 2026-07-14
+* **Implementation**: Committed chunk(settings-return-to-work) on branch iterator/settings-return-to-work.
+* **Design**: Captured project design parameters.
+* **Update**: Applied 1 chunk adjustment(s).
+* **Creation**: 1 chunk(s) written.
+* **Creation**: Plan "Restore Work tab after closing Settings" approved on branch main.
+* **Cancellation**: Plan "Hub UI, red/green testing, and commit tracking" cancelled — archived under /chunks/archive/cancelled-2026-07-05-hub-ui-red-green-testing-and-commit-tracking/.
+
 ## 2026-07-06
 * **Implementation**: Committed feature(commit-memory-reviewability) on branch iterator/okf-gather-staleness-range.
 * **Implementation**: Committed feature(okf-writer-invariants) on branch iterator/okf-gather-staleness-range.
