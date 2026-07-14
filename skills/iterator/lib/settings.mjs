@@ -20,7 +20,7 @@ export const SETTINGS_DEFS = {
 		values: ["off", "on"],
 		default: "off",
 		label: "Auto mode",
-		help: "After the chunk set is approved, run test → implement → review automatically; a reviewer agent replaces the human until escalation.",
+		help: "After the feature set is approved, run test → implement → review automatically; a reviewer agent replaces the human until escalation.",
 	},
 	planner_model: {
 		kind: "model",
@@ -63,7 +63,7 @@ export const SETTINGS_DEFS = {
 		values: ["active", "off", "minimal", "low", "medium", "high", "xhigh"],
 		default: "medium",
 		label: "Implementer thinking",
-		help: "Thinking level for /iterator-implement turns — the chunk contract already carries the thinking; medium keeps it sharp without burning tokens.",
+		help: "Thinking level for /iterator-implement turns — the feature contract already carries the thinking; medium keeps it sharp without burning tokens.",
 	},
 	tester_thinking: {
 		kind: "enum",
@@ -84,7 +84,7 @@ export const SETTINGS_DEFS = {
 		values: ["on", "off"],
 		default: "on",
 		label: "Tests by default",
-		help: "Write red tests for each chunk before implementing (auto mode and /iterator-next).",
+		help: "Write red tests for each feature before implementing (auto mode and /iterator-next).",
 	},
 	branch_per_plan: {
 		kind: "enum",
@@ -106,14 +106,14 @@ export const SETTINGS_DEFS = {
 		max: 10,
 		default: 3,
 		label: "Max review iterations",
-		help: "Auto mode: after this many needs-work reviews on the same chunk, stop and escalate to you.",
+		help: "Auto mode: after this many needs-work reviews on the same feature, stop and escalate to you.",
 	},
 	block_commit_on_leftovers: {
 		kind: "enum",
 		values: ["on", "off"],
 		default: "on",
 		label: "Block commit on leftovers",
-		help: "Refuse accept-commit while changed files are neither assigned to a chunk nor explicitly skipped.",
+		help: "Refuse accept-commit while changed files are neither assigned to a feature nor explicitly skipped.",
 	},
 	memorize_nudge: {
 		kind: "int",
@@ -121,7 +121,7 @@ export const SETTINGS_DEFS = {
 		max: 100,
 		default: 5,
 		label: "Memorize nudge",
-		help: "Nudge toward /okf-memorize once this many commits are unmemorized (0 disables).",
+		help: "Nudge toward /iterator-memorize once this many commits are unmemorized (0 disables).",
 	},
 	usage_ledger: {
 		kind: "enum",
@@ -135,7 +135,7 @@ export const SETTINGS_DEFS = {
 		values: ["on", "off"],
 		default: "on",
 		label: "Retire prompt",
-		help: "Offer retiring the plan once every chunk is done.",
+		help: "Offer retiring the plan once every feature is done.",
 	},
 };
 
@@ -207,7 +207,7 @@ export function effectiveSettings(fm) {
 
 export const STATE_PHASES = [
 	"idle",
-	"chunking",
+	"slicing",
 	"testing",
 	"implementing",
 	"reviewing",
@@ -219,8 +219,8 @@ export const STATE_DEFAULTS = {
 	mode: "manual", // manual | auto
 	paused: false,
 	phase: "idle",
-	active_chunk: null,
-	strikes: {}, // { <chunk-slug>: needs-work count }
+	active_feature: null,
+	strikes: {}, // { <feature-slug>: needs-work count }
 };
 
 /**
@@ -233,8 +233,8 @@ export function parseState(fm) {
 	if (fm.mode === "auto" || fm.mode === "manual") out.mode = fm.mode;
 	out.paused = String(fm.paused) === "true";
 	if (STATE_PHASES.includes(fm.phase)) out.phase = fm.phase;
-	if (fm.active_chunk && fm.active_chunk !== "null") {
-		out.active_chunk = String(fm.active_chunk);
+	if (fm.active_feature && fm.active_feature !== "null") {
+		out.active_feature = String(fm.active_feature);
 	}
 	try {
 		const s = JSON.parse(String(fm.strikes || "{}"));

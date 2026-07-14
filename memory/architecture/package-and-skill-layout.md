@@ -17,7 +17,7 @@ timestamp: 2026-07-06T19:11:28.964Z
 
 # Structure
 
-`package.json` declares the repo as a pi package with `extensions/` and `skills/`. Each `SKILL.md` is the runbook the agent follows; everything mechanical lives in the `iterator` hub skill's scripts — `gather.mjs` (all read-side state, one `--step` per flow) and `write.mjs` (all bundle writes, one op per mutation). The step and okf skills are logic-only and call the hub's scripts as `<skill-dir>/../iterator/*.mjs`.
+`package.json` declares the repo as a pi package with `extensions/` and `skills/`. Each `SKILL.md` is the runbook the agent follows; everything mechanical lives in the `iterator` hub skill's scripts — `gather.mjs` (all read-side state, one `--step` per flow) and `write.mjs` (all bundle writes, one op per mutation). The step and knowledge skills are logic-only and call the hub's scripts as `<skill-dir>/../iterator/*.mjs`.
 
 `extensions/iterator.js` is NOT thin: it registers typebox-validated tools (`iterator_gather`, `iterator_write`, `iterator_ui`, `okf_write`) that spawn the same CLIs, a session-scoped dashboard, guardrails on the `tool_call` hook, and friendly commands. Pure decision logic for the extension lives in `lib/pi-tools.mjs` / `lib/guardrails.mjs` so it is testable without a pi runtime.
 

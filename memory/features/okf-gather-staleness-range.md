@@ -1,7 +1,7 @@
 ---
-type: Chunk
+type: Feature
 title: OKF gather staleness and range accuracy
-description: Make Knowledge staleness honor glob anchors and make /okf-memorize ignore memory-only bookkeeping commits.
+description: Make Knowledge staleness honor glob anchors and make /iterator-memorize ignore memory-only bookkeeping commits.
 status: done
 size: small
 depends_on: []

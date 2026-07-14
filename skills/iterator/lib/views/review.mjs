@@ -1,7 +1,7 @@
 /**
- * iterator-review: chunk-grouped diff review UI on the shared shell.
+ * iterator-review: feature-grouped diff review UI on the shared shell.
  *
- * Input:  { branch, commit, plan, progress, hasChunksFile, mode, chunks:[{name,description,
+ * Input:  { branch, commit, plan, progress, hasFeaturesFile, mode, features:[{name,description,
  *           blastRadius,dependsOn,stats,files:[{path,hunks}],
  *           tests:{status,total,passing},
  *           pitfalls:[{id,title,description,path,matched}]}], uncategorized:[],
@@ -9,21 +9,21 @@
  *           designFile,             // memory/design.md path | null — UI diffs are checked against it
  *           memory:{proposals:[{action,area,slug,title,description,reason}]} }
  *   pitfalls (optional): pitfall concepts whose files: anchors match the
- *   chunk's changed files — rendered as an amber card in the chunk detail
+ *   feature's changed files — rendered as an amber card in the feature detail
  *   plus a ⚠ marker on the sidebar row ("this file has a known sharp edge").
  *   tests (optional): status "red"|"green"|"none"; rendered as a badge so the
- *   reviewer sees the chunk's test state where the commit decision happens.
+ *   reviewer sees the feature's test state where the commit decision happens.
  *   memory (optional, commit mode): knowledge updates proposed from the
- *   implemented chunks — shown as toggleable cards (default: apply) so the
+ *   implemented features — shown as toggleable cards (default: apply) so the
  *   knowledge-base write is reviewed exactly where the commit is decided.
  *   mode:"review" (default) — standalone review; primary Accept / Send review.
  *   mode:"commit"           — driven by /iterator-implement to review the just-built
- *                             chunk wave; primary Accept and commit / Send review.
+ *                             feature wave; primary Accept and commit / Send review.
  * Output: { type:"review-feedback", branch, features:[{name,status,note}],
- *           lineComments:[{chunk,file,content,type,comment}] }
- *         or (commit mode, no changes) { type:"accept-commit", branch, chunk,
- *           chunks:[every chunk in the wave],
- *           uncategorized:[{path, chunk:"<slug>"|"skip"}],  // disposition per unmatched file
+ *           lineComments:[{feature,file,content,type,comment}] }
+ *         or (commit mode, no changes) { type:"accept-commit", branch, feature,
+ *           features:[every feature in the wave],
+ *           uncategorized:[{path, feature:"<slug>"|"skip"}],  // disposition per unmatched file
  *           memory:{accepted:["area/slug"],skipped:[...]} }
  *         plus the shared { type:"cancel" } / { type:"timeout" }.
  * The payload also carries hasChanges — servers refuse to render when false
@@ -150,7 +150,7 @@ button.cs{background:var(--accent);border-color:var(--accent);color:var(--accent
 const BODY = `
 <div class="main">
   <div class="sidebar" id="sidebar"></div>
-  <div class="detail" id="detail"><div class="empty"><h3>Select a chunk to review</h3></div></div>
+  <div class="detail" id="detail"><div class="empty"><h3>Select a feature to review</h3></div></div>
 </div>
 <div class="fb col" id="fbpanel">
   <div class="fbh" onclick="toggleFb()">
@@ -158,28 +158,28 @@ const BODY = `
     <span class="fbtog" id="fbtog">▲ expand</span>
   </div>
   <div class="fbb">
-    <div class="fbo" id="fbo"><span class="fbe">Add comments or mark chunks to generate feedback…</span></div>
+    <div class="fbo" id="fbo"><span class="fbe">Add comments or mark features to generate feedback…</span></div>
     <div class="fbhint">Use <strong>Accept</strong> / <strong>Send review</strong> in the header to submit.</div>
   </div>
 </div>
 `;
 
 const JS = `
-D.chunks = D.chunks || D.features || [];
-// mode 'commit' = driven by /iterator-implement to review the just-built chunk;
+D.features = D.features || D.features || [];
+// mode 'commit' = driven by /iterator-implement to review the just-built feature;
 // the no-change primary commits. mode 'review' (default) = standalone review.
 const MODE = D.mode || 'review';
-// comments: id -> {chunk,file,content,type,comment}; keyed per chunk and
-// captured at save time so comments survive switching chunks (same
-// file/hunk/line indexes exist in every chunk's diff).
+// comments: id -> {feature,file,content,type,comment}; keyed per feature and
+// captured at save time so comments survive switching features (same
+// file/hunk/line indexes exist in every feature's diff).
 // memSkip: indexes of memory proposals the user toggled OFF (default: apply).
-// unc: path -> disposition ('skip' | chunk slug) for uncategorized files —
+// unc: path -> disposition ('skip' | feature slug) for uncategorized files —
 // in commit mode every uncategorized file needs one before Accept.
 const S = { active: null, statuses: {}, notes: {}, comments: {}, memSkip: {}, unc: {} };
 const MEM = (D.memory && D.memory.proposals) || [];
 
 renderSidebar();
-const first = (D.chunks||[])[0] || (D.uncategorized && D.uncategorized.length ? {name:'__unc__'} : null);
+const first = (D.features||[])[0] || (D.uncategorized && D.uncategorized.length ? {name:'__unc__'} : null);
 if(first) selectFeature(first.name);
 else {
   // Defensive empty state — the zero-change guard upstream should make this
@@ -192,12 +192,12 @@ refresh();
 function renderSidebar(){
   const sb = document.getElementById('sidebar');
   sb.innerHTML = '';
-  const feats = D.chunks || [];
+  const feats = D.features || [];
   const hasUnc = D.uncategorized && D.uncategorized.length;
-  if(!D.hasChunksFile){
+  if(!D.hasFeaturesFile){
     const b = document.createElement('div');
     b.style.cssText = 'font-size:11px;padding:8px 12px;color:var(--text-muted);border-bottom:1px solid var(--border)';
-    b.textContent = 'No chunks — run /iterator-plan first';
+    b.textContent = 'No features — run /iterator-plan first';
     sb.appendChild(b);
   }
   // Design-params state: UI-touching diffs are reviewed against memory/design.md.
@@ -208,7 +208,7 @@ function renderSidebar(){
   dc.title = D.designFile || 'UI-touching changes should be checked against memory/design.md';
   sb.appendChild(dc);
   if(feats.length){
-    const l = document.createElement('div'); l.className='sec-label'; l.textContent='Chunks'; sb.appendChild(l);
+    const l = document.createElement('div'); l.className='sec-label'; l.textContent='Features'; sb.appendChild(l);
     feats.forEach(f => sb.appendChild(makeFI(f)));
   }
   if(hasUnc){
@@ -313,8 +313,8 @@ function makeFI(f){
 function selectFeature(name){
   S.active = name;
   document.querySelectorAll('.fi').forEach(el => el.classList.toggle('active', el.dataset.name===name));
-  let feat = (D.chunks||[]).find(f=>f.name===name);
-  if(name==='__unc__') feat = { name:'__unc__', description:'Files not matched by any chunk.', files: D.uncategorized||[], blastRadius:null, dependsOn:[] };
+  let feat = (D.features||[]).find(f=>f.name===name);
+  if(name==='__unc__') feat = { name:'__unc__', description:'Files not matched by any feature.', files: D.uncategorized||[], blastRadius:null, dependsOn:[] };
   if(!feat) return;
   const total = ((feat.stats&&feat.stats.added)||0)+((feat.stats&&feat.stats.removed)||0);
   const codeTotal = codeLines(feat, total);
@@ -325,9 +325,9 @@ function selectFeature(name){
     '<div class="fh"><div class="ftitle">'+(name==='__unc__'?'Uncategorized':esc(name))+'</div>'+
       '<div class="fdesc">'+esc(feat.description||'')+'</div>'+
       (name==='__unc__' && MODE==='commit' ? uncDispositionHtml() : '')+
-      '<button class="note-btn" id="note-btn">'+(note?'Edit note':'+ Add chunk note')+'</button>'+
+      '<button class="note-btn" id="note-btn">'+(note?'Edit note':'+ Add feature note')+'</button>'+
       '<div class="note-area '+(note?'open':'')+'" id="note-area">'+
-        '<textarea id="note-ta" placeholder="Note about this chunk…">'+esc(note)+'</textarea>'+
+        '<textarea id="note-ta" placeholder="Note about this feature…">'+esc(note)+'</textarea>'+
         '<div class="na"><button class="ns" id="note-save">Save</button>'+
         '<button class="nc" id="note-cancel">Cancel</button></div></div></div>'+
     (codeTotal>200?'<div class="warn">⚠️ '+codeTotal+' changed code lines — exceeds the 200-line guideline (comments/docs excluded).</div>':'')+
@@ -357,13 +357,13 @@ function selectFeature(name){
   wireUncSelects();
   renderHunks(feat);
 }
-// Commit mode: every uncategorized file must be assigned to a chunk or
+// Commit mode: every uncategorized file must be assigned to a feature or
 // explicitly skipped before Accept — silent leftovers are the git-flow gap.
 function uncDispositionHtml(){
   const files = (D.uncategorized||[]).map(f=>f.path);
   if(!files.length) return '';
-  const names = (D.chunks||[]).map(f=>f.name).filter(n=>n!=='__unc__');
-  return '<div class="uncbox"><div class="ml">These files matched no chunk — decide what happens to each on commit:</div>'+
+  const names = (D.features||[]).map(f=>f.name).filter(n=>n!=='__unc__');
+  return '<div class="uncbox"><div class="ml">These files matched no feature — decide what happens to each on commit:</div>'+
     files.map(p => {
       const cur = S.unc[p] || '';
       return '<div class="uncrow"><code>'+esc(p)+'</code><select data-unc="'+esc(p)+'">'+
@@ -424,7 +424,7 @@ function renderHunks(feat){
     container.appendChild(card);
   });
 }
-// pitfall concepts anchored to this chunk's changed files ('' for old payloads);
+// pitfall concepts anchored to this feature's changed files ('' for old payloads);
 // uncategorized files use the payload's top-level pitfalls
 function pitfallsOf(f){
   if(f && f.name==='__unc__') return D.pitfalls || [];
@@ -437,7 +437,7 @@ function codeLines(f, total){
   if(!s || s.codeAdded==null) return total;
   return (s.codeAdded||0)+(s.codeRemoved||0);
 }
-// tests badge text, or '' when the chunk has no tests (old payloads render unchanged)
+// tests badge text, or '' when the feature has no tests (old payloads render unchanged)
 function testBadge(f){
   const t = f && f.tests;
   if(!t || !t.status || t.status==='none') return '';
@@ -455,7 +455,7 @@ function toggleComment(row, cr, ta){
 }
 function saveComment(id, feat, path, line, val){
   const t = (val||'').trim();
-  if(t) S.comments[id] = { chunk: feat.name==='__unc__'?'uncategorized':feat.name,
+  if(t) S.comments[id] = { feature: feat.name==='__unc__'?'uncategorized':feat.name,
     file: path, content: (line.content||'').trim(), type: line.type, comment: t };
   else delete S.comments[id];
   updateFb(); selectFeature(S.active);
@@ -463,20 +463,20 @@ function saveComment(id, feat, path, line, val){
 
 function buildFeedbackObj(){
   const features = [];
-  const allNames = [...(D.chunks||[]).map(f=>f.name), (D.uncategorized&&D.uncategorized.length?'__unc__':null)].filter(Boolean);
+  const allNames = [...(D.features||[]).map(f=>f.name), (D.uncategorized&&D.uncategorized.length?'__unc__':null)].filter(Boolean);
   allNames.forEach(name => {
     const st = S.statuses[name], note = S.notes[name];
     if(st || note) features.push({ name: name==='__unc__'?'uncategorized':name, status: st||null, note: note||null });
   });
   const lineComments = Object.values(S.comments).map(c =>
-    ({ chunk: c.chunk, file: c.file, content: c.content, type: c.type, comment: c.comment }));
+    ({ feature: c.feature, file: c.file, content: c.content, type: c.type, comment: c.comment }));
   return { type:'review-feedback', branch: D.branch||'HEAD', features, lineComments };
 }
 function updateFb(){
   const obj = buildFeedbackObj();
   const count = obj.features.length + obj.lineComments.length;
   const fbo = document.getElementById('fbo'); const fbc = document.getElementById('fbc');
-  if(!count){ fbo.innerHTML='<span class="fbe">Add comments or mark chunks to generate feedback…</span>'; fbc.classList.remove('vis'); }
+  if(!count){ fbo.innerHTML='<span class="fbe">Add comments or mark features to generate feedback…</span>'; fbc.classList.remove('vis'); }
   else {
     fbo.textContent = JSON.stringify(obj, null, 2);
     fbc.textContent = count; fbc.classList.add('vis');
@@ -496,9 +496,9 @@ function onPrimary(){
       alert('Decide what happens to each uncategorized file before committing:\\n' + missing.join('\\n'));
       return;
     }
-    const names = (D.chunks||[]).map(f=>f.name);
-    const out = { type:'accept-commit', branch: D.branch||'HEAD', chunk: names[0], chunks: names };
-    const unc = Object.entries(S.unc).map(([path, chunk]) => ({ path, chunk }));
+    const names = (D.features||[]).map(f=>f.name);
+    const out = { type:'accept-commit', branch: D.branch||'HEAD', feature: names[0], features: names };
+    const unc = Object.entries(S.unc).map(([path, feature]) => ({ path, feature }));
     if(unc.length) out.uncategorized = unc;
     if(MEM.length) out.memory = memDecisions();
     post(out, 'Accepted — Claude is committing');

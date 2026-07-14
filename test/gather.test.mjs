@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
 	gather,
-	gatherChunk,
+	gatherFeature,
 	gatherImplement,
 	gatherKnowledge,
 	gatherPlan,
@@ -32,12 +32,12 @@ const git = (dir, ...args) =>
 		},
 	}).trim();
 
-/** Build a throwaway repo with a memory bundle: one done chunk (committed
- * with a `Chunk:` trailer), one pending chunk with a working-tree diff. */
+/** Build a throwaway repo with a memory bundle: one done feature (committed
+ * with a `Feature:` trailer), one pending feature with a working-tree diff. */
 function makeFixture() {
 	const root = mkdtempSync(join(tmpdir(), "iterator-gather-"));
 	git(root, "init", "-q");
-	mkdirSync(join(root, "memory", "chunks"), { recursive: true });
+	mkdirSync(join(root, "memory", "features"), { recursive: true });
 	mkdirSync(join(root, "src"), { recursive: true });
 	writeFileSync(
 		join(root, "memory", "plan.md"),
@@ -52,9 +52,9 @@ g
 `,
 	);
 	writeFileSync(
-		join(root, "memory", "chunks", "config-module.md"),
+		join(root, "memory", "features", "config-module.md"),
 		`---
-type: Chunk
+type: Feature
 title: Config module
 description: Centralize env access
 status: done
@@ -67,9 +67,9 @@ tests_status: green
 `,
 	);
 	writeFileSync(
-		join(root, "memory", "chunks", "auth-middleware.md"),
+		join(root, "memory", "features", "auth-middleware.md"),
 		`---
-type: Chunk
+type: Feature
 title: Auth middleware
 description: JWT middleware
 status: pending
@@ -81,8 +81,8 @@ files: ["src/auth/*.ts"]
 `,
 	);
 	writeFileSync(
-		join(root, "memory", "chunks", "index.md"),
-		`# Chunks
+		join(root, "memory", "features", "index.md"),
+		`# Features
 
 * [Config module](config-module.md) - done
 * [Auth middleware](auth-middleware.md) - pending
@@ -95,7 +95,7 @@ files: ["src/auth/*.ts"]
 		"commit",
 		"-q",
 		"-m",
-		"chunk(config-module): config\n\nChunk: config-module",
+		"feature(config-module): config\n\nFeature: config-module",
 	);
 	// Working-tree change matching only auth-middleware's glob.
 	mkdirSync(join(root, "src", "auth"), { recursive: true });
@@ -112,11 +112,11 @@ test("gather builds the hub payload from bundle + git state", () => {
 		assert.deepEqual(p.plan, { title: "Add JWT auth", status: "approved" });
 		assert.deepEqual(p.progress, { done: 1, total: 2 });
 		assert.deepEqual(
-			p.chunks.map((c) => c.name),
+			p.features.map((c) => c.name),
 			["config-module", "auth-middleware"],
 		);
 
-		const [config, auth] = p.chunks;
+		const [config, auth] = p.features;
 		assert.equal(config.status, "done");
 		assert.equal(config.testsStatus, "green");
 		assert.equal(config.hasCommits, true, "trailer commit must be found");
@@ -145,7 +145,7 @@ test("gather without a bundle returns the create-plan shape", () => {
 		const p = gather(root);
 		assert.equal(p.plan, null);
 		assert.deepEqual(p.progress, { done: 0, total: 0 });
-		assert.deepEqual(p.chunks, []);
+		assert.deepEqual(p.features, []);
 		// Tracked files ride along for the goal box's @-mention suggestions.
 		assert.deepEqual(p.files, ["a.ts", "b.ts"]);
 	} finally {
@@ -175,9 +175,9 @@ test("implement excludes drafts from ready/next and lists them separately", () =
 	try {
 		// A dependency-free draft: would be "next" if drafts were implementable.
 		writeFileSync(
-			join(root, "memory", "chunks", "a-draft.md"),
+			join(root, "memory", "features", "a-draft.md"),
 			`---
-type: Chunk
+type: Feature
 title: A draft
 description: Unaccepted proposal
 status: draft
@@ -223,27 +223,27 @@ d
 	}
 });
 
-test("review payload carries actual diff stats per chunk", () => {
+test("review payload carries actual diff stats per feature", () => {
 	const root = makeFixture();
 	try {
-		const p = gatherReview(root, { chunk: "auth-middleware" });
-		assert.equal(p.chunks.length, 1);
-		assert.equal(p.chunks[0].linesEstimate, undefined, "estimates are gone");
-		assert.ok(p.chunks[0].stats, "actual stats present");
+		const p = gatherReview(root, { feature: "auth-middleware" });
+		assert.equal(p.features.length, 1);
+		assert.equal(p.features[0].linesEstimate, undefined, "estimates are gone");
+		assert.ok(p.features[0].stats, "actual stats present");
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
 });
 
-test("review groups a chunk's tests with it and excludes comment/doc lines from code stats", () => {
+test("review groups a feature's tests with it and excludes comment/doc lines from code stats", () => {
 	const root = makeFixture();
 	try {
-		// Give the chunk recorded tests (as /iterator-test would) and stage a
+		// Give the feature recorded tests (as /iterator-test would) and stage a
 		// change mixing code, a comment, and a blank line, plus the test file.
 		writeFileSync(
-			join(root, "memory", "chunks", "auth-middleware.md"),
+			join(root, "memory", "features", "auth-middleware.md"),
 			`---
-type: Chunk
+type: Feature
 title: Auth middleware
 description: JWT middleware
 status: pending
@@ -266,15 +266,15 @@ tests: ["test/auth.test.mjs"]
 		);
 		git(root, "add", ".");
 
-		const p = gatherReview(root, { chunk: "auth-middleware" });
-		const paths = p.chunks[0].files.map((f) => f.path);
+		const p = gatherReview(root, { feature: "auth-middleware" });
+		const paths = p.features[0].files.map((f) => f.path);
 		assert.ok(
 			paths.includes("test/auth.test.mjs"),
-			"test file must be grouped with its chunk",
+			"test file must be grouped with its feature",
 		);
 		assert.equal(p.uncategorized.length, 0, "nothing falls to uncategorized");
 
-		const s = p.chunks[0].stats;
+		const s = p.features[0].stats;
 		assert.ok(
 			s.codeAdded < s.added,
 			"comment/blank lines excluded from the code count",
@@ -293,14 +293,14 @@ test("globToRegExp handles exact paths, * and **", () => {
 	assert.ok(globToRegExp("src/**").test("src/deep/a.ts"));
 });
 
-test("implement wave lists every dependency-ready chunk with its full contract", () => {
+test("implement wave lists every dependency-ready feature with its full contract", () => {
 	const root = makeFixture();
 	try {
-		// A second dependency-free pending chunk: ready alongside auth-middleware.
+		// A second dependency-free pending feature: ready alongside auth-middleware.
 		writeFileSync(
-			join(root, "memory", "chunks", "logging.md"),
+			join(root, "memory", "features", "logging.md"),
 			`---
-type: Chunk
+type: Feature
 title: Logging
 description: Structured logs
 status: pending
@@ -323,13 +323,13 @@ Pino, one logger.
 		assert.equal(
 			p.next.name,
 			p.wave[0].name,
-			"next stays the first wave chunk",
+			"next stays the first wave feature",
 		);
-		assert.ok(p.wave.length >= 2, "both ready chunks are in the wave");
+		assert.ok(p.wave.length >= 2, "both ready features are in the wave");
 		for (const c of p.wave) {
 			assert.ok(
 				"implementationNotes" in c && "blastRadius" in c && "tests" in c,
-				`wave chunk ${c.name} carries the full contract`,
+				`wave feature ${c.name} carries the full contract`,
 			);
 		}
 	} finally {
@@ -350,7 +350,7 @@ test("memorize reports okf:false for an iterator-only bundle", () => {
 	}
 });
 
-test("memorize inventories okf areas and the uncovered commit range", () => {
+test("memorize inventories OKF areas and the uncovered commit range", () => {
 	const root = makeFixture();
 	try {
 		const base = git(root, "rev-parse", "HEAD");
@@ -520,9 +520,9 @@ test("gather range flags an invalid pointer without a usable fallback", () => {
 	}
 });
 
-/** A repo with knowledge areas, a plan/chunks (work side), and design.md. */
+/** A repo with knowledge areas, a plan/features (work side), and design.md. */
 function makeKnowledgeFixture() {
-	const root = makeFixture(); // plan + 2 chunks, one commit, staged auth diff
+	const root = makeFixture(); // plan + 2 features, one commit, staged auth diff
 	mkdirSync(join(root, "memory", "pitfalls"), { recursive: true });
 	writeFileSync(
 		join(root, "memory", "index.md"),
@@ -560,7 +560,7 @@ test("gather knowledge reports areas, concepts, staleness, and the design card",
 		assert.equal(p.memory.initialized, true);
 		assert.equal(p.memory.okfVersion, "0.1");
 		assert.ok(p.memory.lastMemorizedCommit);
-		// work-owned files (plan.md, chunks/, design.md) are not knowledge concepts
+		// work-owned files (plan.md, features/, design.md) are not knowledge concepts
 		assert.equal(p.memory.conceptCount, 3);
 		assert.equal(p.memory.staleCount, 1);
 		assert.equal(p.memory.unmemorizedCommitCount, 0);
@@ -581,8 +581,8 @@ test("gather knowledge reports areas, concepts, staleness, and the design card",
 			false,
 		);
 		assert.ok(
-			!p.memories.some((m) => m.id.startsWith("chunks/")),
-			"chunks are work-side",
+			!p.memories.some((m) => m.id.startsWith("features/")),
+			"features are work-side",
 		);
 
 		assert.deepEqual(p.design, {
@@ -634,18 +634,18 @@ test("gather knowledge flags a stale format.md and an uninitialized bundle", () 
 // ---------------------------------------------------------------------------
 // anchor matching — knowledge flowing back into the work (B1)
 
-test("matchConcepts matches bidirectionally between anchors and chunk globs", () => {
+test("matchConcepts matches bidirectionally between anchors and feature globs", () => {
 	const concepts = [
 		{ id: "pitfalls/a", area: "pitfalls", files: ["lib/server.mjs"] },
 		{ id: "architecture/b", area: "architecture", files: ["lib/views/*"] },
 		{ id: "setup/c", area: "setup", files: ["package.json"] },
 	];
-	// chunk glob matches an exact anchor
+	// feature glob matches an exact anchor
 	assert.deepEqual(
 		matchConcepts(concepts, ["lib/*.mjs"]).map((c) => c.id),
 		["pitfalls/a"],
 	);
-	// anchor glob matches an exact chunk path
+	// anchor glob matches an exact feature path
 	assert.deepEqual(
 		matchConcepts(concepts, ["lib/views/hub.mjs"]).map((c) => c.id),
 		["architecture/b"],
@@ -658,7 +658,7 @@ test("matchConcepts matches bidirectionally between anchors and chunk globs", ()
 	assert.deepEqual(matchConcepts(concepts, ["src/other.ts"]), []);
 });
 
-test("implement contracts carry relevantMemories anchored to each chunk, pitfalls first", () => {
+test("implement contracts carry relevantMemories anchored to each feature, pitfalls first", () => {
 	const root = makeKnowledgeFixture(); // pitfalls/live-anchor is anchored to src/config.ts
 	try {
 		mkdirSync(join(root, "memory", "architecture"), { recursive: true });
@@ -670,7 +670,7 @@ test("implement contracts carry relevantMemories anchored to each chunk, pitfall
 			join(root, "memory", "architecture", "auth-shape.md"),
 			"---\ntype: Architecture\ntitle: Auth shape\ndescription: How auth is layered.\nfiles:\n  - src/auth/*.ts\n---\nbody\n",
 		);
-		// auth-middleware owns src/auth/*.ts and depends on the done config chunk.
+		// auth-middleware owns src/auth/*.ts and depends on the done config feature.
 		const p = gatherImplement(root);
 		assert.equal(p.next.name, "auth-middleware");
 		assert.deepEqual(
@@ -699,7 +699,7 @@ test("implement contracts carry relevantMemories anchored to each chunk, pitfall
 	}
 });
 
-test("chunk payload lists architecture concepts with their anchors", () => {
+test("feature payload lists architecture concepts with their anchors", () => {
 	const root = makeKnowledgeFixture();
 	try {
 		mkdirSync(join(root, "memory", "architecture"), { recursive: true });
@@ -711,7 +711,7 @@ test("chunk payload lists architecture concepts with their anchors", () => {
 			join(root, "memory", "architecture", "auth-shape.md"),
 			"---\ntype: Architecture\ntitle: Auth shape\ndescription: How auth is layered.\nfiles:\n  - src/auth/*.ts\n---\nbody\n",
 		);
-		const p = gatherChunk(root);
+		const p = gatherFeature(root);
 		assert.deepEqual(p.architecture, [
 			{
 				id: "architecture/auth-shape",
@@ -720,7 +720,7 @@ test("chunk payload lists architecture concepts with their anchors", () => {
 				files: ["src/auth/*.ts"],
 			},
 		]);
-		assert.equal(gatherChunk(mkFreshRepo()).architecture.length, 0);
+		assert.equal(gatherFeature(mkFreshRepo()).architecture.length, 0);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
@@ -751,9 +751,9 @@ test("review payload carries pitfall cards for anchored changed files", () => {
 			join(root, "memory", "pitfalls", "auth-sharp-edge.md"),
 			"---\ntype: Pitfall\ntitle: Auth sharp edge\ndescription: Token check races.\nfiles:\n  - src/auth/*.ts\n---\nbody\n",
 		);
-		const p = gatherReview(root, { chunk: "auth-middleware" });
-		assert.equal(p.chunks.length, 1);
-		const pits = p.chunks[0].pitfalls;
+		const p = gatherReview(root, { feature: "auth-middleware" });
+		assert.equal(p.features.length, 1);
+		const pits = p.features[0].pitfalls;
 		assert.equal(pits.length, 1);
 		assert.equal(pits[0].id, "pitfalls/auth-sharp-edge");
 		assert.deepEqual(pits[0].matched, ["src/auth/index.ts"]);
@@ -782,7 +782,7 @@ test("gatherSession bundles hub/implement/memorize in one payload", () => {
 test("gatherRange advice covers the pointer states in one sentence", () => {
 	const root = mkFreshRepo();
 	try {
-		assert.match(gatherRange(root).advice, /okf-init/);
+		assert.match(gatherRange(root).advice, /iterator-init/);
 		mkdirSync(join(root, "memory"), { recursive: true });
 		writeFileSync(
 			join(root, "memory", "index.md"),
@@ -849,17 +849,17 @@ test("hasChanges is false on a clean tree with no recorded commits", () => {
 	const root = mkdtempSync(join(tmpdir(), "iterator-gather-"));
 	try {
 		git(root, "init", "-q");
-		mkdirSync(join(root, "memory", "chunks"), { recursive: true });
+		mkdirSync(join(root, "memory", "features"), { recursive: true });
 		writeFileSync(
-			join(root, "memory", "chunks", "empty-chunk.md"),
-			'---\ntype: Chunk\ntitle: E\ndescription: d\nstatus: pending\nfiles: ["src/*.ts"]\n---\n',
+			join(root, "memory", "features", "empty-feature.md"),
+			'---\ntype: Feature\ntitle: E\ndescription: d\nstatus: pending\nfiles: ["src/*.ts"]\n---\n',
 		);
 		writeFileSync(join(root, ".keep"), "");
 		git(root, "add", ".keep");
 		git(root, "commit", "-qm", "init");
 		const p = gatherReview(root);
 		assert.equal(p.hasChanges, false);
-		assert.equal(p.chunks.length, 0);
+		assert.equal(p.features.length, 0);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
@@ -876,7 +876,7 @@ test("hub payload reports working-tree dirt outside the bundle", () => {
 	}
 });
 
-test("chunk payload surfaces decisions concepts and stored memories/conflicts", () => {
+test("feature payload surfaces decisions concepts and stored memories/conflicts", () => {
 	const root = makeFixture();
 	try {
 		mkdirSync(join(root, "memory", "decisions"), { recursive: true });
@@ -885,9 +885,9 @@ test("chunk payload surfaces decisions concepts and stored memories/conflicts", 
 			"---\ntype: Decision\ntitle: No ORM\ndescription: Raw SQL only.\n---\n\nbody\n",
 		);
 		writeFileSync(
-			join(root, "memory", "chunks", "auth-middleware.md"),
+			join(root, "memory", "features", "auth-middleware.md"),
 			`---
-type: Chunk
+type: Feature
 title: Auth middleware
 description: JWT middleware
 status: pending
@@ -898,10 +898,10 @@ conflicts: '[{"decision":"decisions/no-orm","note":"introduces an ORM"}]'
 ---
 `,
 		);
-		const p = gatherChunk(root);
+		const p = gatherFeature(root);
 		assert.equal(p.decisions.length, 1);
 		assert.equal(p.decisions[0].id, "decisions/no-orm");
-		const auth = p.chunks.find((c) => c.name === "auth-middleware");
+		const auth = p.features.find((c) => c.name === "auth-middleware");
 		assert.deepEqual(auth.memories, ["decisions/no-orm"]);
 		assert.deepEqual(auth.conflicts, [
 			{ decision: "decisions/no-orm", note: "introduces an ORM" },
@@ -938,21 +938,21 @@ test("gatherUsage and gatherArchive read the ledger and retired plans", async ()
 		);
 		applyOp(
 			{
-				op: "chunks",
-				chunks: [{ name: "only-chunk", description: "d", files: ["src/x.ts"] }],
+				op: "features",
+				features: [{ name: "only-feature", description: "d", files: ["src/x.ts"] }],
 			},
 			root,
 		);
-		applyOp({ op: "update-chunk", chunk: "only-chunk", set: { status: "done" } }, root);
+		applyOp({ op: "update-feature", feature: "only-feature", set: { status: "done" } }, root);
 		applyOp(
-			{ op: "usage", rows: [{ step: "implement", chunk: "only-chunk", provider: "p", model: "m", input: 42, output: 7 }] },
+			{ op: "usage", rows: [{ step: "implement", feature: "only-feature", provider: "p", model: "m", input: 42, output: 7 }] },
 			root,
 		);
 
 		const u = gatherUsage(root);
 		assert.equal(u.exists, true);
 		assert.equal(u.grand.input, 42);
-		assert.equal(u.totals.chunks["only-chunk"].output, 7);
+		assert.equal(u.totals.features["only-feature"].output, 7);
 
 		applyOp(
 			{
@@ -970,13 +970,13 @@ test("gatherUsage and gatherArchive read the ledger and retired plans", async ()
 
 		const list = gatherArchive(root);
 		assert.equal(list.archives.length, 1);
-		assert.equal(list.archives[0].chunks, 1);
+		assert.equal(list.archives[0].features, 1);
 		assert.equal(list.archives[0].usage.input, 42);
 
 		const one = gatherArchive(root, list.archives[0].name);
 		assert.equal(one.title, "Tiny plan");
-		assert.equal(one.chunks[0].name, "only-chunk");
-		assert.equal(one.chunks[0].status, "done");
+		assert.equal(one.features[0].name, "only-feature");
+		assert.equal(one.features[0].status, "done");
 		assert.equal(one.usage.grand.input, 42);
 		assert.match(one.sections["Goal"] || "", /g/);
 

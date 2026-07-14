@@ -114,11 +114,11 @@ test('a /submit with no pending round is handed to onUnsolicited (idle dashboard
   try {
     session.showView({ step: 'hub', render: () => viewHtml('HUB') });
     const res = await fetch(`${origin}/submit?r=${srvMod.RUN_ID}`, {
-      method: 'POST', body: '{"type":"action","action":"implement","chunk":"auth"}',
+      method: 'POST', body: '{"type":"action","action":"implement","feature":"auth"}',
     });
     assert.equal(res.status, 200);
     await sleep(20);
-    assert.deepEqual(unsolicited, { type: 'action', action: 'implement', chunk: 'auth' });
+    assert.deepEqual(unsolicited, { type: 'action', action: 'implement', feature: 'auth' });
   } finally {
     await session.stop();
   }
@@ -131,7 +131,7 @@ test('unsolicited /submit while working is rejected with 409 busy', async () => 
     session.showView({ step: 'hub', render: () => viewHtml('HUB') });
     session.showWorking('Auto: implementing…');
     const res = await fetch(`${origin}/submit?r=${srvMod.RUN_ID}`, {
-      method: 'POST', body: '{"type":"action","action":"implement","chunk":"auth"}',
+      method: 'POST', body: '{"type":"action","action":"implement","feature":"auth"}',
     });
     assert.equal(res.status, 409);
     assert.deepEqual(await res.json(), { busy: true });
@@ -140,11 +140,11 @@ test('unsolicited /submit while working is rejected with 409 busy', async () => 
     // A fresh view clears the working state; the same click now dispatches.
     session.showView({ step: 'hub', render: () => viewHtml('HUB2') });
     const ok = await fetch(`${origin}/submit?r=${srvMod.RUN_ID}`, {
-      method: 'POST', body: '{"type":"action","action":"implement","chunk":"auth"}',
+      method: 'POST', body: '{"type":"action","action":"implement","feature":"auth"}',
     });
     assert.equal(ok.status, 200);
     await sleep(20);
-    assert.deepEqual(unsolicited, { type: 'action', action: 'implement', chunk: 'auth' });
+    assert.deepEqual(unsolicited, { type: 'action', action: 'implement', feature: 'auth' });
   } finally {
     await session.stop();
   }
@@ -156,14 +156,14 @@ test('showWorking accepts a structured payload and replays it to new SSE clients
     session.showWorking({
       text: 'Auto: implement auth (1/3 done)…',
       step: 'implement',
-      chunk: 'auth',
+      feature: 'auth',
       progress: { done: 1, total: 3 },
       memories: [{ id: 'pitfalls/gone-anchor', title: 'Gone anchor', description: 'd' }],
     });
     const sse = await firstSseEvent(origin);
     assert.equal(sse.event, 'working');
     assert.equal(sse.data.step, 'implement');
-    assert.equal(sse.data.chunk, 'auth');
+    assert.equal(sse.data.feature, 'auth');
     assert.deepEqual(sse.data.progress, { done: 1, total: 3 });
     assert.equal(sse.data.memories[0].title, 'Gone anchor');
   } finally {
@@ -189,7 +189,7 @@ test('a second showStep supersedes the first, and the old view\'s cancel beacon 
   try {
     const first = session.showStep({ step: 'plan', render: () => viewHtml('ONE') });
     const oldRun = srvMod.RUN_ID;
-    const second = session.showStep({ step: 'chunk', render: () => viewHtml('TWO') });
+    const second = session.showStep({ step: 'feature', render: () => viewHtml('TWO') });
     assert.deepEqual(await first, { type: 'cancel' }, 'superseded round resolves as cancel');
     assert.notEqual(srvMod.RUN_ID, oldRun, 'run id must rotate per round');
 
@@ -284,11 +284,11 @@ test('an idle submit from a stale-run view still dispatches as unsolicited', asy
     // The knowledge tab's stored document embeds an older run id; with no
     // round pending its clicks must still count.
     const res = await fetch(`${origin}/submit?r=deadbeefdeadbeef`, {
-      method: 'POST', body: '{"type":"action","action":"okf-memorize"}',
+      method: 'POST', body: '{"type":"action","action":"iterator-memorize"}',
     });
     assert.equal(res.status, 200);
     await sleep(20);
-    assert.deepEqual(unsolicited, { type: 'action', action: 'okf-memorize' });
+    assert.deepEqual(unsolicited, { type: 'action', action: 'iterator-memorize' });
   } finally {
     await session.stop();
   }

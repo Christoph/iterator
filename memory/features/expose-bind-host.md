@@ -1,5 +1,5 @@
 ---
-type: Chunk
+type: Feature
 title: Dev bind host for Docker
 description: ITERATOR_HOST env var lets the shared server bind 0.0.0.0 for Docker sandboxes, and the default port moves from 8888 to 7777.
 status: done
@@ -19,7 +19,7 @@ In `lib/server.mjs` (then `npm run sync` to refresh all bundled copies):
 - **Default port becomes 7777** (was 8888): change the `ITERATOR_PORT`
   fallback in `serve()`, and update every 8888 mention in the five SKILL.md
   files (iterator-plan "Shared UI behavior", iterator-review step 5) and in
-  README/ARCHITECTURE (the docs-refresh chunk re-checks these, but flip them
+  README/ARCHITECTURE (the docs-refresh feature re-checks these, but flip them
   here so the repo is never internally inconsistent). Port-retry behavior on
   busy ports is unchanged.
 - Read `ITERATOR_HOST` (default `127.0.0.1`). Use it as the bind address in

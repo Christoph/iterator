@@ -1,7 +1,7 @@
 ---
-type: Chunk
-title: Review committed chunks
-description: iterator-review builds the diff from recorded commits (or the Chunk trailer) when the working tree is clean and the chunk is done.
+type: Feature
+title: Review committed features
+description: iterator-review builds the diff from recorded commits (or the Feature trailer) when the working tree is clean and the feature is done.
 status: done
 size: small
 lines_estimate: 60
@@ -16,29 +16,29 @@ tags: [skill, review]
 
 `skills/iterator-review/SKILL.md` step 3 (collect git state) currently falls
 back to a progress summary when `git diff HEAD` is empty — which is exactly
-the state right after `/iterator-implement` commits. Add a committed-chunk
+the state right after `/iterator-implement` commits. Add a committed-feature
 path:
 
-- When the tree is clean and the selected chunk is `status: done`, resolve the
-  chunk's commits: prefer the recorded `commits` shas (validate each with
+- When the tree is clean and the selected feature is `status: done`, resolve the
+  feature's commits: prefer the recorded `commits` shas (validate each with
   `git cat-file -e <sha>^{commit}` — recorded shas go stale on rebase/amend);
-  fall back to `git log --format=%H --grep '^Chunk: <slug>$'`.
+  fall back to `git log --format=%H --grep '^Feature: <slug>$'`.
 - Build the diff via `git show <sha>` per commit (or
   `git diff <oldest>^ <newest>` when they are consecutive), then map hunks to
-  chunks exactly as today (step 4). Exclude the bundle's own `memory/` paths
+  features exactly as today (step 4). Exclude the bundle's own `memory/` paths
   from the displayed diff so the review shows code, not bookkeeping.
 - Label the UI payload so the header shows what is being reviewed, e.g.
-  `commit: "a1b2c3d chunk(auth-middleware): …"` — the payload field already
+  `commit: "a1b2c3d feature(auth-middleware): …"` — the payload field already
   exists.
 - "All pending" selection is unchanged; the committed path applies when a
-  specific done chunk is picked (dependency order list should now include done
-  chunks, since reviewing them is finally possible).
+  specific done feature is picked (dependency order list should now include done
+  features, since reviewing them is finally possible).
 - Review outcome handling (step 6) is unchanged — notes still go into the
-  chunk file; `status: done` still untouched.
+  feature file; `status: done` still untouched.
 
 # Depends on
 
-* [Schema: tests + commits fields](/chunks/schema-tests-commits.md) — reads the `commits` field and its trailer-fallback rule.
+* [Schema: tests + commits fields](/features/schema-tests-commits.md) — reads the `commits` field and its trailer-fallback rule.
 
 # Blast radius
 

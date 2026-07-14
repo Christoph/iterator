@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, appendFileSync, rmSync } from 'n
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  gatherPlan, gatherChunk, gatherImplement, gatherTest, gatherReview,
+  gatherPlan, gatherFeature, gatherImplement, gatherTest, gatherReview,
   parseDiff, sections, snippets,
 } from '../lib/gather.mjs';
 
@@ -18,12 +18,12 @@ const git = (dir, ...args) => execFileSync('git', args, {
   },
 }).trim();
 
-/** Repo with a full bundle: done chunk committed with a `Chunk:` trailer,
- * pending chunk owning src/auth/**, and a vitest test setup. */
+/** Repo with a full bundle: done feature committed with a `Feature:` trailer,
+ * pending feature owning src/auth/**, and a vitest test setup. */
 function makeFixture() {
   const root = mkdtempSync(join(tmpdir(), 'iterator-steps-'));
   git(root, 'init', '-q');
-  mkdirSync(join(root, 'memory', 'chunks'), { recursive: true });
+  mkdirSync(join(root, 'memory', 'features'), { recursive: true });
   mkdirSync(join(root, 'src', 'auth'), { recursive: true });
   writeFileSync(join(root, 'package.json'),
     JSON.stringify({ name: 'fixture', scripts: { test: 'vitest run' }, devDependencies: { vitest: '^1' } }));
@@ -54,12 +54,12 @@ HS256 for simplicity.
 
 Follows the middleware pattern.
 
-# Chunks
+# Features
 
-* [Config module](/chunks/config-module.md) - Centralize env access
+* [Config module](/features/config-module.md) - Centralize env access
 `);
-  writeFileSync(join(root, 'memory', 'chunks', 'config-module.md'), `---
-type: Chunk
+  writeFileSync(join(root, 'memory', 'features', 'config-module.md'), `---
+type: Feature
 title: Config module
 description: Centralize env access
 status: done
@@ -80,8 +80,8 @@ Read env once.
 export const cfg = 1;
 \`\`\`
 `);
-  writeFileSync(join(root, 'memory', 'chunks', 'auth-middleware.md'), `---
-type: Chunk
+  writeFileSync(join(root, 'memory', 'features', 'auth-middleware.md'), `---
+type: Feature
 title: Auth middleware
 description: JWT middleware
 status: pending
@@ -99,7 +99,7 @@ Verify the token from the config secret.
 
 All protected routes.
 `);
-  writeFileSync(join(root, 'memory', 'chunks', 'index.md'), `# Chunks
+  writeFileSync(join(root, 'memory', 'features', 'index.md'), `# Features
 
 * [Config module](config-module.md) - done
 * [Auth middleware](auth-middleware.md) - pending
@@ -107,7 +107,7 @@ All protected routes.
   writeFileSync(join(root, 'src', 'config.ts'), 'export const cfg = 1;\n');
   writeFileSync(join(root, 'src', 'auth', 'index.ts'), 'export {};\n');
   git(root, 'add', '.');
-  git(root, 'commit', '-q', '-m', 'chunk(config-module): config\n\nChunk: config-module');
+  git(root, 'commit', '-q', '-m', 'feature(config-module): config\n\nFeature: config-module');
   return root;
 }
 
@@ -130,12 +130,12 @@ test('gatherPlan returns existing sections and parsed dependencies', () => {
   }
 });
 
-test('gatherChunk returns chunk bodies in UI shape', () => {
+test('gatherFeature returns feature bodies in UI shape', () => {
   const root = makeFixture();
   try {
-    const p = gatherChunk(root);
+    const p = gatherFeature(root);
     assert.equal(p.plan, 'Add JWT auth');
-    const config = p.chunks.find(c => c.name === 'config-module');
+    const config = p.features.find(c => c.name === 'config-module');
     assert.equal(config.implementationNotes, 'Read env once.');
     assert.deepEqual(config.snippets, [{ lang: 'ts', code: 'export const cfg = 1;' }]);
     assert.equal(config.status, 'done');
@@ -144,7 +144,7 @@ test('gatherChunk returns chunk bodies in UI shape', () => {
   }
 });
 
-test('gatherImplement picks the next dependency-ready chunk with its contract', () => {
+test('gatherImplement picks the next dependency-ready feature with its contract', () => {
   const root = makeFixture();
   try {
     const p = gatherImplement(root);
@@ -158,11 +158,11 @@ test('gatherImplement picks the next dependency-ready chunk with its contract', 
   }
 });
 
-test('gatherTest detects runner and red mode from the chunk status', () => {
+test('gatherTest detects runner and red mode from the feature status', () => {
   const root = makeFixture();
   try {
     const p = gatherTest(root, 'auth-middleware');
-    assert.equal(p.mode, 'red', 'pending chunk → red mode');
+    assert.equal(p.mode, 'red', 'pending feature → red mode');
     assert.equal(p.runner, 'vitest');
     assert.deepEqual(p.contract.files, ['src/auth/*.ts']);
     assert.equal(gatherTest(root, 'config-module').mode, 'green');
@@ -172,7 +172,7 @@ test('gatherTest detects runner and red mode from the chunk status', () => {
   }
 });
 
-test('gatherReview maps working-tree hunks to chunks via files globs', () => {
+test('gatherReview maps working-tree hunks to features via files globs', () => {
   const root = makeFixture();
   try {
     appendFileSync(join(root, 'src', 'auth', 'index.ts'), 'export const x = 1;\n');
@@ -180,8 +180,8 @@ test('gatherReview maps working-tree hunks to chunks via files globs', () => {
     git(root, 'add', 'stray.txt');
     const p = gatherReview(root);
     assert.equal(p.source, 'working-tree');
-    assert.deepEqual(p.chunks.map(c => c.name), ['auth-middleware']);
-    const auth = p.chunks[0];
+    assert.deepEqual(p.features.map(c => c.name), ['auth-middleware']);
+    const auth = p.features[0];
     assert.equal(auth.files[0].path, 'src/auth/index.ts');
     assert.equal(auth.stats.added, 1);
     assert.equal(auth.stats.complexity, 'green');
@@ -192,12 +192,12 @@ test('gatherReview maps working-tree hunks to chunks via files globs', () => {
   }
 });
 
-test('gatherReview rebuilds a done chunk diff from its trailer commits', () => {
+test('gatherReview rebuilds a done feature diff from its trailer commits', () => {
   const root = makeFixture();
   try {
-    const p = gatherReview(root, { chunk: 'config-module' });
-    assert.equal(p.source, 'commits', 'clean tree + done chunk → commit fallback');
-    const config = p.chunks.find(c => c.name === 'config-module');
+    const p = gatherReview(root, { feature: 'config-module' });
+    assert.equal(p.source, 'commits', 'clean tree + done feature → commit fallback');
+    const config = p.features.find(c => c.name === 'config-module');
     assert.ok(config.files.some(f => f.path === 'src/config.ts'));
     assert.ok(!config.files.some(f => f.path.startsWith('memory/')), 'bundle bookkeeping excluded');
   } finally {
@@ -226,7 +226,7 @@ index 000..111 100644
 
 test('sections is fence-aware; snippets extracts fenced blocks', () => {
   const s = sections(`---
-type: Chunk
+type: Feature
 ---
 
 # Notes
@@ -250,9 +250,9 @@ test('every skill folder ships a SKILL.md with discoverable frontmatter', async 
   const { fileURLToPath } = await import('node:url');
   const skillsDir = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'skills');
   const skills = readdirSync(skillsDir).filter(d => !d.startsWith('.'));
-  assert.ok(skills.includes('okf') && skills.includes('okf-init')
-    && skills.includes('okf-consolidate') && skills.includes('okf-memorize'),
-  'the absorbed okf skills are present');
+  assert.ok(skills.includes('iterator-knowledge') && skills.includes('iterator-init')
+    && skills.includes('iterator-consolidate') && skills.includes('iterator-memorize'),
+  'the absorbed knowledge skills are present');
   for (const skill of skills) {
     const text = readFileSync(join(skillsDir, skill, 'SKILL.md'), 'utf8');
     const match = text.match(/^---\n([\s\S]*?)\n---\n/);
@@ -313,7 +313,7 @@ test('gatherReview surfaces untracked files as all-addition diffs', () => {
     writeFileSync(join(dir, 'src', 'brand-new.ts'), 'export const fresh = 1;\n');
     const review = gatherReview(dir, {});
     const all = [
-      ...review.chunks.flatMap((c) => c.files),
+      ...review.features.flatMap((c) => c.files),
       ...review.uncategorized,
     ];
     const fresh = all.find((f) => f.path === 'src/brand-new.ts');

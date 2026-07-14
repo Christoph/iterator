@@ -1,22 +1,22 @@
 ---
-name: okf-init
-description: Use when the user types /okf-init or wants to initialize the okf knowledge areas of the memory/ bundle for a project, with browser review before anything is written.
+name: iterator-init
+description: Use when the user types /iterator-init or wants to initialize the OKF knowledge areas of the memory/ bundle for a project, with browser review before anything is written.
 ---
 
 <!-- markdownlint-disable MD013 -->
 
-# okf-init
+# iterator-init
 
-Initialize the okf knowledge side of the `memory/` bundle for the current
+Initialize the OKF knowledge side of the `memory/` bundle for the current
 project. Works with or without an iterator plan — the knowledge areas and the
-plan/chunks side share one bundle but are independent.
+plan/features side share one bundle but are independent.
 
 Shared preconditions, review pipeline, React/Finish rules, card schema, and
-pi mode: `<skill-dir>/../okf/PROTOCOL.md`. Specific to this flow: if
+pi mode: `<skill-dir>/../iterator-knowledge/PROTOCOL.md`. Specific to this flow: if
 knowledge areas already exist under `memory/` (any of `architecture/`,
 `decisions/`, `patterns/`, `pitfalls/`, `setup/`), stop and tell the user to
-run `/okf-consolidate` instead (an existing `memory/plan.md` or
-`memory/chunks/` is fine — that is the Work side).
+run `/iterator-consolidate` instead (an existing `memory/plan.md` or
+`memory/features/` is fine — that is the Work side).
 
 ## Analyze
 

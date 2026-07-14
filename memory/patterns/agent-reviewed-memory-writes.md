@@ -7,9 +7,9 @@ tags:
   - review
   - workflow
 files:
-  - skills/okf-init/SKILL.md
-  - skills/okf-consolidate/SKILL.md
-  - skills/okf-memorize/SKILL.md
+  - skills/iterator-init/SKILL.md
+  - skills/iterator-consolidate/SKILL.md
+  - skills/iterator-memorize/SKILL.md
   - lib/views/memory-review.mjs
   - skills/iterator/write.mjs
 timestamp: 2026-07-06T19:11:28.964Z

@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  actionToCommand, bundleExists, chunksDirEntries, composeAmbientContext,
+  actionToCommand, bundleExists, featuresDirEntries, composeAmbientContext,
   extractPathsFromBash, footerText, mergePayload, runJson, scriptPath,
   shouldNudge,
 } from '../lib/pi-tools.mjs';
@@ -20,11 +20,11 @@ test('mergePayload: extra wins, gathered object untouched, junk extra ignored', 
 });
 
 test('actionToCommand maps hub actions to skill commands', () => {
-  assert.equal(actionToCommand({ type: 'action', action: 'plan', chunk: null }), '/skill:iterator-plan');
-  assert.equal(actionToCommand({ type: 'action', action: 'chunk', chunk: null }), '/skill:iterator-chunk');
-  assert.equal(actionToCommand({ type: 'action', action: 'test', chunk: 'auth' }), '/skill:iterator-test auth');
-  assert.equal(actionToCommand({ type: 'action', action: 'implement', chunk: 'auth' }), '/skill:iterator-implement auth');
-  assert.equal(actionToCommand({ type: 'action', action: 'review', chunk: 'auth' }), '/skill:iterator-review auth');
+  assert.equal(actionToCommand({ type: 'action', action: 'plan', feature: null }), '/skill:iterator-plan');
+  assert.equal(actionToCommand({ type: 'action', action: 'feature', feature: null }), '/skill:iterator-feature');
+  assert.equal(actionToCommand({ type: 'action', action: 'test', feature: 'auth' }), '/skill:iterator-test auth');
+  assert.equal(actionToCommand({ type: 'action', action: 'implement', feature: 'auth' }), '/skill:iterator-implement auth');
+  assert.equal(actionToCommand({ type: 'action', action: 'review', feature: 'auth' }), '/skill:iterator-review auth');
 });
 
 test('actionToCommand returns null for cancel/timeout/garbage', () => {
@@ -35,21 +35,21 @@ test('actionToCommand returns null for cancel/timeout/garbage', () => {
   assert.equal(actionToCommand({}), null);
 });
 
-test('bundleExists and chunksDirEntries read the fixture bundle', () => {
+test('bundleExists and featuresDirEntries read the fixture bundle', () => {
   const root = mkdtempSync(join(tmpdir(), 'iterator-pitools-'));
   try {
     mkdirSync(join(root, '.git'), { recursive: true }); // git root marker
     assert.equal(bundleExists(root), false);
 
-    mkdirSync(join(root, 'memory', 'chunks'), { recursive: true });
+    mkdirSync(join(root, 'memory', 'features'), { recursive: true });
     writeFileSync(join(root, 'memory', 'plan.md'), '---\ntype: Plan\n---\n');
     assert.equal(bundleExists(root), true);
     assert.equal(bundleExists(join(root)), true);
 
-    writeFileSync(join(root, 'memory', 'chunks', 'auth.md'),
-      '---\ntype: Chunk\nstatus: pending\ntests_status: red\n---\n');
-    writeFileSync(join(root, 'memory', 'chunks', 'index.md'), '# Chunks\n');
-    const entries = chunksDirEntries(root);
+    writeFileSync(join(root, 'memory', 'features', 'auth.md'),
+      '---\ntype: Feature\nstatus: pending\ntests_status: red\n---\n');
+    writeFileSync(join(root, 'memory', 'features', 'index.md'), '# Features\n');
+    const entries = featuresDirEntries(root);
     assert.deepEqual(entries.map(e => e.slug), ['auth']);
     assert.equal(entries[0].fm.tests_status, 'red');
   } finally {
@@ -74,26 +74,26 @@ test('runJson surfaces gather output and writer validation errors', async () => 
   }
 });
 
-test('actionToCommand maps knowledge actions to okf skills', () => {
-  assert.equal(actionToCommand({ type: 'action', action: 'okf-init' }), '/skill:okf-init');
-  assert.equal(actionToCommand({ type: 'action', action: 'okf-consolidate' }), '/skill:okf-consolidate');
-  assert.equal(actionToCommand({ type: 'action', action: 'okf-memorize' }), '/skill:okf-memorize');
+test('actionToCommand maps knowledge actions to knowledge skills', () => {
+  assert.equal(actionToCommand({ type: 'action', action: 'iterator-init' }), '/skill:iterator-init');
+  assert.equal(actionToCommand({ type: 'action', action: 'iterator-consolidate' }), '/skill:iterator-consolidate');
+  assert.equal(actionToCommand({ type: 'action', action: 'iterator-memorize' }), '/skill:iterator-memorize');
   assert.equal(actionToCommand({ type: 'action', action: 'design' }), '/skill:iterator-design');
   assert.equal(
     actionToCommand({ type: 'action', action: 'draft-memory', target: 'pitfalls', prompt: '' }),
-    '/skill:okf draft-memory pitfalls');
+    '/skill:iterator-knowledge draft-memory pitfalls');
   assert.equal(
     actionToCommand({ type: 'action', action: 'update-memory', target: 'pitfalls/gone-anchor', prompt: 'Re-anchor it.' }),
-    '/skill:okf update-memory pitfalls/gone-anchor — Re-anchor it.');
+    '/skill:iterator-knowledge update-memory pitfalls/gone-anchor — Re-anchor it.');
   assert.equal(
     actionToCommand({ type: 'action', action: 'draft-memory-prompt', target: null, prompt: 'Capture the port story.' }),
-    '/skill:okf draft-memory-prompt — Capture the port story.');
-  assert.equal(actionToCommand({ type: 'action', action: 'refresh-format' }), '/skill:okf refresh-format');
+    '/skill:iterator-knowledge draft-memory-prompt — Capture the port story.');
+  assert.equal(actionToCommand({ type: 'action', action: 'refresh-format' }), '/skill:iterator-knowledge refresh-format');
   assert.equal(actionToCommand({ type: 'action', action: 'close' }), null);
 });
 
 test('actionToCommand maps retire to the hub retirement flow', () => {
-  assert.equal(actionToCommand({ type: 'action', action: 'retire', chunk: null }),
+  assert.equal(actionToCommand({ type: 'action', action: 'retire', feature: null }),
     '/skill:iterator retire-plan');
 });
 
@@ -109,7 +109,7 @@ test('composeAmbientContext builds the state line and anchored-knowledge list', 
   const hub = {
     plan: { title: 'Add JWT auth', status: 'approved' },
     progress: { done: 3, total: 7 },
-    chunks: [
+    features: [
       { name: 'auth-middleware', testsStatus: 'red' },
       { name: 'config-module', testsStatus: 'green' },
     ],
@@ -121,7 +121,7 @@ test('composeAmbientContext builds the state line and anchored-knowledge list', 
     ref: 'memory/pitfalls/token-clock-skew.md',
   }];
   const out = composeAmbientContext(hub, implement, concepts);
-  assert.match(out, /Plan "Add JWT auth" — 3\/7 chunks done/);
+  assert.match(out, /Plan "Add JWT auth" — 3\/7 features done/);
   assert.match(out, /next ready: auth-middleware/);
   assert.match(out, /tests red: auth-middleware/);
   assert.match(out, /\[pitfalls\/token-clock-skew\] JWT clock skew — Fresh tokens fail without leeway\. \(memory\/pitfalls\/token-clock-skew\.md\)/);
@@ -130,7 +130,7 @@ test('composeAmbientContext builds the state line and anchored-knowledge list', 
   assert.match(composeAmbientContext({ plan: null }, null, concepts), /token-clock-skew/);
   assert.equal(composeAmbientContext({ plan: null }, null, []), null);
   // No red tests → no red segment.
-  const quiet = composeAmbientContext({ ...hub, chunks: [] }, { next: null }, []);
+  const quiet = composeAmbientContext({ ...hub, features: [] }, { next: null }, []);
   assert.doesNotMatch(quiet, /tests red/);
   assert.match(quiet, /next ready: none/);
 });
@@ -138,7 +138,7 @@ test('composeAmbientContext builds the state line and anchored-knowledge list', 
 test('footerText composes segments and omits what is absent', () => {
   const hub = {
     plan: { title: 'X' }, progress: { done: 3, total: 7 },
-    chunks: [{ name: 'a', testsStatus: 'red' }, { name: 'b', testsStatus: 'green' }],
+    features: [{ name: 'a', testsStatus: 'red' }, { name: 'b', testsStatus: 'green' }],
   };
   assert.equal(footerText(hub, { next: { name: 'auth-middleware' } }, 4),
     '⛭ 3/7 · next: auth-middleware · 🔴 1 red · 🧠 4 unmemorized');
@@ -158,26 +158,26 @@ test('shouldNudge fires once per threshold-multiple and can be disabled', () => 
 
 test('actionToCommand carries a typed plan goal through to the skills', () => {
   assert.equal(
-    actionToCommand({ type: 'action', action: 'plan', chunk: null, prompt: 'Build a CLI for tides' }),
+    actionToCommand({ type: 'action', action: 'plan', feature: null, prompt: 'Build a CLI for tides' }),
     '/skill:iterator-plan — Build a CLI for tides',
   );
   assert.equal(
-    actionToCommand({ type: 'action', action: 'okf-init', prompt: 'Build a CLI for tides' }),
-    '/skill:okf-init — when initialization finishes, continue into /skill:iterator-plan — Build a CLI for tides',
+    actionToCommand({ type: 'action', action: 'iterator-init', prompt: 'Build a CLI for tides' }),
+    '/skill:iterator-init — when initialization finishes, continue into /skill:iterator-plan — Build a CLI for tides',
   );
   // No prompt → unchanged classic forms.
-  assert.equal(actionToCommand({ type: 'action', action: 'plan', chunk: null }), '/skill:iterator-plan');
-  assert.equal(actionToCommand({ type: 'action', action: 'okf-init' }), '/skill:okf-init');
+  assert.equal(actionToCommand({ type: 'action', action: 'plan', feature: null }), '/skill:iterator-plan');
+  assert.equal(actionToCommand({ type: 'action', action: 'iterator-init' }), '/skill:iterator-init');
 });
 
 test('attributionFromInput maps flow commands to ledger steps', async () => {
   const { attributionFromInput } = await import('../lib/pi-tools.mjs');
   assert.deepEqual(attributionFromInput('/skill:iterator-implement auth-middleware'),
-    { step: 'implement', chunk: 'auth-middleware' });
+    { step: 'implement', feature: 'auth-middleware' });
   assert.deepEqual(attributionFromInput('/iterator-plan — build a tide CLI'),
-    { step: 'plan', chunk: null });
-  assert.deepEqual(attributionFromInput('/okf-memorize'), { step: 'memory', chunk: null });
-  assert.deepEqual(attributionFromInput('/iterator-next'), { step: 'implement', chunk: null });
+    { step: 'plan', feature: null });
+  assert.deepEqual(attributionFromInput('/iterator-memorize'), { step: 'memory', feature: null });
+  assert.deepEqual(attributionFromInput('/iterator-next'), { step: 'implement', feature: null });
   assert.equal(attributionFromInput('fix the login bug'), null, 'plain prose keeps the previous attribution');
   assert.equal(attributionFromInput('/help'), null);
 });
@@ -188,8 +188,8 @@ test('usageRowFromMessage extracts assistant usage with attribution', async () =
     role: 'assistant', provider: 'openai', model: 'gpt-5.5',
     usage: { input: 100, output: 40, cacheRead: 10, cacheWrite: 2 },
   };
-  assert.deepEqual(usageRowFromMessage(msg, { step: 'review', chunk: 'auth' }), {
-    step: 'review', chunk: 'auth', provider: 'openai', model: 'gpt-5.5',
+  assert.deepEqual(usageRowFromMessage(msg, { step: 'review', feature: 'auth' }), {
+    step: 'review', feature: 'auth', provider: 'openai', model: 'gpt-5.5',
     input: 100, output: 40, cacheRead: 10, cacheWrite: 2,
   });
   assert.equal(usageRowFromMessage(msg, null).step, 'other');
@@ -206,71 +206,71 @@ const S = (over = {}) => ({
   auto_mode: 'on', testing_default: 'on', max_review_iterations: 3,
   block_commit_on_leftovers: 'on', ...over,
 });
-const ST = (over = {}) => ({ mode: 'auto', paused: false, phase: 'implementing', active_chunk: null, strikes: {}, ...over });
-const sess = ({ chunks = [], next = null, drafts = [], stuck = false, done = 0, total = chunks.length } = {}) => ({
-  hub: { plan: { title: 'P' }, progress: { done, total }, chunks },
+const ST = (over = {}) => ({ mode: 'auto', paused: false, phase: 'implementing', active_feature: null, strikes: {}, ...over });
+const sess = ({ features = [], next = null, drafts = [], stuck = false, done = 0, total = features.length } = {}) => ({
+  hub: { plan: { title: 'P' }, progress: { done, total }, features },
   implement: { next, drafts, stuck },
 });
 
 test('nextAutoAction is inert outside active auto mode', () => {
-  const s = sess({ chunks: [{ name: 'a', status: 'pending' }], next: { name: 'a', testsStatus: 'none' } });
+  const s = sess({ features: [{ name: 'a', status: 'pending' }], next: { name: 'a', testsStatus: 'none' } });
   assert.equal(nextAutoAction(s, S(), ST({ mode: 'manual' })), null);
   assert.equal(nextAutoAction(s, S(), ST({ paused: true })), null);
   assert.equal(nextAutoAction({ hub: { plan: null } }, S(), ST()), null, 'no plan');
 });
 
 test('nextAutoAction dispatches test → implement → review from bundle state', () => {
-  const chunk = { name: 'a', status: 'pending', hasDiff: false };
+  const feature = { name: 'a', status: 'pending', hasDiff: false };
   // No tests yet + testing on → tester turn.
-  let a = nextAutoAction(sess({ chunks: [chunk], next: { name: 'a', testsStatus: 'none' } }), S(), ST());
-  assert.deepEqual(a, { step: 'test', role: 'tester', chunk: 'a', cmd: '/skill:iterator-test a --auto' });
+  let a = nextAutoAction(sess({ features: [feature], next: { name: 'a', testsStatus: 'none' } }), S(), ST());
+  assert.deepEqual(a, { step: 'test', role: 'tester', feature: 'a', cmd: '/skill:iterator-test a --auto' });
   assert.equal(AUTO_PHASE_FOR_STEP[a.step], 'testing');
   // Tests red, no diff → implementer turn.
-  a = nextAutoAction(sess({ chunks: [chunk], next: { name: 'a', testsStatus: 'red' } }), S(), ST());
+  a = nextAutoAction(sess({ features: [feature], next: { name: 'a', testsStatus: 'red' } }), S(), ST());
   assert.equal(a.step, 'implement');
   assert.equal(a.cmd, '/skill:iterator-implement a --auto');
   // Testing off skips straight to implement.
-  a = nextAutoAction(sess({ chunks: [chunk], next: { name: 'a', testsStatus: 'none' } }), S({ testing_default: 'off' }), ST());
+  a = nextAutoAction(sess({ features: [feature], next: { name: 'a', testsStatus: 'none' } }), S({ testing_default: 'off' }), ST());
   assert.equal(a.step, 'implement');
   // Implementation diff exists → reviewer turn.
-  a = nextAutoAction(sess({ chunks: [{ ...chunk, hasDiff: true }], next: { name: 'a', testsStatus: 'red' } }), S(), ST());
-  assert.deepEqual(a, { step: 'review', role: 'reviewer', chunk: 'a', cmd: '/skill:iterator-review a --agent' });
+  a = nextAutoAction(sess({ features: [{ ...feature, hasDiff: true }], next: { name: 'a', testsStatus: 'red' } }), S(), ST());
+  assert.deepEqual(a, { step: 'review', role: 'reviewer', feature: 'a', cmd: '/skill:iterator-review a --agent' });
 });
 
 test('nextAutoAction reads the review verdict from the bundle and strikes', () => {
-  // Review round returned, chunk NOT done → needs-work → strike + rework.
-  const s = sess({ chunks: [{ name: 'a', status: 'pending', hasDiff: true }], next: { name: 'a', testsStatus: 'red' } });
-  let a = nextAutoAction(s, S(), ST({ phase: 'reviewing', active_chunk: 'a' }));
+  // Review round returned, feature NOT done → needs-work → strike + rework.
+  const s = sess({ features: [{ name: 'a', status: 'pending', hasDiff: true }], next: { name: 'a', testsStatus: 'red' } });
+  let a = nextAutoAction(s, S(), ST({ phase: 'reviewing', active_feature: 'a' }));
   assert.equal(a.step, 'implement');
   assert.equal(a.strike, 'a');
   // Two prior strikes: the third failure escalates.
-  a = nextAutoAction(s, S(), ST({ phase: 'reviewing', active_chunk: 'a', strikes: { a: 2 } }));
+  a = nextAutoAction(s, S(), ST({ phase: 'reviewing', active_feature: 'a', strikes: { a: 2 } }));
   assert.equal(a.escalate, true);
   assert.match(a.reason, /failed agent review 3/);
-  // Chunk done → approved: fall through to the next chunk (none → done).
-  const approved = sess({ chunks: [{ name: 'a', status: 'done' }], next: null, done: 1, total: 1 });
-  a = nextAutoAction(approved, S(), ST({ phase: 'reviewing', active_chunk: 'a' }));
+  // Feature done → approved: fall through to the next feature (none → done).
+  const approved = sess({ features: [{ name: 'a', status: 'done' }], next: null, done: 1, total: 1 });
+  a = nextAutoAction(approved, S(), ST({ phase: 'reviewing', active_feature: 'a' }));
   assert.deepEqual(a, { done: true });
 });
 
 test('nextAutoAction escalates on conflicts, prior strikes, drafts, and stuck graphs', () => {
   let a = nextAutoAction(
-    sess({ chunks: [{ name: 'a', status: 'pending' }], next: { name: 'a', testsStatus: 'red', conflicts: [{ decision: 'decisions/no-orm' }] } }),
+    sess({ features: [{ name: 'a', status: 'pending' }], next: { name: 'a', testsStatus: 'red', conflicts: [{ decision: 'decisions/no-orm' }] } }),
     S(), ST(),
   );
   assert.equal(a.escalate, true);
   assert.match(a.reason, /decisions\/no-orm/);
 
   a = nextAutoAction(
-    sess({ chunks: [{ name: 'a', status: 'pending' }], next: { name: 'a', testsStatus: 'red' } }),
+    sess({ features: [{ name: 'a', status: 'pending' }], next: { name: 'a', testsStatus: 'red' } }),
     S(), ST({ strikes: { a: 3 } }),
   );
   assert.equal(a.escalate, true);
 
-  a = nextAutoAction(sess({ chunks: [], next: null, drafts: ['d'] }), S(), ST());
+  a = nextAutoAction(sess({ features: [], next: null, drafts: ['d'] }), S(), ST());
   assert.match(a.reason, /draft/);
 
-  a = nextAutoAction(sess({ chunks: [{ name: 'a', status: 'pending' }], next: null, stuck: true, total: 1 }), S(), ST());
+  a = nextAutoAction(sess({ features: [{ name: 'a', status: 'pending' }], next: null, stuck: true, total: 1 }), S(), ST());
   assert.match(a.reason, /cycle or missing/);
 });
 

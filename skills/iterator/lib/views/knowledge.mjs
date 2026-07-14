@@ -1,5 +1,5 @@
 /**
- * iterator: Knowledge view — the okf memory plane on the shared shell
+ * iterator: Knowledge view — the OKF memory plane on the shared shell
  * (../ui.mjs, ../server.mjs). The place a user checks what the project is
  * based on: decisions first, then architecture/patterns/pitfalls/setup, the
  * design constants panel, pointer/staleness status, and a free-text "ask the
@@ -19,7 +19,7 @@
  *                             elements, responsive, signature } } | null,
  *       formatStale }
  *   output: one JSON line to stdout —
- *     { type:"action", action:"okf-init"|"okf-consolidate"|"okf-memorize"
+ *     { type:"action", action:"iterator-init"|"iterator-consolidate"|"iterator-memorize"
  *         |"refresh-format"|"design"|"draft-memory"|"draft-memory-prompt"
  *         |"update-memory"|"close", target: "<area or concept id>"|null,
  *       prompt: "<free text>" }
@@ -108,8 +108,8 @@ function memoryStatus(data) {
     <p>${initialized ? 'This project has an OKF memory bundle — what follows is what the project is based on.' : 'No OKF memory bundle detected yet.'}</p>
   </div>
   ${needsAttention ? `<div class="attention">⚠ ${stale ? `${escHtml(stale)} stale concept${stale === 1 ? '' : 's'} (anchors point at moved/deleted files)` : ''}${stale && pending ? ' · ' : ''}${pending ? `${escHtml(pending)} commit${pending === 1 ? '' : 's'} nobody memorized` : ''}
-    ${stale ? '<button data-action="okf-consolidate">Consolidate now</button>' : ''}
-    ${pending ? '<button data-action="okf-memorize">Memorize commits</button>' : ''}</div>` : ''}
+    ${stale ? '<button data-action="iterator-consolidate">Consolidate now</button>' : ''}
+    ${pending ? '<button data-action="iterator-memorize">Memorize commits</button>' : ''}</div>` : ''}
   <div class="metrics">
     <div><strong>${initialized ? 'Initialized' : 'Missing'}</strong><span>state</span></div>
     <div><strong>${escHtml(memory.conceptCount ?? 0)}</strong><span>concepts</span></div>
@@ -118,9 +118,9 @@ function memoryStatus(data) {
     <div><strong>${escHtml(commit)}</strong><span>last memorized</span></div>
   </div>
   <div class="actions">
-    ${initialized ? '' : '<button data-action="okf-init">Initialize</button>'}
-    <button data-action="okf-consolidate">Consolidate</button>
-    <button data-action="okf-memorize">Memorize commits</button>
+    ${initialized ? '' : '<button data-action="iterator-init">Initialize</button>'}
+    <button data-action="iterator-consolidate">Consolidate</button>
+    <button data-action="iterator-memorize">Memorize commits</button>
     ${data.formatStale ? '<button data-action="refresh-format" title="memory/format.md drifted from the current template">Refresh format.md</button>' : ''}
   </div>
 </section>`;
@@ -131,7 +131,7 @@ const JS = `
 const AREA_ORDER = ['decisions', 'architecture', 'patterns', 'pitfalls', 'setup'];
 const AREA_HINTS = {
   decisions: 'Choices the project committed to — new work must not silently contradict these.',
-  architecture: 'The real subsystem seams chunk boundaries follow.',
+  architecture: 'The real subsystem seams feature boundaries follow.',
   patterns: 'How the surrounding code expects to be extended.',
   pitfalls: 'Known sharp edges, surfaced next to reviews of the anchored files.',
   setup: 'Environment and tooling facts.',
@@ -196,7 +196,7 @@ function designPanelHtml(){
     '<div class="card-head"><h3>'+esc(d.title||'Design parameters')+'</h3>'+
     '<span><span class="area-tag">design</span> <span class="status">'+esc(d.register||'product')+'</span></span></div>'+
     '<p>'+esc(d.description||'')+'</p>'+
-    '<div class="meta"><span>path: <code>'+esc(d.path||'design.md')+'</code></span> <span>applied to every UI chunk</span></div>'+
+    '<div class="meta"><span>path: <code>'+esc(d.path||'design.md')+'</code></span> <span>applied to every UI feature</span></div>'+
     (blocks ? '<div class="design-grid">'+blocks+'</div>' : '')+
     '<textarea class="memory-comment" data-comment-for="design" placeholder="Comment with the design change you want (colors, fonts, spacing constants, element styles)."></textarea>'+
     '<div class="card-actions"><button data-action="design" data-target="design">Revise via /iterator-design</button></div></article>';

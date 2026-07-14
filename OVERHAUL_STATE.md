@@ -27,19 +27,19 @@ file — do not touch.
 - **P4 gather-hardening** — new `lib/git.mjs` (git/gitOrFail/hasStaged, one
   copy); gather CLI error envelope `{ok:false,error}` (S2); `parseDiff` keeps
   binary files, decodes git C-quoted paths, tracks renames (S9);
-  `chunkCommitMap()` single trailer scan memoized per (root, HEAD) replaces
-  per-chunk `git log --grep` (O2); shared `commitsSince` helper.
+  `featureCommitMap()` single trailer scan memoized per (root, HEAD) replaces
+  per-feature `git log --grep` (O2); shared `commitsSince` helper.
 - **P5 review-untracked-files** — `gatherReview` intent-to-adds (`git add -N`)
   untracked files so they diff + marks `untracked:true` (S6); hub `hasDiff`
-  includes untracked; `acceptCommit` stages review-mapped paths ∪ chunk-glob
+  includes untracked; `acceptCommit` stages review-mapped paths ∪ feature-glob
   matches, guards the empty pathspec (never bare `git add -A --`), fails with
   "nothing to stage" (S7). Tests cover both.
 - **P6 write-hardening** — `applyAdjustments` validates the whole batch before
   writing (S8); `advanceTo:"HEAD"`/`advance:true` resolved via `git rev-parse`
   in memorize + apply-review (O1, consolidate still rejects headCommit);
   `normalizeSlug` auto-repair with `normalized:[{from,to}]` reported in
-  chunks + memorize ops (O3 — note: one old test updated, "Bad Slug" now
-  normalizes, `!!!` still fails); `updateChunk` gained `{regen:false}` opt and
+  features + memorize ops (O3 — note: one old test updated, "Bad Slug" now
+  normalizes, `!!!` still fails); `updateFeature` gained `{regen:false}` opt and
   `acceptCommit` regenerates once (batching).
 - **P7 guardrail-server-extension** — `bundleSubpath`/is*File/checkWrite/
   checkEdit accept a resolved project `root` and anchor exactly (S10;
@@ -52,8 +52,8 @@ file — do not touch.
   sites deduped); `conceptFmValue` reuses `fmScalar`; `commit-tests` op
   (branch safety, staging, `test(<slug>)` commit + trailer, tests/tests_status
   + sha recording, bookkeeping commit) (O8); `extensions` op writes
-  EXTENSIONS.md boilerplate + root-index link, idempotent (okf-init's
-  ~350-token contract moved to JS); `warnings.unmatchedGlobs` on chunks op
+  EXTENSIONS.md boilerplate + root-index link, idempotent (iterator-init's
+  ~350-token contract moved to JS); `warnings.unmatchedGlobs` on features op
   (O4); `validateBundle` runs after EVERY op via the `applyOp` wrapper,
   results carry `{validation}` (O7); `write.mjs --schema <op>` prints compact
   payload shapes (SCHEMAS table above `runCli`).
@@ -62,7 +62,7 @@ file — do not touch.
 
 - `lib/server.mjs`: `serve()` accepts `reports: {cancel, timeout}`; cancel and
   timeout results carry `report` strings.
-- `lib/app.mjs`: one-command request form `{gather:true, step, chunk?,
+- `lib/app.mjs`: one-command request form `{gather:true, step, feature?,
   project?, extra?}` gathers in-process via a `GATHERS` map (mirrors
   iterator_ui); `CANCEL_REPORTS` per step; `actionSkill()` adds
   `result.skill` to hub/knowledge action results; `appliedSummary()` adds
@@ -74,33 +74,33 @@ file — do not touch.
   pre-composed `advice` strings.
 - Hang resolved: it was NOT the one-command test (which passes) — five older
   server tests failed against the intended P9 result shapes (cancel lines now
-  carry `report`; `update-memory` action results gain `skill:"okf"`), and a
+  carry `report`; `update-memory` action results gain `skill:"iterator-knowledge"`), and a
   failing test leaked its spawned server child (2h idle timeout) which kept
   the runner alive. Fixes in `test/server.test.mjs`: assertions updated
   (`PLAN_CANCEL_LINE`, knowledge-view `skill` field); `startServer` children
   tracked in a `CHILDREN` set killed by a global `after()` hook; one-command
   test cleanup rewritten (kills child, removes temp dir). Plus a real P9 bug:
-  `gatherImplement` advice joined chunk OBJECTS (`[object Object]`) — now
+  `gatherImplement` advice joined feature OBJECTS (`[object Object]`) — now
   `ready.map((c) => c.slug).join(", ")` (lib/gather.mjs:424).
 - Note for grep: `lib/gather.mjs` contains a literal NUL in the
-  `chunkCommitMap` cache key, so grep treats it as binary — use `grep -a`.
+  `featureCommitMap` cache key, so grep treats it as binary — use `grep -a`.
 
 ## Done: P10a/b skill-diet (suite green: 205/205)
 
 - All 11 SKILL.mds rewritten (82.6k → 57.6k chars incl. the two new shared
   docs, ~30% cut): new `skills/iterator/PI.md` (single pi-mode doc, one
-  reference line per skill) and `skills/okf/PROTOCOL.md` (shared okf
+  reference line per skill) and `skills/iterator-knowledge/PROTOCOL.md` (shared okf
   preconditions / review round / React-Finish / card schema).
 - Core skills lean on P8/P9: one-command `{gather:true,step,...,extra}`
-  serve for hub/plan/chunk/test/review/knowledge; `result.skill` replaced the
+  serve for hub/plan/feature/test/review/knowledge; `result.skill` replaced the
   hub dispatch table; cancel prose → "relay the result's `report`";
   commit-tests op replaced iterator-test's record/commit choreography;
-  extensions op replaced okf-init's EXTENSIONS.md boilerplate; range
+  extensions op replaced iterator-init's EXTENSIONS.md boilerplate; range
   pointer-state table → gather `advice`; implement wave/stuck branches →
   gather `advice`; `suggestedTestPath` referenced in iterator-test.
 - Exception kept deliberately: iterator-implement's commit-review still uses
-  the two-step gather→augment→serve pipe, because per-chunk `tests` badges
-  live inside `chunks[]` entries and the one-command `extra` merge is shallow.
+  the two-step gather→augment→serve pipe, because per-feature `tests` badges
+  live inside `features[]` entries and the one-command `extra` merge is shallow.
 - iterator-design: only the pi block (→ PI.md line) and Relationship section
   removed.
 - New `test/skills.test.mjs`: every `<skill-dir>` path in the skill docs
@@ -131,7 +131,7 @@ file — do not touch.
   hasChanges/onPrimary contracts untouched): hub (serif plan title + hero
   with inline empty-state SVG, ember primary-act, left-rail status accents on
   cards, segmented progress ticks via `.pbar::after`), plan (two-column
-  `#sections` grid ≥720px, serif h1, card-shadowed sections), chunk
+  `#sections` grid ≥720px, serif h1, card-shadowed sections), feature
   (serif summary values, card shadows/hover), test (serif h1, mono kind
   badges), review (sticky mono file headers — `.fc{overflow:visible}`
   override, pitfalls as ember `--accent-soft` asides, status buttons as a
@@ -139,7 +139,7 @@ file — do not touch.
   (mono uppercase badges, verdict segmented control focus states,
   `--accent-fg` on solid verdict fills), knowledge (serif metrics, outlined
   stale badge, mono micro-labels).
-- Emoji badges → CSS dots (`.sdot`/`.st`): hub test/status chips, chunk
+- Emoji badges → CSS dots (`.sdot`/`.st`): hub test/status chips, feature
   draft chip, test-view mode banner, review tests badge. Decorative ⚠/💬
   glyphs kept (icons, not badges).
 - Zero raw hex left in lib/views/*; enforced by a new regex test in
@@ -149,7 +149,7 @@ file — do not touch.
 ## Done: P13 docs-and-closeout (suite green: 208/208)
 
 - `docs/ARCHITECTURE.md`: repo tree reflects the lib inversion (all cores +
-  7 views under lib/, hub skill = shims + copy, okf skills, githooks);
+  7 views under lib/, hub skill = shims + copy, knowledge skills, githooks);
   hub-skill paragraph rewritten (shims, hooks:install); ui.mjs bullet covers
   the ink & ember tokens + AA/no-raw-hex tests; round-trip step 1 documents
   the one-command form.
@@ -164,6 +164,6 @@ file — do not touch.
 ## Invariants to keep
 
 - `npm run sync` before running tests/committing (pre-commit hook does it).
-- Suite must stay green each phase; commit style `chunk(<slug>): …` with
-  `Chunk: <slug>` trailer (user does the committing).
+- Suite must stay green each phase; commit style `feature(<slug>): …` with
+  `Feature: <slug>` trailer (user does the committing).
 - Result-shape changes must stay additive (pi tools pass results through).

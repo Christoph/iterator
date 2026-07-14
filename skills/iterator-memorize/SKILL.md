@@ -1,18 +1,18 @@
 ---
-name: okf-memorize
-description: Use when the user types /okf-memorize or wants to draft reviewed knowledge updates from commits since last_memorized_commit.
+name: iterator-memorize
+description: Use when the user types /iterator-memorize or wants to draft reviewed knowledge updates from commits since last_memorized_commit.
 ---
 
 <!-- markdownlint-disable MD013 -->
 
-# okf-memorize
+# iterator-memorize
 
 Draft and review new knowledge entries from commits since
 `last_memorized_commit`.
 
 Shared preconditions, review pipeline, React/Finish rules, card schema, and
-pi mode: `<skill-dir>/../okf/PROTOCOL.md`. Specific to this flow:
-`memory/index.md` must exist — if not, stop and suggest `/okf-init`.
+pi mode: `<skill-dir>/../iterator-knowledge/PROTOCOL.md`. Specific to this flow:
+`memory/index.md` must exist — if not, stop and suggest `/iterator-init`.
 
 ## Determine the commit range
 

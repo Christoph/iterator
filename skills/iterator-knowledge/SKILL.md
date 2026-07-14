@@ -1,18 +1,18 @@
 ---
-name: okf
-description: Use when the user types /okf or wants the Knowledge view — the bundle's okf memory plane (knowledge areas, concept browser, staleness, memorize status) with action callbacks to the coding agent.
+name: iterator-knowledge
+description: Use when the user types /iterator-knowledge or wants the Knowledge view — the bundle's OKF memory plane (knowledge areas, concept browser, staleness, memorize status) with action callbacks to the coding agent.
 ---
 
 <!-- markdownlint-disable MD013 -->
 
-# okf
+# iterator-knowledge
 
 Open the Knowledge view: a browser dashboard over the `memory/` bundle's
-knowledge side — the five okf areas, every concept with per-concept stale
+knowledge side — the five OKF areas, every concept with per-concept stale
 flags, the `last_memorized_commit` pointer and unmemorized-commit count, the
-design.md card, and a free-text "ask the agent" box. Plans and chunks are
+design.md card, and a free-text "ask the agent" box. Plans and features are
 **not** shown here — they live on the Work side (`/iterator` hub); this view
-never authors plan or chunk files.
+never authors plan or feature files.
 
 Preconditions and pi mode: see `<skill-dir>/PROTOCOL.md` (this flow uses
 `iterator_ui { step: "knowledge" }` in pi).
@@ -32,16 +32,16 @@ Read exactly one JSON line from stdout and react to it.
 
 The server returns `{ "type": "action", "action": "...", "target": "...",
 "prompt": "...", "skill": "<owner>" }` — `skill` names the flow that owns the
-action (`okf-init` / `okf-consolidate` / `okf-memorize` run those skills'
+action (`iterator-init` / `iterator-consolidate` / `iterator-memorize` run those skills'
 workflows; `iterator-design` runs `/iterator-design`). Actions owned by this
-skill (`skill: "okf"`):
+skill (`skill: "iterator-knowledge"`):
 
 - `refresh-format`: mechanical — pipe `{ "op": "refresh-format" }` into
   `node <skill-dir>/../iterator/write.mjs` (copies the current template over
   `memory/format.md` and logs it), then report.
 - `draft-memory`: research the target (an area name like `pitfalls`, or a
   concept id like `patterns/error-handling` to write a related concept),
-  draft a memory card, and send it through the `/okf-memorize`-style review
+  draft a memory card, and send it through the `/iterator-memorize`-style review
   (mode `memorize`, no `headCommit`) before anything is written.
 - `draft-memory-prompt`: use `prompt` as the user's requested memory topic,
   research the repo, draft the appropriate area memory, and send it through

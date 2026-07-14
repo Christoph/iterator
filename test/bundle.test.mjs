@@ -34,7 +34,7 @@ function makeBundle(files) {
 test('frontmatter parses scalars, quoted values, and inline lists', () => {
   const fm = frontmatter([
     '---',
-    'type: Chunk',
+    'type: Feature',
     'title: "Auth: middleware"',
     "size: 'small'",
     'files: ["src/auth.ts", "src/config.ts"]',
@@ -43,7 +43,7 @@ test('frontmatter parses scalars, quoted values, and inline lists', () => {
     '---',
     '# Body',
   ].join('\n'));
-  assert.equal(fm.type, 'Chunk');
+  assert.equal(fm.type, 'Feature');
   assert.equal(fm.title, 'Auth: middleware');
   assert.equal(fm.size, 'small');
   assert.deepEqual(fm.files, ['src/auth.ts', 'src/config.ts']);
@@ -54,7 +54,7 @@ test('frontmatter parses scalars, quoted values, and inline lists', () => {
 test('frontmatter parses block lists and folds commits continuations', () => {
   const fm = frontmatter([
     '---',
-    'type: Chunk',
+    'type: Feature',
     'tags:',
     '  - auth',
     '  - jwt',
@@ -101,7 +101,7 @@ test('frontmatter strict mode: null when absent, throws when broken', () => {
 
 test('frontmatter strict mode folds commits continuations too', () => {
   const fm = frontmatter([
-    '---', 'type: Chunk', 'commits:',
+    '---', 'type: Feature', 'commits:',
     '  - sha: abc1234', '    kind: implement', '    date: 2026-07-06',
     '---', '',
   ].join('\n'), { strict: true });
@@ -123,7 +123,7 @@ test('listy, sections, snippets, globToRegExp behave as before', () => {
 });
 
 test('splitDoc/joinDoc/setFmKeys round-trip without touching the body', () => {
-  const raw = '---\ntype: Chunk\nstatus: pending\n---\n# Notes\n\ntext\n';
+  const raw = '---\ntype: Feature\nstatus: pending\n---\n# Notes\n\ntext\n';
   const doc = splitDoc(raw);
   const next = setFmKeys(doc.fm, { status: 'done', done: '2026-07-06' });
   const out = joinDoc(next, doc.body);
@@ -303,12 +303,12 @@ test('validator checks nested concept files recursively', () => {
   assert.match(result.errors.join('\n'), /patterns\/nested\/missing\.md: missing frontmatter/);
 });
 
-test('validator tolerates iterator commits block list on chunk files', () => {
+test('validator tolerates iterator commits block list on feature files', () => {
   const result = validateBundle(makeBundle({
     'index.md': '---\nokf_version: "0.1"\nlast_memorized_commit: abc123\n---\n# Memory\n',
-    'chunks/index.md': '# Chunks\n',
-    'chunks/auth-middleware.md':
-      '---\ntype: Chunk\ntitle: Auth middleware\ndescription: JWT middleware.\nstatus: done\ndepends_on: []\nfiles: ["src/auth.ts"]\ntimestamp: 2026-07-06T00:00:00.000Z\ndone: 2026-07-06\ncommits:\n  - sha: 7bfc791b2f33c3661ce1e69e02198bd156af1f2d\n    kind: implement\n    date: 2026-07-06\n---\n# Implementation notes\n',
+    'features/index.md': '# Features\n',
+    'features/auth-middleware.md':
+      '---\ntype: Feature\ntitle: Auth middleware\ndescription: JWT middleware.\nstatus: done\ndepends_on: []\nfiles: ["src/auth.ts"]\ntimestamp: 2026-07-06T00:00:00.000Z\ndone: 2026-07-06\ncommits:\n  - sha: 7bfc791b2f33c3661ce1e69e02198bd156af1f2d\n    kind: implement\n    date: 2026-07-06\n---\n# Implementation notes\n',
   }));
   assert.deepEqual(result, { ok: true, errors: [] });
 });
@@ -335,7 +335,7 @@ const ADVERSARIAL = [
 
 test('fmScalar → unquote round-trips adversarial scalars (1 and 3 cycles)', () => {
   for (const value of ADVERSARIAL) {
-    let fm = `type: Chunk\ntitle: ${fmScalar(value)}`;
+    let fm = `type: Feature\ntitle: ${fmScalar(value)}`;
     for (let cycle = 1; cycle <= 3; cycle++) {
       const parsed = frontmatter(`---\n${fm}\n---\n`);
       // fmScalar collapses whitespace by contract; adversarial values above
@@ -347,7 +347,7 @@ test('fmScalar → unquote round-trips adversarial scalars (1 and 3 cycles)', ()
 });
 
 test('setFmKeys is immune to replacement-pattern injection ($&, $`, $1)', () => {
-  const fm = 'type: Chunk\ndescription: old text';
+  const fm = 'type: Feature\ndescription: old text';
   const out = setFmKeys(fm, { description: 'costs $& and $` and $1 dollars' });
   const parsed = frontmatter(`---\n${out}\n---\n`);
   assert.equal(parsed.description, 'costs $& and $` and $1 dollars');
@@ -356,7 +356,7 @@ test('setFmKeys is immune to replacement-pattern injection ($&, $`, $1)', () => 
 
 test('inline lists keep commas inside quoted entries', () => {
   const files = ['src/{a,b}.ts', 'plain.ts', 'with, comma.md'];
-  const fm = setFmKeys('type: Chunk', { files });
+  const fm = setFmKeys('type: Feature', { files });
   const parsed = frontmatter(`---\n${fm}\n---\n`);
   assert.deepEqual(parsed.files, files);
 });
@@ -364,7 +364,7 @@ test('inline lists keep commas inside quoted entries', () => {
 test('continuation keys do not fold into plain string list items', () => {
   const fm = frontmatter([
     '---',
-    'type: Chunk',
+    'type: Feature',
     'tags:',
     '  - auth',
     '  bogus: nested-mapping',
@@ -376,7 +376,7 @@ test('continuation keys do not fold into plain string list items', () => {
 test('commits continuation folding still works for mapping items', () => {
   const fm = frontmatter([
     '---',
-    'type: Chunk',
+    'type: Feature',
     'commits:',
     '  - sha: abc123',
     '    kind: implement',

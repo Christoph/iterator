@@ -1,14 +1,14 @@
 /**
  * iterator-test: test-plan UI on the shared shell (../ui.mjs,
- * ../server.mjs). Proposes a set of test cases for a chunk before any
+ * ../server.mjs). Proposes a set of test cases for a feature before any
  * test file is written; the user tweaks/comments/accepts.
  *
- *   input:  { step:"test", branch, chunk:{name,description}, runner,
- *             mode,                                // "red" (chunk pending) | "green" (chunk done)
+ *   input:  { step:"test", branch, feature:{name,description}, runner,
+ *             mode,                                // "red" (feature pending) | "green" (feature done)
  *             cases:[ {title,kind,rationale} ] }   // kind: happy | edge | integration
  *   output: one JSON line to stdout —
- *     { type:"test-approved", branch, chunk, cases:[ {title,kind,rationale,include} ] }
- *     { type:"test-feedback", branch, chunk, cases:[ {title,kind,rationale,include,comment} ], comment }
+ *     { type:"test-approved", branch, feature, cases:[ {title,kind,rationale,include} ] }
+ *     { type:"test-feedback", branch, feature, cases:[ {title,kind,rationale,include,comment} ], comment }
  *     plus the shared { type:"cancel" } / { type:"timeout" }.
  */
 import { renderPage } from '../ui.mjs';
@@ -52,7 +52,7 @@ const BODY = `
   <div class="desc" id="desc"></div>
   <div class="runner" id="runner"></div>
   <div class="mode" id="mode"></div>
-  <p class="hint">These are the test cases Claude proposes for this chunk. Untick any you don't want, edit a title, or leave a comment. Click <strong>Accept</strong> to have Claude write and run them; add a comment and it becomes <strong>Send review</strong> to revise the plan first.</p>
+  <p class="hint">These are the test cases Claude proposes for this feature. Untick any you don't want, edit a title, or leave a comment. Click <strong>Accept</strong> to have Claude write and run them; add a comment and it becomes <strong>Send review</strong> to revise the plan first.</p>
   <div id="cases"></div>
   <div class="comment-section">
     <span class="slabel">Overall comment (optional)</span>
@@ -62,20 +62,20 @@ const BODY = `
 `;
 
 const JS = `
-const chunk = D.chunk || {};
+const feature = D.feature || {};
 const ORIG = JSON.parse(JSON.stringify(D.cases || []));
 const state = (D.cases || []).map(c => ({ title:c.title||'', kind:c.kind||'happy', rationale:c.rationale||'', include:true, comment:'' }));
 
-document.getElementById('title').textContent = 'Test plan — ' + (chunk.name || 'chunk');
-document.getElementById('desc').textContent = chunk.description || '';
+document.getElementById('title').textContent = 'Test plan — ' + (feature.name || 'feature');
+document.getElementById('desc').textContent = feature.description || '';
 if(D.runner) document.getElementById('runner').innerHTML = 'Runner: <code>'+esc(D.runner)+'</code>';
 const modeEl = document.getElementById('mode');
 if(D.mode==='red'){
   modeEl.className='mode red';
-  modeEl.innerHTML='<i class="sdot"></i><strong>Red mode</strong> — this chunk is not implemented yet. Accepted tests are written against the chunk\\'s contract and are <em>expected to fail</em> until /iterator-implement turns them green.';
+  modeEl.innerHTML='<i class="sdot"></i><strong>Red mode</strong> — this feature is not implemented yet. Accepted tests are written against the feature\\'s contract and are <em>expected to fail</em> until /iterator-implement turns them green.';
 }else if(D.mode==='green'){
   modeEl.className='mode green';
-  modeEl.innerHTML='<i class="sdot"></i><strong>Green mode</strong> — this chunk is implemented; accepted tests must pass against the current code.';
+  modeEl.innerHTML='<i class="sdot"></i><strong>Green mode</strong> — this feature is implemented; accepted tests must pass against the current code.';
 }
 renderCases();
 refresh();
@@ -113,11 +113,11 @@ function onPrimary(){
   const changed = hasChanges();
   const comment = document.getElementById('global-comment').value.trim();
   if(changed){
-    post({ type:'test-feedback', branch:D.branch||'HEAD', chunk:chunk.name,
+    post({ type:'test-feedback', branch:D.branch||'HEAD', feature:feature.name,
       cases: state.map(c=>({title:c.title,kind:c.kind,rationale:c.rationale,include:c.include,comment:c.comment.trim()})),
       comment }, 'Sent — Claude is revising the test plan');
   } else {
-    post({ type:'test-approved', branch:D.branch||'HEAD', chunk:chunk.name,
+    post({ type:'test-approved', branch:D.branch||'HEAD', feature:feature.name,
       cases: state.filter(c=>c.include).map(c=>({title:c.title,kind:c.kind,rationale:c.rationale,include:true})) },
       'Accepted — Claude is writing tests');
   }
@@ -126,7 +126,7 @@ function onPrimary(){
 
 export function render(data) {
   return renderPage({
-    step: 'test', subtitle: '/ test', branch: data.branch, title: (data.chunk && data.chunk.name),
+    step: 'test', subtitle: '/ test', branch: data.branch, title: (data.feature && data.feature.name),
     data, css: CSS, body: BODY, clientJs: JS,
     primaryIdle: 'Accept', primaryChanged: 'Send review',
   });

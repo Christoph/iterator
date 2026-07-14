@@ -1,13 +1,13 @@
 ---
 name: iterator
-description: Open the iterator dashboard — a browser home screen showing the plan, every chunk with status/size/test badges, and the dependency graph, with per-chunk Test / Implement / Review buttons. Dispatches the chosen action into the matching iterator flow and reopens the dashboard afterwards. Use when the user types /iterator, wants an overview of plan/chunk state, or wants to drive the flow from one place.
+description: Open the iterator dashboard — a browser home screen showing the plan, every feature with status/size/test badges, and the dependency graph, with per-feature Test / Implement / Review buttons. Dispatches the chosen action into the matching iterator flow and reopens the dashboard afterwards. Use when the user types /iterator, wants an overview of plan/feature state, or wants to drive the flow from one place.
 ---
 
 # iterator (hub)
 
-The home screen of the flow: **plan → chunk → (optional red tests) → implement
+The home screen of the flow: **plan → feature → (optional red tests) → implement
 → review**. One dashboard shows where everything stands; the user picks a
-chunk and an action instead of remembering which skill comes next. This skill
+feature and an action instead of remembering which skill comes next. This skill
 is a **thin router** — it opens the dashboard and dispatches into the existing
 per-step flows. It never duplicates their steps.
 
@@ -15,12 +15,12 @@ This skill folder also owns the shared tooling every step skill calls:
 
 - `server.mjs` — the one UI server for every step (browser control plane).
   Pipe a step payload in, read one JSON result line back. It also accepts the
-  **one-command request form** `{"gather":true,"step":"<step>","chunk":...,
+  **one-command request form** `{"gather":true,"step":"<step>","feature":...,
   "extra":{...}}`: the server gathers the step payload itself and merges your
   small agent-authored `extra` on top, so most flows need no gather|server
   pipe. Single-instance on a fixed port (default `7777`, `$ITERATOR_PORT`).
 - `gather.mjs` — deterministic state
-  (`--step hub|plan|chunk|implement|memorize|range|knowledge|test|review|session|settings|usage|archive`).
+  (`--step hub|plan|feature|implement|memorize|range|knowledge|test|review|session|settings|usage|archive`).
 - `write.mjs` — deterministic bundle writer. `--schema` lists ops,
   `--schema <op>` prints an op's payload shape; errors come back as
   `{ok:false, error, hint}` — fix the payload and re-pipe, never write bundle
@@ -30,8 +30,8 @@ Every mechanical consequence of a user decision happens in code, never in the
 model: step skills gather via script, add the semantic text, pipe to the
 server, and record results via script — the model never hand-authors
 frontmatter, indexes, or the log. The bundle also carries a **knowledge side**
-next to plan/chunks (the five okf areas + `last_memorized_commit`, managed by
-the `/okf*` skills).
+next to plan/features (the five OKF areas + `last_memorized_commit`, managed by
+the `/iterator-knowledge*` skills).
 
 **pi mode:** see `<skill-dir>/PI.md`.
 
@@ -57,7 +57,7 @@ repo. With no bundle the dashboard shows a Create-plan hero.
 ### 2. Dispatch the action
 
 The server prints one JSON line. An action result carries the owning skill:
-`{ "type": "action", "action": "...", "chunk": "<slug>|null",
+`{ "type": "action", "action": "...", "feature": "<slug>|null",
 "skill": "<skill-name>" }` — follow that skill's SKILL.md from its first
 step; do not restate its logic here. (`skill: "iterator"` = the retire flow,
 step 3.) **Re-validate before acting**: the dashboard can be stale — the
@@ -65,13 +65,13 @@ target flow re-checks its own preconditions (let it); if the action is
 invalid by the time it arrives, report why and reopen the dashboard.
 
 `cancel` / `timeout` results carry a human `report` string — relay it, print
-a short state summary (done/total, next ready chunk), and stop.
+a short state summary (done/total, next ready feature), and stop.
 
 Two navigation actions stay inside this skill instead of dispatching:
 
-- `{ "action": "view-archive", "chunk": "<archive-name>" }` → open the
+- `{ "action": "view-archive", "feature": "<archive-name>" }` → open the
   read-only retired-plan browser:
-  `echo '{"gather":true,"step":"archive","chunk":"<archive-name>"}' | node <skill-dir>/server.mjs`
+  `echo '{"gather":true,"step":"archive","feature":"<archive-name>"}' | node <skill-dir>/server.mjs`
   When its result is `{ "action": "hub" }`, reopen the dashboard (step 1).
 - The **token usage** view works the same way when the user asks for it:
   `echo '{"gather":true,"step":"usage"}' | node <skill-dir>/server.mjs`
@@ -79,17 +79,17 @@ Two navigation actions stay inside this skill instead of dispatching:
 
 ### 3. Retire the plan (action `retire`, or the user asks)
 
-A finished plan is knowledge, not a dead work item. When every chunk is done,
+A finished plan is knowledge, not a dead work item. When every feature is done,
 condense it:
 
-1. Read the plan and its chunks (they are about to be archived) and write the
+1. Read the plan and its features (they are about to be archived) and write the
    **semantic** condensation yourself: what was built, why, and the key
    trade-offs — a durable `decisions/` concept, not a play-by-play.
 2. Pipe `{ "op": "retire-plan", "concept": { slug, title, description, body,
    tags, files } }` into `node <skill-dir>/write.mjs`. Everything mechanical
-   (the decisions concept, archiving `plan.md` + `chunks/*.md`, root-index
+   (the decisions concept, archiving `plan.md` + `features/*.md`, root-index
    cleanup, log, validation) happens in the writer. `files` defaults to the
-   union of the chunks' files. The op refuses when chunks are not all done
+   union of the features' files. The op refuses when features are not all done
    (`force: true` overrides, e.g. abandoning a plan).
 
 Confirm with the user before retiring — it clears the Work side. Afterwards

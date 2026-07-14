@@ -20,7 +20,7 @@ npm test                      # node --test test/*.test.mjs
 npm run sync                  # copy root lib/ + templates into skill folders
 npm run preview:hub           # browser previews with inline fixtures
 npm run preview:plan
-npm run preview:chunk
+npm run preview:feature
 npm run preview:test
 npm run preview:review
 npm run preview:knowledge     # fixtures from test/fixtures/

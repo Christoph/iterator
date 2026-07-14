@@ -1,20 +1,20 @@
 ---
 name: iterator-design
-description: Set up and apply the project's design parameters (direction, typography, color, spacing, responsive) saved in memory/design.md so every UI chunk stays visually consistent, and audit/fix existing UI against them. On first use it derives the parameters from the plan and codebase, confirms them with the user once, and persists them through the bundle writer; later runs reuse them without asking. Use when the user types /iterator-design, wants to set or revise the project's look, wants existing UI improved or fixed, or when /iterator-implement builds a chunk that touches frontend/UI surface.
+description: Set up and apply the project's design parameters (direction, typography, color, spacing, responsive) saved in memory/design.md so every UI feature stays visually consistent, and audit/fix existing UI against them. On first use it derives the parameters from the plan and codebase, confirms them with the user once, and persists them through the bundle writer; later runs reuse them without asking. Use when the user types /iterator-design, wants to set or revise the project's look, wants existing UI improved or fixed, or when /iterator-implement builds a feature that touches frontend/UI surface.
 ---
 
 # iterator-design
 
 The design companion to the iterator flow. It keeps one durable set of
 **design parameters** per project in `memory/design.md` — captured once,
-reused on every UI chunk — and applies a small set of design rules so the
+reused on every UI feature — and applies a small set of design rules so the
 UI the implementer creates is intentional rather than templated.
 
 ## When to use this skill
 
 When the user types `/iterator-design`, wants to set or revise the project's
 look, wants existing UI improved ("make this page look good", "fix the UI"),
-or when `/iterator-implement` builds a chunk that touches frontend/UI surface
+or when `/iterator-implement` builds a feature that touches frontend/UI surface
 (markup, styles, client-side components). If `memory/plan.md` does not exist,
 tell the user to run `/iterator-plan` first and stop — the params live in the
 plan's bundle.
@@ -35,7 +35,7 @@ when the params have been captured, or `null` on first use. (When invoked from
 
 - `designFile` non-null → read that file and skip to step 3. Its values
   **win over the generic rules below** on any conflict: the point is
-  consistency across the project's UIs, not per-chunk novelty.
+  consistency across the project's UIs, not per-feature novelty.
 - `designFile` null → capture first (step 2).
 
 ### 2. First-time capture — derive, confirm once, persist
@@ -47,7 +47,7 @@ when the params have been captured, or `null` on first use. (When invoked from
    - the codebase → the *real* existing design, not an invented one: Tailwind
      config, CSS custom properties, loaded fonts, component library. An
      existing app's palette is captured, not replaced;
-   - the chunk being built → the concrete subject matter grounding the
+   - the feature being built → the concrete subject matter grounding the
      direction.
 2. **Confirm** with one compact summary in chat — direction and tone in a few
    words, register, display + body typefaces, 4–6 named color values
@@ -139,7 +139,7 @@ restyle a component per page; a deviation is a params revision (re-run the
 
 When the user points this skill at UI that already exists — a page, a
 component, "make it look good" — treat it as an **audit → fix** pass over the
-named surface (or the UI files of recent chunks if none is named):
+named surface (or the UI files of recent features if none is named):
 
 1. Load the params (step 1; capture them first if `designFile` is null — the
    audit is against the *project's* look, not generic taste).
@@ -153,7 +153,7 @@ named surface (or the UI files of recent chunks if none is named):
    the UI contradicts the saved direction outright, and let the user decide.
 4. Run the self-check (step 4) and summarize what was changed and why, so the
    user can review it (or run `/iterator-review` when the files belong to a
-   chunk).
+   feature).
 
 ### 4. Self-check before handing back
 

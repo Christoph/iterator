@@ -1,5 +1,5 @@
 ---
-type: Chunk
+type: Feature
 title: Commit review memory-card readability
 description: Make commit-mode memory proposals readable enough for human approval and refresh the README documentation for the safer OKF flow.
 status: done
@@ -24,5 +24,5 @@ Improve lib/views/review.mjs memory proposal cards so they show action/id/type/d
 
 # Depends on
 
-* [OKF writer invariants](/chunks/okf-writer-invariants.md)
-* [OKF gather staleness and range accuracy](/chunks/okf-gather-staleness-range.md)
+* [OKF writer invariants](/features/okf-writer-invariants.md)
+* [OKF gather staleness and range accuracy](/features/okf-gather-staleness-range.md)

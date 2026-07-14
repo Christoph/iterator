@@ -1,26 +1,26 @@
 /**
- * iterator-chunk: chunk-plan UI on the shared shell (../ui.mjs,
- * ../server.mjs). Shows the dependency graph, per-chunk cards with
+ * iterator-feature: feature-plan UI on the shared shell (../ui.mjs,
+ * ../server.mjs). Shows the dependency graph, per-feature cards with
  * snippets, drag-to-move files, and Split/Merge round-trips.
  *
- *   input:  { step:"chunk", branch, plan, chunks:[ {name,description,implementationNotes,
+ *   input:  { step:"feature", branch, plan, features:[ {name,description,implementationNotes,
  *             files,dependsOn,size,status,snippets,
  *             memories,                      // writer-computed relevant memory ids
  *             conflicts} ],                  // [{decision,note}] decision conflicts
- *             decisions:[{id,title,description,path}] }  // concepts chunks are checked against
- *           status may be "draft" — the chunker writes proposals to the
+ *             decisions:[{id,title,description,path}] }  // concepts features are checked against
+ *           status may be "draft" — the featureer writes proposals to the
  *           bundle first, so this view is always rendered from disk (gather
- *           --step chunk); the model never pipes chunk bodies through.
+ *           --step feature); the model never pipes feature bodies through.
  *   output: one JSON line to stdout —
  *     { type:"plan-approved" }        (accepted as-is — write.mjs promotes drafts)
  *     { type:"plan-adjustments", moves, renames, descUpdates, comments }
- *     { type:"split-request", chunk, content }
- *     { type:"merge-request", chunks:[a,b] }
+ *     { type:"split-request", feature, content }
+ *     { type:"merge-request", features:[a,b] }
  *     plus the shared { type:"cancel" } / { type:"timeout" }.
  */
 import { renderPage } from '../ui.mjs';
 
-const CHUNK_CSS = `
+const FEATURE_CSS = `
 .sumbar{padding:14px 20px;display:flex;align-items:center;gap:24px;border-bottom:1px solid var(--border);
   background:var(--surface);flex-wrap:wrap}
 .ss{display:flex;flex-direction:column;gap:2px}
@@ -79,9 +79,9 @@ textarea.cmt:focus{border-color:var(--accent)}
 .sdot{display:inline-block;width:8px;height:8px;border-radius:50%;background:currentColor;margin-right:4px;vertical-align:1px}
 `;
 
-const CHUNK_BODY = `
+const FEATURE_BODY = `
 <div class="sumbar">
-  <div class="ss"><div class="ssl">Chunks</div><div class="ssv" id="s-cnt">0</div></div>
+  <div class="ss"><div class="ssl">Features</div><div class="ssv" id="s-cnt">0</div></div>
   <div class="ss"><div class="ssl">Large</div><div class="ssv" id="s-over" style="color:var(--dot-red)">0</div></div>
   <div class="ss"><div class="ssl">Done</div><div class="ssv" id="s-done">0</div></div>
 </div>
@@ -89,13 +89,13 @@ const CHUNK_BODY = `
   <div id="cyclewarn"></div>
   <div class="sec-title">Dependency graph</div>
   <div class="graph" id="graph"></div>
-  <div class="sec-title">Chunks</div>
+  <div class="sec-title">Features</div>
   <div id="cards"></div>
 </div>
 `;
 
-const CHUNK_JS = `
-const S = { chunks: JSON.parse(JSON.stringify(D.chunks || [])), moves:[], renames:[], descUpdates:[], comments:{}, mergeSel:null };
+const FEATURE_JS = `
+const S = { features: JSON.parse(JSON.stringify(D.features || [])), moves:[], renames:[], descUpdates:[], comments:{}, mergeSel:null };
 renderAll();
 
 function renderAll(){ updateSummary(); renderGraph(); renderCards(); refresh(); }
@@ -104,13 +104,13 @@ function sizeClass(c){ const s=sizeLabel(c); return s==='large'?'cr':s==='medium
 function clip(s,n){ s=String(s||''); return s.length>n?s.slice(0,n-1)+'…':s; }
 
 function updateSummary(){
-  const cs = S.chunks;
+  const cs = S.features;
   document.getElementById('s-cnt').textContent = cs.length;
   document.getElementById('s-over').textContent = cs.filter(c=>sizeLabel(c)==='large').length;
   document.getElementById('s-done').textContent = cs.filter(c=>c.status==='done').length;
 }
 function computeLevels(){
-  const by = {}; S.chunks.forEach(c=>by[c.name]=c);
+  const by = {}; S.features.forEach(c=>by[c.name]=c);
   const level = {}, state = {}; let cycle = false;
   function lv(name){
     if(level[name]!=null) return level[name];
@@ -121,17 +121,17 @@ function computeLevels(){
     state[name]='done';
     return level[name]=m;
   }
-  S.chunks.forEach(c=>lv(c.name));
+  S.features.forEach(c=>lv(c.name));
   return { level, cycle };
 }
 function renderGraph(){
   const g = document.getElementById('graph');
   const cw = document.getElementById('cyclewarn');
-  if(!S.chunks.length){ g.innerHTML='<span style="color:var(--text-muted);font-size:13px">No chunks yet.</span>'; cw.innerHTML=''; return; }
+  if(!S.features.length){ g.innerHTML='<span style="color:var(--text-muted);font-size:13px">No features yet.</span>'; cw.innerHTML=''; return; }
   const { level, cycle } = computeLevels();
   cw.innerHTML = cycle ? '<div class="cyclewarn">⚠️ Dependency cycle detected — the implementer cannot order these. Fix depends-on before accepting.</div>' : '';
   const byLevel = {};
-  S.chunks.forEach(c=>{ const l=level[c.name]||0; (byLevel[l]=byLevel[l]||[]).push(c); });
+  S.features.forEach(c=>{ const l=level[c.name]||0; (byLevel[l]=byLevel[l]||[]).push(c); });
   const levels = Object.keys(byLevel).map(Number).sort((a,b)=>a-b);
   const NW=150, NH=34, GAPX=70, GAPY=18;
   const pos = {}; let maxRows = 0;
@@ -139,13 +139,13 @@ function renderGraph(){
   const W = levels.length*(NW+GAPX)+10;
   const H = maxRows*(NH+GAPY)+10;
   let edges='';
-  S.chunks.forEach(c=>{ ((c.dependsOn)||[]).forEach(d=>{ if(pos[d]&&pos[c.name]){
+  S.features.forEach(c=>{ ((c.dependsOn)||[]).forEach(d=>{ if(pos[d]&&pos[c.name]){
     const x1=pos[d].x+NW, y1=pos[d].y+NH/2, x2=pos[c.name].x, y2=pos[c.name].y+NH/2;
     const mx=(x1+x2)/2;
     edges+='<path class="gedge" marker-end="url(#arrow)" d="M'+x1+' '+y1+' C'+mx+' '+y1+' '+mx+' '+y2+' '+x2+' '+y2+'"/>';
   }}); });
   let nodes='';
-  S.chunks.forEach(c=>{ const p=pos[c.name]; const done=c.status==='done';
+  S.features.forEach(c=>{ const p=pos[c.name]; const done=c.status==='done';
     nodes+='<g class="gnode'+(done?' done':'')+'"><rect x="'+p.x+'" y="'+p.y+'" width="'+NW+'" height="'+NH+'" rx="6"/>'+
       '<text x="'+(p.x+10)+'" y="'+(p.y+NH/2+4)+'">'+(done?'✓ ':'')+esc(clip(c.name,20))+'</text></g>';
   });
@@ -153,14 +153,14 @@ function renderGraph(){
     '<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">'+
     '<path d="M0 0 L8 4 L0 8 z" fill="var(--text-muted)"/></marker></defs>'+edges+nodes+'</svg>';
 }
-function renderCards(){ const c=document.getElementById('cards'); c.innerHTML=''; S.chunks.forEach(ch => c.appendChild(makeCard(ch))); }
+function renderCards(){ const c=document.getElementById('cards'); c.innerHTML=''; S.features.forEach(ch => c.appendChild(makeCard(ch))); }
 function makeCard(c){
   const done = c.status==='done';
   const isSel = S.mergeSel===c.name;
   const isTgt = S.mergeSel && S.mergeSel!==c.name;
   const card = document.createElement('div');
   card.className='fc'+(done?' done':'')+(isTgt?' merge-target':'');
-  card.dataset.chunk = c.name;
+  card.dataset.feature = c.name;
   if(isTgt) card.addEventListener('click', e=>{ if(e.target.closest('button,input,textarea,.fchip'))return; completeMerge(c.name); });
   card.addEventListener('dragover', e=>{ e.preventDefault(); card.classList.add('drag-over'); });
   card.addEventListener('dragleave', ()=>card.classList.remove('drag-over'));
@@ -188,15 +188,15 @@ function makeCard(c){
       (snippets?'<div class="lbl">Relevant snippets</div>'+snippets:'')+
       ((c.memories&&c.memories.length)?'<div class="lbl">Relevant memories</div><div class="files">'+c.memories.map(m=>'<span class="fchip" title="The implementer reads this concept before coding">'+esc(m)+'</span>').join('')+'</div>':'')+
       (files?'<div class="lbl">Files</div><div class="files">'+files+'</div>':'')+
-      (done?'':'<div class="lbl">Comment</div><textarea class="cmt" placeholder="Comment on this chunk for Claude…">'+esc(S.comments[c.name]||'')+'</textarea>')+
+      (done?'':'<div class="lbl">Comment</div><textarea class="cmt" placeholder="Comment on this feature for Claude…">'+esc(S.comments[c.name]||'')+'</textarea>')+
     '</div>';
   // Handlers are wired with closures (never inline attribute strings), so
-  // chunk names containing quotes/backslashes can't break or inject markup.
+  // feature names containing quotes/backslashes can't break or inject markup.
   const title = card.querySelector('.fctitle');
-  title.addEventListener('blur', () => renameChunk(c.name, title.value.trim()));
+  title.addEventListener('blur', () => renameFeature(c.name, title.value.trim()));
   title.addEventListener('keydown', e => { if(e.key==='Enter') title.blur(); });
   const splitBtn = card.querySelector('.cb.split');
-  if(splitBtn) splitBtn.addEventListener('click', () => splitChunk(c.name));
+  if(splitBtn) splitBtn.addEventListener('click', () => splitFeature(c.name));
   const mergeBtn = card.querySelector('.cb.merge');
   if(mergeBtn) mergeBtn.addEventListener('click', () => toggleMerge(c.name));
   const desc = card.querySelector('.fcdesc');
@@ -209,51 +209,51 @@ function makeCard(c){
 }
 function dragStart(e,file,from){ e.dataTransfer.setData('text/plain', JSON.stringify({file,from})); }
 function moveFile(file,from,to){
-  const a=S.chunks.find(c=>c.name===from), b=S.chunks.find(c=>c.name===to);
+  const a=S.features.find(c=>c.name===from), b=S.features.find(c=>c.name===to);
   if(!a||!b) return;
   a.files=(a.files||[]).filter(f=>f!==file); b.files=[...(b.files||[]),file];
   S.moves.push({file,from,to}); renderAll();
 }
-function renameChunk(oldName,newName){
+function renameFeature(oldName,newName){
   if(!newName||newName===oldName) return;
-  if(S.chunks.some(x=>x.name===newName)){ alert('A chunk named "'+newName+'" already exists.'); renderAll(); return; }
-  const c=S.chunks.find(c=>c.name===oldName); if(!c) return;
+  if(S.features.some(x=>x.name===newName)){ alert('A feature named "'+newName+'" already exists.'); renderAll(); return; }
+  const c=S.features.find(c=>c.name===oldName); if(!c) return;
   c.name=newName;
-  S.chunks.forEach(x=>{ if(x.dependsOn) x.dependsOn=x.dependsOn.map(d=>d===oldName?newName:d); });
+  S.features.forEach(x=>{ if(x.dependsOn) x.dependsOn=x.dependsOn.map(d=>d===oldName?newName:d); });
   if(S.comments[oldName]){ S.comments[newName]=S.comments[oldName]; delete S.comments[oldName]; }
   S.renames.push({from:oldName,to:newName}); renderAll();
 }
 function updateDesc(name,desc){
-  const c=S.chunks.find(c=>c.name===name); if(!c||desc===c.description) return;
-  c.description=desc; S.descUpdates.push({chunk:name,description:desc}); refresh();
+  const c=S.features.find(c=>c.name===name); if(!c||desc===c.description) return;
+  c.description=desc; S.descUpdates.push({feature:name,description:desc}); refresh();
 }
 function setComment(name,val){ val=val.trim(); if(val) S.comments[name]=val; else delete S.comments[name]; refresh(); }
-function splitChunk(name){
-  const c=S.chunks.find(c=>c.name===name); if(!c) return;
-  if(!confirm('Split "'+name+'"? Claude will split it into single-feature chunks and reopen this view.')) return;
-  post({type:'split-request', branch:D.branch||'HEAD', chunk:name, content:JSON.stringify(c)}, 'Splitting — Claude is working…');
+function splitFeature(name){
+  const c=S.features.find(c=>c.name===name); if(!c) return;
+  if(!confirm('Split "'+name+'"? Claude will split it into single-feature features and reopen this view.')) return;
+  post({type:'split-request', branch:D.branch||'HEAD', feature:name, content:JSON.stringify(c)}, 'Splitting — Claude is working…');
 }
 function toggleMerge(name){ S.mergeSel = S.mergeSel===name?null:name; renderCards(); }
 function completeMerge(target){
   const a=S.mergeSel; if(!a||a===target){ S.mergeSel=null; renderCards(); return; }
   if(!confirm('Merge "'+a+'" and "'+target+'"? Claude will combine them and reopen this view.')) return;
-  post({type:'merge-request', branch:D.branch||'HEAD', chunks:[a,target]}, 'Merging — Claude is working…');
+  post({type:'merge-request', branch:D.branch||'HEAD', features:[a,target]}, 'Merging — Claude is working…');
 }
-function collectComments(){ return Object.entries(S.comments).map(([chunk,comment])=>({chunk,comment})); }
+function collectComments(){ return Object.entries(S.comments).map(([feature,comment])=>({feature,comment})); }
 function hasChanges(){ return !!(S.moves.length||S.renames.length||S.descUpdates.length||collectComments().length); }
 function onPrimary(){
   if(hasChanges()){
-    post({type:'plan-adjustments', branch:D.branch||'HEAD', moves:S.moves, renames:S.renames, descUpdates:S.descUpdates, comments:collectComments()}, 'Sent — Claude is updating the chunks');
+    post({type:'plan-adjustments', branch:D.branch||'HEAD', moves:S.moves, renames:S.renames, descUpdates:S.descUpdates, comments:collectComments()}, 'Sent — Claude is updating the features');
   } else {
-    post({type:'plan-approved', branch:D.branch||'HEAD'}, 'Chunks accepted — run /iterator-implement to build them');
+    post({type:'plan-approved', branch:D.branch||'HEAD'}, 'Features accepted — run /iterator-implement to build them');
   }
 }
 `;
 
 export function render(data) {
   return renderPage({
-    step: 'chunk', subtitle: '/ chunks', branch: data.branch, title: data.plan,
-    data, css: CHUNK_CSS, body: CHUNK_BODY, clientJs: CHUNK_JS,
+    step: 'feature', subtitle: '/ features', branch: data.branch, title: data.plan,
+    data, css: FEATURE_CSS, body: FEATURE_BODY, clientJs: FEATURE_JS,
     primaryIdle: 'Accept', primaryChanged: 'Send review',
   });
 }

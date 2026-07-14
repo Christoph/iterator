@@ -1,14 +1,14 @@
-# okf review protocol (shared by /okf-init, /okf-consolidate, /okf-memorize)
+# OKF review protocol (shared by /iterator-init, /iterator-consolidate, /iterator-memorize)
 
-## Preconditions (every okf flow)
+## Preconditions (every knowledge flow)
 
 1. The shared scripts must exist at `<skill-dir>/../iterator/gather.mjs`,
    `server.mjs`, and `write.mjs`. If not, stop with: `Install the full
-   iterator plugin; the okf skills use the iterator hub's scripts.`
+   iterator plugin; the knowledge skills use the iterator hub's scripts.`
 2. Do not write `memory/` while the browser review is open. The UI only
    returns decisions; changes are applied after the server exits.
 
-**pi mode:** see `<skill-dir>/../iterator/PI.md`. The okf skills use
+**pi mode:** see `<skill-dir>/../iterator/PI.md`. The knowledge skills use
 `iterator_ui { step: "memory-review", extra: { mode, memories, ... } }` for
 the review round and `okf_write { mode, headCommit?, memories, decisions }`
 to apply it (the bash pipeline applies server-side via `apply: true`).
@@ -42,7 +42,7 @@ Read exactly one JSON line from stdout and react:
   semantics: `accept` writes the proposed concept, `reject` discards the
   proposal, `keep` leaves the existing concept, `delete` removes it. The
   writer also regenerated the affected area indexes and root-index links
-  (preserving all foreign content, including the Work side's plan/chunk
+  (preserving all foreign content, including the Work side's plan/feature
   links), appended newest-first `memory/log.md` entries, and validated the
   bundle.
 

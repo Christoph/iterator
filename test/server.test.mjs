@@ -507,7 +507,7 @@ const SMOKE = [
 			branch: "test",
 			plan: { title: "Add JWT auth", status: "approved" },
 			progress: { done: 1, total: 2 },
-			chunks: [
+			features: [
 				{
 					name: "config-module",
 					title: "Config module",
@@ -536,13 +536,13 @@ const SMOKE = [
 		},
 	],
 	[
-		"chunk",
+		"feature",
 		"Dependency graph",
 		{
-			step: "chunk",
+			step: "feature",
 			branch: "test",
 			plan: "Add JWT auth",
-			chunks: [
+			features: [
 				{
 					name: "config-module",
 					description: "Config",
@@ -575,8 +575,8 @@ const SMOKE = [
 			commit: "abc123 add auth",
 			plan: "Add JWT auth",
 			progress: { done: 1, total: 3 },
-			hasChunksFile: true,
-			chunks: [
+			hasFeaturesFile: true,
+			features: [
 				{
 					name: "auth-middleware",
 					description: "JWT middleware",
@@ -612,7 +612,7 @@ const SMOKE = [
 		{
 			step: "test",
 			branch: "test",
-			chunk: { name: "auth-middleware", description: "JWT middleware" },
+			feature: { name: "auth-middleware", description: "JWT middleware" },
 			runner: "vitest",
 			cases: [
 				{ title: "passes a valid token", kind: "happy", rationale: "core" },
@@ -643,7 +643,7 @@ test("hub without a plan renders the goal box with @-file suggestions", async ()
 		branch: "test",
 		plan: null,
 		progress: { done: 0, total: 0 },
-		chunks: [],
+		features: [],
 		files: ["src/auth.ts", "src/config.ts"],
 		knowledgeInitialized: true,
 	});
@@ -655,13 +655,13 @@ test("hub without a plan renders the goal box with @-file suggestions", async ()
 	await waitExit(io.child);
 });
 
-test("commit mode embeds the wave chunks and okf memory proposals", async () => {
+test("commit mode embeds the wave features and okf memory proposals", async () => {
 	const io = await startServer({
 		step: "review",
 		mode: "commit",
 		branch: "test",
-		hasChunksFile: true,
-		chunks: [
+		hasFeaturesFile: true,
+		features: [
 			{
 				name: "auth-middleware",
 				description: "JWT middleware",
@@ -727,7 +727,7 @@ test("commit mode embeds the wave chunks and okf memory proposals", async () => 
 		"client renders proposal markdown bodies",
 	);
 	assert.ok(
-		body.includes("chunks: names"),
+		body.includes("features: names"),
 		"accept-commit carries the whole wave",
 	);
 	io.child.kill();
@@ -738,8 +738,8 @@ test('a mode:"commit" payload without step falls back to the review view', async
 	const io = await startServer({
 		mode: "commit",
 		branch: "test",
-		hasChunksFile: true,
-		chunks: [
+		hasFeaturesFile: true,
+		features: [
 			{
 				name: "auth-middleware",
 				description: "JWT middleware",
@@ -780,13 +780,13 @@ test("knowledge view renders memory state, areas, concepts, design, and actions"
 	assert.match(page, /design-grid/, "design constants grid rendered client-side");
 	assert.match(page, /space-sm: 8px/, "design section content embedded");
 	assert.match(page, /data-action="refresh-format"/, "formatStale affordance");
-	assert.match(page, /data-action="okf-memorize"/);
+	assert.match(page, /data-action="iterator-memorize"/);
 	assert.match(page, /Draft memory from prompt/);
 	assert.match(page, /id="mscrim"/, "concept modal scrim present");
 	assert.match(page, /id="m-body"/, "modal body renders the full concept");
 	assert.doesNotMatch(
 		page,
-		/data-action="okf-init"/,
+		/data-action="iterator-init"/,
 		"initialized bundle hides Initialize",
 	);
 
@@ -802,8 +802,8 @@ test("knowledge view renders memory state, areas, concepts, design, and actions"
 	});
 	const code = await waitExit(io.child);
 	assert.equal(code, 0);
-	// The server dispatches action results: update-memory belongs to /okf.
-	assert.deepEqual(parseJson(io.stdout().trim()), { ...payload, skill: "okf" });
+	// The server dispatches action results: update-memory belongs to /iterator-knowledge.
+	assert.deepEqual(parseJson(io.stdout().trim()), { ...payload, skill: "iterator-knowledge" });
 });
 
 test("memorize review renders conflicts, range, and grouped cards", async () => {
@@ -989,7 +989,7 @@ test("review with hasChanges:false prints no-changes and never opens a server", 
 			branch: "main",
 			hasChanges: false,
 			progress: { done: 1, total: 2 },
-			chunks: [],
+			features: [],
 			uncategorized: [],
 		}),
 	);

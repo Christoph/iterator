@@ -1,5 +1,5 @@
 ---
-type: Chunk
+type: Feature
 title: OKF writer invariants
 description: Enforce apply-review pointer and knowledge-area invariants so memory approvals cannot skip future memorize coverage or create unsupported areas.
 status: done

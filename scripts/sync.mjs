@@ -19,7 +19,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-const VIEWS = ['hub', 'plan', 'chunk', 'test', 'review', 'knowledge', 'memory-review', 'settings', 'question', 'usage', 'archive'];
+const VIEWS = ['hub', 'plan', 'feature', 'test', 'review', 'knowledge', 'memory-review', 'settings', 'question', 'usage', 'archive'];
 
 /** [source, destination] pairs, relative to the repo root. */
 export const COPIES = [

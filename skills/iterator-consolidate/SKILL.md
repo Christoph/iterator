@@ -1,19 +1,19 @@
 ---
-name: okf-consolidate
-description: Use when the user types /okf-consolidate or wants to review, update, merge, prune, or stale-check the okf knowledge areas of an existing memory/ bundle.
+name: iterator-consolidate
+description: Use when the user types /iterator-consolidate or wants to review, update, merge, prune, or stale-check the OKF knowledge areas of an existing memory/ bundle.
 ---
 
 <!-- markdownlint-disable MD013 -->
 
-# okf-consolidate
+# iterator-consolidate
 
 Update, merge, and prune the knowledge concepts of an existing `memory/`
-bundle. Plans and chunks are out of scope — this flow never touches the Work
+bundle. Plans and features are out of scope — this flow never touches the Work
 side.
 
 Shared preconditions, review pipeline, React/Finish rules, card schema, and
-pi mode: `<skill-dir>/../okf/PROTOCOL.md`. Specific to this flow:
-`memory/index.md` must exist — if not, stop and suggest `/okf-init`.
+pi mode: `<skill-dir>/../iterator-knowledge/PROTOCOL.md`. Specific to this flow:
+`memory/index.md` must exist — if not, stop and suggest `/iterator-init`.
 
 ## Load the existing bundle
 

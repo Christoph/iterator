@@ -2,35 +2,35 @@
  * iterator: pi extension — session dashboard, first-class tools, guardrails,
  * ambient context, footer status.
  *
- * What this registers on top of the friendly commands (incl. the /okf* four):
+ * What this registers on top of the friendly commands (incl. the /iterator-knowledge* four):
  *
  * Tools (mechanical scripts as real tools; typebox-validated, structured
  * results, writer validation errors surface as tool errors):
- *   iterator_gather  { step, chunk? }        → the step payload (JSON)
+ *   iterator_gather  { step, feature? }        → the step payload (JSON)
  *   iterator_write   { op, ... }             → write.mjs result
  *   okf_write        { mode, memories, decisions, headCommit? }
  *                                            → apply-review result (schema-tight)
- *   iterator_ui      { step, chunk?, extra? } → the user's answer
+ *   iterator_ui      { step, feature?, extra? } → the user's answer
  *
  * Ambient context (before_agent_start): each turn opens with the flow state
  * plus knowledge concepts anchored to recently touched files (display:false,
  * deduped). Footer (ctx.ui.setStatus): `⛭ 3/7 · next: … · 🧠 N unmemorized`,
- * refreshed on session_start/agent_end/write ops, with an /okf-memorize
+ * refreshed on session_start/agent_end/write ops, with an /iterator-memorize
  * nudge once the unmemorized count passes ITERATOR_MEMORIZE_NUDGE (default
  * 5, 0 disables).
  *
  * iterator_ui gathers the payload ITSELF (spawning gather.mjs) and only
  * merges the small agent-authored `extra` on top — the model never pipes
- * gathered/chunk payloads around. The view lands in a session-scoped
+ * gathered/feature payloads around. The view lands in a session-scoped
  * dashboard (lib/session-server.mjs): one browser tab for the whole pi
  * session, views swapped over SSE, started on session_start when a bundle
  * exists (else lazily), stopped on session_shutdown. While the agent is
  * idle the hub stays clickable — an unsolicited click (e.g. "Implement
- * chunk X") is dispatched as a /skill:iterator-* turn.
+ * feature X") is dispatched as a /skill:iterator-* turn.
  *
- * Guardrails (lib/guardrails.mjs): direct Write/Edit to writer-owned chunk
- * frontmatter is blocked/warned with a pointer at the update-chunk op, and
- * a `git commit` without a `Chunk: <slug>` trailer warns while a chunk is
+ * Guardrails (lib/guardrails.mjs): direct Write/Edit to writer-owned feature
+ * frontmatter is blocked/warned with a pointer at the update-feature op, and
+ * a `git commit` without a `Feature: <slug>` trailer warns while a feature is
  * in flight. Body-text edits stay allowed — hand-editability is a feature.
  */
 import { existsSync, readFileSync } from "node:fs";
@@ -43,7 +43,7 @@ import {
 	checkEdit,
 	checkWrite,
 	isBundleIndexFile,
-	isChunkFile,
+	isFeatureFile,
 	isConceptFile,
 } from "../lib/guardrails.mjs";
 import {
@@ -51,7 +51,7 @@ import {
 	attributionFromInput,
 	AUTO_PHASE_FOR_STEP,
 	bundleExists,
-	chunksDirEntries,
+	featuresDirEntries,
 	composeAmbientContext,
 	extractPathsFromBash,
 	footerText,
@@ -65,7 +65,7 @@ import {
 	usageRowFromMessage,
 } from "../lib/pi-tools.mjs";
 import { createSessionServer } from "../lib/session-server.mjs";
-import { render as chunkView } from "../lib/views/chunk.mjs";
+import { render as featureView } from "../lib/views/feature.mjs";
 import { render as hubView } from "../lib/views/hub.mjs";
 import { render as knowledgeView } from "../lib/views/knowledge.mjs";
 import { render as memoryReviewView } from "../lib/views/memory-review.mjs";
@@ -80,7 +80,7 @@ import { render as usageView } from "../lib/views/usage.mjs";
 const VIEWS = {
 	hub: hubView,
 	plan: planView,
-	chunk: chunkView,
+	feature: featureView,
 	test: testView,
 	review: reviewView,
 	knowledge: knowledgeView,
@@ -91,58 +91,58 @@ const VIEWS = {
 	archive: archiveView,
 };
 
-const GATHER_STEPS = ["hub", "plan", "chunk", "implement", "memorize", "range", "session", "settings", "usage", "archive", "knowledge", "test", "review"];
-const UI_STEPS = ["hub", "plan", "chunk", "test", "review", "knowledge", "memory-review", "settings", "question", "usage", "archive"];
+const GATHER_STEPS = ["hub", "plan", "feature", "implement", "memorize", "range", "session", "settings", "usage", "archive", "knowledge", "test", "review"];
+const UI_STEPS = ["hub", "plan", "feature", "test", "review", "knowledge", "memory-review", "settings", "question", "usage", "archive"];
 
 const COMMANDS = [
 	{
 		name: "iterator",
 		description:
-			"Open the iterator dashboard — the control plane for the plan → chunk → implement → review flow.",
+			"Open the iterator dashboard — the control plane for the plan → feature → implement → review flow.",
 	},
 	{
 		name: "iterator-plan",
 		description: "Create or revise the plan in the memory/ OKF bundle.",
 	},
 	{
-		name: "iterator-chunk",
+		name: "iterator-feature",
 		description:
-			"Break the approved plan into small, dependency-ordered chunks.",
+			"Break the approved plan into small, dependency-ordered features.",
 	},
 	{
 		name: "iterator-test",
-		description: "Write red (pre-implementation) or green tests for a chunk.",
+		description: "Write red (pre-implementation) or green tests for a feature.",
 	},
 	{
 		name: "iterator-implement",
 		description:
-			"Implement the next dependency-ready chunk and drive its tests green.",
+			"Implement the next dependency-ready feature and drive its tests green.",
 	},
 	{
 		name: "iterator-design",
 		description:
-			"Capture or revise the project's design params (memory/design.md) applied to every UI chunk.",
+			"Capture or revise the project's design params (memory/design.md) applied to every UI feature.",
 	},
 	{
 		name: "iterator-review",
-		description: "Review a chunk's diff and record the outcome.",
+		description: "Review a feature's diff and record the outcome.",
 	},
 	{
-		name: "okf",
+		name: "iterator-knowledge",
 		description:
-			"Open the Knowledge view — the bundle's okf memory plane (areas, concepts, staleness).",
+			"Open the Knowledge view — the bundle's OKF memory plane (areas, concepts, staleness).",
 	},
 	{
-		name: "okf-init",
-		description: "Analyze the repo and draft the initial okf knowledge bundle.",
+		name: "iterator-init",
+		description: "Analyze the repo and draft the initial OKF knowledge bundle.",
 	},
 	{
-		name: "okf-consolidate",
+		name: "iterator-consolidate",
 		description:
 			"Re-review existing memories against the current code (stale anchors, dead concepts).",
 	},
 	{
-		name: "okf-memorize",
+		name: "iterator-memorize",
 		description:
 			"Study the commits since last_memorized_commit and memorize what changed.",
 	},
@@ -184,9 +184,9 @@ export default function iteratorExtension(pi) {
 		}
 	};
 
-	const gatherPayload = async (cwd, step, chunk) => {
+	const gatherPayload = async (cwd, step, feature) => {
 		const args = ["--step", step];
-		if (chunk) args.push("--chunk", chunk);
+		if (feature) args.push("--feature", feature);
 		return runJson(scriptPath("gather"), args, { cwd });
 	};
 
@@ -224,7 +224,7 @@ export default function iteratorExtension(pi) {
 			if (memorize.okf && shouldNudge(pending, lastNudgedAt, threshold)) {
 				lastNudgedAt = pending;
 				ctx.ui.notify(
-					`iterator: ${pending} commits since the last memorize — consider /okf-memorize`,
+					`iterator: ${pending} commits since the last memorize — consider /iterator-memorize`,
 					"info",
 				);
 			}
@@ -355,7 +355,7 @@ export default function iteratorExtension(pi) {
 				try { lastCtx?.abort?.(); } catch {}
 				await writeState({
 					mode: "manual", paused: false, phase: "idle",
-					active_chunk: null, strikes: {},
+					active_feature: null, strikes: {},
 				});
 				autoSteps = 0;
 				await restoreModel();
@@ -373,7 +373,7 @@ export default function iteratorExtension(pi) {
 	// Auto mode driver: nextAutoAction (pure, lib/pi-tools.mjs) decides;
 	// this glue writes state, switches the role model/thinking, and
 	// dispatches the command as a new turn. Runs after every agent_end while
-	// state.mode === 'auto' (and after chunk approval / the hub auto button).
+	// state.mode === 'auto' (and after feature approval / the hub auto button).
 
 	const AUTO_MAX_STEPS = 60; // per-session circuit breaker
 	let autoSteps = 0;
@@ -442,13 +442,13 @@ export default function iteratorExtension(pi) {
 			if (!action) return;
 
 			if (action.done) {
-				await writeState({ phase: "done", active_chunk: null });
+				await writeState({ phase: "done", active_feature: null });
 				autoSteps = 0;
 				await restoreModel();
 				notifyUi(
 					sess.settings?.auto_retire_prompt === "on"
-						? "auto mode: plan complete — every chunk landed. Consider retiring the plan from the dashboard."
-						: "auto mode: plan complete — every chunk landed.",
+						? "auto mode: plan complete — every feature landed. Consider retiring the plan from the dashboard."
+						: "auto mode: plan complete — every feature landed.",
 				);
 				await refreshHub(cwd);
 				return;
@@ -479,22 +479,22 @@ export default function iteratorExtension(pi) {
 			}
 			await writeState({
 				phase: AUTO_PHASE_FOR_STEP[action.step] || "implementing",
-				active_chunk: action.chunk || null,
+				active_feature: action.feature || null,
 			});
 			await applyRole(action.role, sess.settings);
-			attribution = { step: action.step, chunk: action.chunk || null };
+			attribution = { step: action.step, feature: action.feature || null };
 			const p = sess.hub?.progress || {};
-			// Structured working state: the shell renders step/chunk, a progress
-			// bar, and the memories the implementer will read for this chunk.
-			const contract = action.chunk
+			// Structured working state: the shell renders step/feature, a progress
+			// bar, and the memories the implementer will read for this feature.
+			const contract = action.feature
 				? [sess.implement?.next, ...(sess.implement?.wave || [])]
 						.filter(Boolean)
-						.find((c) => c.name === action.chunk)
+						.find((c) => c.name === action.feature)
 				: null;
 			session?.showWorking({
-				text: `Auto: ${action.step} ${action.chunk || ""} (${p.done ?? 0}/${p.total ?? 0} done)…`,
+				text: `Auto: ${action.step} ${action.feature || ""} (${p.done ?? 0}/${p.total ?? 0} done)…`,
 				step: action.step,
-				chunk: action.chunk || null,
+				feature: action.feature || null,
 				progress: { done: p.done ?? 0, total: p.total ?? 0 },
 				memories: (contract?.relevantMemories || []).map(
 					({ id, title, description }) => ({ id, title, description }),
@@ -519,7 +519,7 @@ export default function iteratorExtension(pi) {
 		}
 	};
 
-	/** Flip into auto mode (chunk approval with auto_mode:on, or the hub button). */
+	/** Flip into auto mode (feature approval with auto_mode:on, or the hub button). */
 	const startAuto = async (cwd) => {
 		await writeState({ mode: "auto", paused: false, phase: "implementing" });
 		autoSteps = 0;
@@ -530,16 +530,16 @@ export default function iteratorExtension(pi) {
 	const resumeAuto = (cwd) => void kickAuto(cwd);
 
 	/**
-	 * Cancel a chunk or the whole plan (deterministic write op — never a model
+	 * Cancel a feature or the whole plan (deterministic write op — never a model
 	 * turn, so cancel works even while the agent is stuck). The dashboard's
 	 * two-step confirm already happened client-side.
 	 */
-	const cancelWork = async (op, chunk) => {
+	const cancelWork = async (op, feature) => {
 		const cwd = ctxCwd();
 		try {
 			const result = await runJson(scriptPath("write"), [], {
 				cwd,
-				stdin: JSON.stringify({ op, ...(chunk ? { chunk } : {}) }),
+				stdin: JSON.stringify({ op, ...(feature ? { feature } : {}) }),
 			});
 			invalidateSession();
 			const d = result.discarded;
@@ -547,7 +547,7 @@ export default function iteratorExtension(pi) {
 				? ` — discarded ${d.uncommittedFiles} uncommitted file(s), ${d.unmergedCommits} unmerged commit(s)`
 				: "";
 			notifyUi(
-				`${op === "cancel-plan" ? "plan" : `chunk ${chunk}`} cancelled (archived under ${result.archived})${discardNote}`,
+				`${op === "cancel-plan" ? "plan" : `feature ${feature}`} cancelled (archived under ${result.archived})${discardNote}`,
 			);
 			for (const n of result.notes || []) notifyUi(n, "warning");
 			session?.clearWorking?.();
@@ -584,7 +584,7 @@ export default function iteratorExtension(pi) {
 						return;
 					}
 					if (result?.type === "action" && result.action === "view-archive") {
-						void openArchive(result.chunk);
+						void openArchive(result.feature);
 						return;
 					}
 					if (result?.type === "action" && result.action === "hub") {
@@ -599,8 +599,8 @@ export default function iteratorExtension(pi) {
 						return;
 					}
 					if (result?.type === "action"
-						&& ["cancel-chunk", "cancel-plan"].includes(result.action)) {
-						void cancelWork(result.action, result.chunk || null);
+						&& ["cancel-feature", "cancel-plan"].includes(result.action)) {
+						void cancelWork(result.action, result.feature || null);
 						return;
 					}
 					const cmd = actionToCommand(result);
@@ -617,7 +617,7 @@ export default function iteratorExtension(pi) {
 
 	// ---------------------------------------------------------------------
 	// Friendly commands (skills stay the source of the flow logic).
-	// /iterator-implement with no argument turns into a TUI chunk picker.
+	// /iterator-implement with no argument turns into a TUI feature picker.
 
 	for (const command of COMMANDS) {
 		pi.registerCommand(command.name, {
@@ -625,7 +625,7 @@ export default function iteratorExtension(pi) {
 			handler: async (args = "", ctx) => {
 				const trimmedArgs = String(args).trim();
 				if (command.name === "iterator-implement" && !trimmedArgs && ctx?.hasUI) {
-					const picked = await pickReadyChunk(ctx);
+					const picked = await pickReadyFeature(ctx);
 					if (picked === undefined) return; // dismissed / nothing ready
 					dispatch(`/skill:iterator-implement ${picked}`.trim());
 					return;
@@ -652,16 +652,16 @@ export default function iteratorExtension(pi) {
 	});
 
 	pi.registerCommand("iterator-next", {
-		description: "Implement the next dependency-ready chunk, no questions asked.",
+		description: "Implement the next dependency-ready feature, no questions asked.",
 		handler: async (_args, ctx) => {
 			try {
 				const imp = await gatherPayload(ctx.cwd, "implement");
 				if (!imp.next) {
 					const why = imp.drafts?.length
-						? `only drafts exist — accept the chunk set first (/iterator-chunk)`
+						? `only drafts exist — accept the feature set first (/iterator-feature)`
 						: imp.stuck
-							? "pending chunks exist but none is ready (dependency cycle?)"
-							: "no pending chunks";
+							? "pending features exist but none is ready (dependency cycle?)"
+							: "no pending features";
 					if (ctx.hasUI) ctx.ui.notify(`iterator: nothing to implement — ${why}`, "warning");
 					return;
 				}
@@ -672,15 +672,15 @@ export default function iteratorExtension(pi) {
 		},
 	});
 
-	/** TUI selector over the ready chunks; returns a slug, '' for "next", undefined to abort. */
-	async function pickReadyChunk(ctx) {
+	/** TUI selector over the ready features; returns a slug, '' for "next", undefined to abort. */
+	async function pickReadyFeature(ctx) {
 		try {
 			const imp = await gatherPayload(ctx.cwd, "implement");
 			if (!imp.ready?.length) {
 				ctx.ui.notify(
 					imp.drafts?.length
-						? "iterator: only draft chunks exist — accept the chunk set first (/iterator-chunk)"
-						: "iterator: no chunk is ready to implement",
+						? "iterator: only draft features exist — accept the feature set first (/iterator-feature)"
+						: "iterator: no feature is ready to implement",
 					"warning",
 				);
 				return undefined;
@@ -689,7 +689,7 @@ export default function iteratorExtension(pi) {
 			const labels = imp.ready.map((slug) =>
 				slug === imp.next?.name ? `${slug} (next)` : slug,
 			);
-			const choice = await ctx.ui.select("Implement which chunk?", labels);
+			const choice = await ctx.ui.select("Implement which feature?", labels);
 			if (!choice) return undefined;
 			return choice.replace(/ \(next\)$/, "");
 		} catch (e) {
@@ -707,22 +707,22 @@ export default function iteratorExtension(pi) {
 		description:
 			"Deterministically gather iterator flow state (the memory/ bundle + git). " +
 			"Returns the step payload as JSON: hub (dashboard), plan (existing plan skeleton), " +
-			"chunk (chunk set incl. drafts + architecture concepts), implement (ready wave with " +
-			"full contracts incl. relevantMemories), test (chunk contract + runner), review " +
-			"(diff mapped to chunks, with pitfall cards), memorize (knowledge-areas state + " +
-			"uncovered commits), range (the commit range /okf-memorize must study), knowledge " +
+			"feature (feature set incl. drafts + architecture concepts), implement (ready wave with " +
+			"full contracts incl. relevantMemories), test (feature contract + runner), review " +
+			"(diff mapped to features, with pitfall cards), memorize (knowledge-areas state + " +
+			"uncovered commits), range (the commit range /iterator-memorize must study), knowledge " +
 			"(the Knowledge view payload: areas, concepts, staleness).",
 		parameters: Type.Object({
 			step: Type.Union(GATHER_STEPS.map((s) => Type.Literal(s)), {
 				description: "Which step payload to gather.",
 			}),
-			chunk: Type.Optional(
-				Type.String({ description: "Chunk slug (required for test, optional for review)." }),
+			feature: Type.Optional(
+				Type.String({ description: "Feature slug (required for test, optional for review)." }),
 			),
 		}),
 		async execute(_id, params, _signal, _onUpdate, ctx) {
 			try {
-				return asText(await gatherPayload(ctx.cwd, params.step, params.chunk));
+				return asText(await gatherPayload(ctx.cwd, params.step, params.feature));
 			} catch (e) {
 				return asError(e.message);
 			}
@@ -734,27 +734,27 @@ export default function iteratorExtension(pi) {
 		label: "iterator write",
 		description:
 			"Write to the memory/ bundle through the deterministic writer (never edit bundle " +
-			"frontmatter/indexes by hand). Ops: plan (write plan.md), chunks (write the chunk set — " +
-			"pass status 'draft' when proposing; returns sizing warnings), update-chunk (targeted " +
+			"frontmatter/indexes by hand). Ops: plan (write plan.md), features (write the feature set — " +
+			"pass status 'draft' when proposing; returns sizing warnings), update-feature (targeted " +
 			"frontmatter update: status/tests/done/reviewed + appendCommit/appendReview), adjustments " +
-			"(apply a chunk UI result verbatim: spread the result object in, e.g. " +
+			"(apply a feature UI result verbatim: spread the result object in, e.g. " +
 			"{op:'adjustments', ...uiResult}; accept:true or type:'plan-approved' promotes drafts to pending), " +
 			"memorize (okf-memory shared bundle: create/update/delete knowledge concepts in " +
 			"architecture/decisions/patterns/pitfalls/setup and/or advance last_memorized_commit), " +
 			"accept-commit (process the review UI's accept result end to end: branch safety, " +
-			"per-chunk commits with trailers, done flips, sha recording, memory verdicts, pointer " +
-			"advance — pass the UI result plus per-chunk testsStatus/summary and advance:true|false), " +
+			"per-feature commits with trailers, done flips, sha recording, memory verdicts, pointer " +
+			"advance — pass the UI result plus per-feature testsStatus/summary and advance:true|false), " +
 			"record-review (pipe a review-feedback UI result verbatim to record statuses/notes), " +
 			"refresh-format (recopy templates/format.md over the bundle's stale copy), " +
 			"retire-plan (condense a finished plan into a decisions/ concept and archive its " +
-			"chunks — pass concept:{slug,title,description,body}), settings (merge project " +
+			"features — pass concept:{slug,title,description,body}), settings (merge project " +
 			"settings into memory/settings.md — pass values:{...}; --schema settings lists the " +
 			"keys), state (machine runtime state in memory/state.md: set/strike/clearStrike). " +
 			"For okf memory reviews prefer the schema-tight okf_write tool over op apply-review here.",
 		parameters: Type.Object(
 			{
 				op: Type.Union(
-					["plan", "chunks", "design", "settings", "state", "update-chunk", "adjustments", "memorize", "apply-review", "refresh-format", "retire-plan", "accept-commit", "record-review"].map((s) => Type.Literal(s)),
+					["plan", "features", "design", "settings", "state", "update-feature", "adjustments", "memorize", "apply-review", "refresh-format", "retire-plan", "accept-commit", "record-review"].map((s) => Type.Literal(s)),
 					{ description: "Writer operation." },
 				),
 			},
@@ -769,7 +769,7 @@ export default function iteratorExtension(pi) {
 				});
 				invalidateSession(); // the bundle just changed under the snapshot
 			void refreshStatus(ctx); // writes move the footer's numbers
-				// Issue 5: auto mode starts right after the chunk set is approved
+				// Issue 5: auto mode starts right after the feature set is approved
 				// (adjustments accept / plan-approved) when the setting is on.
 				const approved =
 					(params.op === "adjustments" || params.type === "plan-approved") &&
@@ -778,7 +778,7 @@ export default function iteratorExtension(pi) {
 					try {
 						const { settings, state } = await gatherSession(ctx.cwd);
 						if (settings?.auto_mode === "on" && state?.mode !== "auto") {
-							notifyUi("auto mode: chunk set approved — driving test → implement → review automatically");
+							notifyUi("auto mode: feature set approved — driving test → implement → review automatically");
 							void startAuto(ctx.cwd);
 						}
 					} catch {
@@ -860,16 +860,16 @@ export default function iteratorExtension(pi) {
 		description:
 			"Show an iterator step in the session dashboard (persistent browser tab) and wait for " +
 			"the user's answer. The server gathers the step payload itself from the bundle — do NOT " +
-			"pass gathered payloads or chunk bodies. `extra` is only for the small agent-authored " +
+			"pass gathered payloads or feature bodies. `extra` is only for the small agent-authored " +
 			"fields: plan → {title, plan:{goal,architecture,keyDecisions}, dependencies}; " +
 			"test → {cases:[...]}; review after implementing → {mode:'commit', tests:{status,total,passing}}; " +
-			"hub/chunk/review → none (chunk drafts are read from disk).",
+			"hub/feature/review → none (feature drafts are read from disk).",
 		parameters: Type.Object({
 			step: Type.Union(UI_STEPS.map((s) => Type.Literal(s)), {
 				description: "Which view to show.",
 			}),
-			chunk: Type.Optional(
-				Type.String({ description: "Chunk slug (required for test, optional for review)." }),
+			feature: Type.Optional(
+				Type.String({ description: "Feature slug (required for test, optional for review)." }),
 			),
 			extra: Type.Optional(
 				Type.Any({ description: "Agent-authored fields merged over the gathered payload." }),
@@ -880,7 +880,7 @@ export default function iteratorExtension(pi) {
 				await ensureServer(ctx);
 				// Auto-mode gate guard: an unattended auto run must never block on
 				// a browser answer. A skill that ignores its --auto instruction and
-				// opens a gate view (test plan / question) would hang the chunk in
+				// opens a gate view (test plan / question) would hang the feature in
 				// its phase forever — refuse the round and tell the agent to
 				// continue non-interactively instead.
 				if (["test", "question"].includes(params.step)) {
@@ -904,7 +904,7 @@ export default function iteratorExtension(pi) {
 						await gatherPayload(ctx.cwd, "knowledge"))
 					: params.step === "question"
 						? { step: "question", branch: (await gatherSession(ctx.cwd))?.hub?.branch }
-						: await gatherPayload(ctx.cwd, params.step, params.chunk);
+						: await gatherPayload(ctx.cwd, params.step, params.feature);
 				// Deterministic zero-change guard: never open a review on nothing.
 				if (params.step === "review" && gathered.hasChanges === false) {
 					return asText({
@@ -972,7 +972,7 @@ export default function iteratorExtension(pi) {
 	// current flow attribution and flushed once per agent loop into
 	// memory/usage.md (writer op `usage`). usage_ledger: off skips the write.
 
-	let attribution = null; // { step, chunk } | null — sticky until the flow changes
+	let attribution = null; // { step, feature } | null — sticky until the flow changes
 	let usageBuffer = [];
 
 	pi.on("input", async (event) => {
@@ -1055,13 +1055,13 @@ export default function iteratorExtension(pi) {
 			rememberFile(ctx.cwd, path);
 			if (!path) return undefined;
 			// Anchor classification to the resolved bundle dir so a project's own
-			// src/memory/chunks/*.md is never blocked as a bundle file.
+			// src/memory/features/*.md is never blocked as a bundle file.
 			const root = projectRoot(ctx.cwd);
 			const abs = resolve(ctx.cwd, String(path)).split("\\").join("/");
 			const opts = { root };
 			if (
 				!(
-					isChunkFile(abs, process.env, root) ||
+					isFeatureFile(abs, process.env, root) ||
 					isConceptFile(abs, process.env, root) ||
 					isBundleIndexFile(abs, process.env, root)
 				)
@@ -1091,7 +1091,7 @@ export default function iteratorExtension(pi) {
 			if (!/\bgit\b/.test(command) || !bundleExists(ctx.cwd)) return undefined;
 			const verdict = checkBashCommit(
 				{ command },
-				{ chunks: chunksDirEntries(ctx.cwd) },
+				{ features: featuresDirEntries(ctx.cwd) },
 			);
 			if (verdict?.warn && ctx.hasUI) ctx.ui.notify(`iterator: ${verdict.reason}`, "warning");
 		}
