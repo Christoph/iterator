@@ -151,7 +151,10 @@ uninitialized knowledge memory).
 The writer also handles **branch-per-plan** (settings): approving on
 main/master creates `iterator/<plan-slug>` — by default in a **separate git
 worktree** (`result.worktree`; the current checkout stays put, the bundle is
-copied over). **All iterator work happens inside that worktree from now on**
+copied over). Before branching, the writer prefetches origin and
+fast-forwards the local base branch, so the worktree always starts from the
+**latest** main/master (offline/remote-less repos fall back to the local tip
+with a warning). **All iterator work happens inside that worktree from now on**
 — gather/write re-root themselves to it automatically, and every file edit in
 later steps must target paths under it (this is what enables running plans in
 parallel later). Relay `result.note` verbatim when present: the user must

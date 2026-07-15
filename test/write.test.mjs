@@ -2548,6 +2548,53 @@ test("plan approval on main creates the plan branch (worktree by default, in pla
 	}
 });
 
+test("plan approval prefetches origin and branches the worktree from the latest main", () => {
+	const originDir = mkdtempSync(join(tmpdir(), "iterator-origin-"));
+	let workDir = null;
+	let worktree = null;
+	try {
+		git(originDir, "init", "-q");
+		git(originDir, "config", "user.email", "t@t");
+		git(originDir, "config", "user.name", "t");
+		git(originDir, "checkout", "-qb", "main");
+		writeFileSync(join(originDir, "file1.txt"), "one\n");
+		git(originDir, "add", "file1.txt");
+		git(originDir, "commit", "-qm", "c1");
+
+		workDir = mkdtempSync(join(tmpdir(), "iterator-clone-"));
+		rmSync(workDir, { recursive: true, force: true });
+		execFileSync("git", ["clone", "-q", originDir, workDir], {
+			encoding: "utf8",
+		});
+		git(workDir, "config", "user.email", "t@t");
+		git(workDir, "config", "user.name", "t");
+
+		// origin moves ahead AFTER the clone — the stale local main must not
+		// become the worktree's base.
+		writeFileSync(join(originDir, "file2.txt"), "two\n");
+		git(originDir, "add", "file2.txt");
+		git(originDir, "commit", "-qm", "c2");
+		const latest = git(originDir, "rev-parse", "HEAD");
+
+		const res = applyOp(PLAN_OP, workDir);
+		worktree = res.worktree;
+		assert.ok(worktree, "worktree created");
+		assert.ok(
+			existsSync(join(worktree, "file2.txt")),
+			"worktree contains origin's newest commit",
+		);
+		assert.equal(
+			git(workDir, "rev-parse", "main"),
+			latest,
+			"local main fast-forwarded to origin (prefetch + pull)",
+		);
+	} finally {
+		for (const d of [worktree, workDir, originDir]) {
+			if (d && existsSync(d)) rmSync(d, { recursive: true, force: true });
+		}
+	}
+});
+
 test("loadBundle re-roots every gather/write into the plan's worktree", async () => {
 	const { loadBundle } = await import("../lib/gather.mjs");
 	const root = mkdtempSync(join(tmpdir(), "iterator-worktree-"));
