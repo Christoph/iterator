@@ -178,6 +178,18 @@ test('semantic fg/bg pairs meet AA contrast (4.5:1) in both themes', () => {
   }
 });
 
+test('hub backlog submits scoped CRUD actions and hands selected candidates to planning', async () => {
+  const { render: hub } = await import('../lib/views/hub.mjs');
+  const html = hub({ step: 'hub', branch: 'main', plan: null, progress: { done: 0, total: 0 },
+    knowledgeInitialized: true, dirty: { count: 0, files: [] }, features: [], retired: [],
+    backlog: [{ id: 'fix-shell', title: 'Fix shell', details: 'Session error', kind: 'bug', selected: true }] });
+  assert.match(html, /Idea backlog/);
+  assert.match(html, /type:'backlog'/, 'backlog requests have their own payload type');
+  assert.match(html, /action:'select'/, 'selection is persisted through the writer');
+  assert.match(html, /Plan selected candidates/);
+  assert.match(html, /selectedBacklogGoal/);
+});
+
 test('hub hero goal box persists an unsent draft and clears it on plan start', async () => {
   const { render: hub } = await import('../lib/views/hub.mjs');
   const html = hub({ step: 'hub', branch: 'main', plan: null, progress: { done: 0, total: 0 },

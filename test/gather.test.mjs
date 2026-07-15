@@ -104,6 +104,24 @@ files: ["src/auth/*.ts"]
 	return root;
 }
 
+test("gather exposes the indexed backlog separately from plan features", () => {
+	const root = makeFixture();
+	try {
+		mkdirSync(join(root, "memory", "backlog"), { recursive: true });
+		writeFileSync(
+			join(root, "memory", "backlog", "index.md"),
+			`---\ntype: Backlog\ntitle: Iterator backlog\nitems: '[{"id":"fix-shell","title":"Fix shell","details":"Session error","kind":"bug","selected":true}]'\n---\n\n# Backlog\n`,
+		);
+		const p = gather(root);
+		assert.deepEqual(p.backlog, [{
+			id: "fix-shell", title: "Fix shell", details: "Session error", kind: "bug", selected: true,
+		}]);
+		assert.ok(!p.features.some((feature) => feature.name === "fix-shell"));
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("gather builds the hub payload from bundle + git state", () => {
 	const root = makeFixture();
 	try {
@@ -218,6 +236,20 @@ d
 		);
 		const p = gatherImplement(root);
 		assert.ok(p.designFile.endsWith(join("memory", "design.md")));
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("focused review favors its feature over an earlier overlapping file owner", () => {
+	const root = makeFixture();
+	try {
+		writeFileSync(
+			join(root, "memory", "features", "config-module.md"),
+			`---\ntype: Feature\ntitle: Config module\nstatus: done\nfiles: ["src/auth/*.ts"]\n---\n`,
+		);
+		const p = gatherReview(root, { feature: "auth-middleware" });
+		assert.deepEqual(p.features[0].files.map((file) => file.path), ["src/auth/index.ts"]);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}

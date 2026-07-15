@@ -37,6 +37,40 @@ export function resolveTemplate(name = 'format.md') {
 /** Coerce a frontmatter value to a list (absent → [], scalar → [scalar]). */
 export const listy = (v) => (Array.isArray(v) ? v : v ? [v] : []);
 
+export const BACKLOG_KINDS = ["idea", "bug"];
+
+/** Read the compact, writer-owned backlog index without trusting its JSON. */
+export function backlogItems(text) {
+  const raw = frontmatter(text).items;
+  if (typeof raw !== "string") return [];
+  try {
+    const items = JSON.parse(raw);
+    return Array.isArray(items) ? items : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Render the one-file backlog index. Individual candidates stay out of the
+ * knowledge concept areas and are deliberately not active plan features. */
+export function backlogIndex(items = []) {
+  const normalized = items.map((item) => ({
+    id: String(item.id || ""),
+    title: String(item.title || ""),
+    details: String(item.details || ""),
+    kind: BACKLOG_KINDS.includes(item.kind) ? item.kind : "idea",
+    selected: item.selected === true,
+    created: String(item.created || ""),
+    updated: String(item.updated || ""),
+  }));
+  const summary = normalized.length
+    ? normalized
+        .map((item) => `* [${item.kind}] ${item.title}${item.selected ? " — selected" : ""}`)
+        .join("\n")
+    : "(empty)";
+  return `---\ntype: Backlog\ntitle: Iterator backlog\ndescription: Saved ideas and bugs kept separate from active plan features.\nitems: ${fmScalar(JSON.stringify(normalized))}\ntimestamp: ${nowIso()}\n---\n\n# Backlog\n\n${summary}\n`;
+}
+
 // Inverse of fmScalar's quoting: double-quoted values are JSON (so escapes
 // like \" round-trip instead of compounding), single-quoted values use
 // YAML's '' escape. Unparseable quoting falls back to a bare strip.

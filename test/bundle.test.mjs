@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  frontmatter, listy, sections, snippets, globToRegExp,
+  backlogIndex, backlogItems, frontmatter, listy, sections, snippets, globToRegExp,
   splitDoc, joinDoc, setFmKeys, fmScalar,
   OKF_AREAS, OKF_AREA_NAMES,
   regenerateAreaIndex, updateRootIndex, mergeRootIndex, prependLog,
@@ -27,6 +27,18 @@ function makeBundle(files) {
   }
   return memory;
 }
+
+// ---------------------------------------------------------------------------
+// backlog index
+
+test('backlog index round-trips compact candidate records', () => {
+  const raw = backlogIndex([{ id: 'dark-mode', title: 'Dark mode', details: 'Respect OS preference.', kind: 'idea', selected: true }]);
+  assert.deepEqual(backlogItems(raw), [{
+    id: 'dark-mode', title: 'Dark mode', details: 'Respect OS preference.', kind: 'idea',
+    selected: true, created: '', updated: '',
+  }]);
+  assert.deepEqual(backlogItems('---\nitems: "not json"\n---\n'), []);
+});
 
 // ---------------------------------------------------------------------------
 // frontmatter

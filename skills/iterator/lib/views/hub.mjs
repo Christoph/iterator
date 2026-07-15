@@ -96,6 +96,15 @@ button.act.danger-armed{background:var(--bg-red);border-color:var(--del-fg);colo
 .st.done{background:var(--dot-green)}
 .st.draft{background:var(--dot-yellow)}
 .st.pending{background:transparent;border:2px solid var(--border)}
+.backlog{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);box-shadow:var(--shadow-card);padding:var(--sp-4);margin-top:var(--sp-5)}
+.backlog-head{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);flex-wrap:wrap;margin-bottom:var(--sp-3)}
+.backlog-head h2{font-size:var(--fs-md);font-weight:600}.backlog-head p{font-size:var(--fs-xs);color:var(--text-muted)}
+.backlog-form{display:grid;grid-template-columns:120px minmax(180px,1fr);gap:var(--sp-2);align-items:start}
+.backlog-form select,.backlog-form input,.backlog-form textarea{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;color:var(--text);font:inherit;font-size:var(--fs-sm)}
+.backlog-form textarea{min-height:64px;resize:vertical;grid-column:1/-1}.backlog-form .btns{grid-column:1/-1}.backlog-list{display:grid;gap:var(--sp-2);margin-top:var(--sp-4)}
+.backlog-item{border-top:1px solid var(--border);padding-top:var(--sp-3)}.backlog-item:first-child{border-top:0;padding-top:0}
+.backlog-item-main{display:flex;gap:var(--sp-2);align-items:flex-start}.backlog-item-main input{margin-top:4px}.backlog-item-title{font-size:var(--fs-sm);font-weight:600}.backlog-item-details{font-size:var(--fs-xs);color:var(--text-muted);margin-top:2px;white-space:pre-wrap}.backlog-empty{font-size:var(--fs-sm);color:var(--text-muted)}
+@media(max-width:640px){.backlog-form{grid-template-columns:1fr}.backlog-form textarea,.backlog-form .btns{grid-column:auto}}
 `;
 
 const BODY = `
@@ -106,8 +115,18 @@ const JS = `
 const CH = D.features || [];
 const byName = {}; CH.forEach(c => byName[c.name] = c);
 
-function action(act, feature, msg){
-  post({ type:'action', action: act, feature: feature || null }, msg || 'Sent to Claude');
+function action(act, feature, msg, prompt){
+  post({ type:'action', action: act, feature: feature || null, prompt: prompt || null }, msg || 'Sent to Claude');
+}
+function backlogAction(payload, button, message){
+  if(button){ button.disabled = true; button.dataset.label = button.textContent; button.textContent = 'Saving…'; }
+  post({ type:'backlog', ...payload }, message || 'Saved');
+}
+function selectedBacklogGoal(){
+  const selected = (D.backlog || []).filter(item => item.selected);
+  if(!selected.length) return null;
+  return 'Create a plan from these saved backlog candidates:\n\n' + selected.map(item =>
+    '[' + item.kind + '] ' + item.title + (item.details ? '\n' + item.details : '')).join('\n\n');
 }
 function depsDone(c){ return (c.dependsOn||[]).every(d => byName[d] && byName[d].status==='done'); }
 function testBadge(c){
@@ -246,6 +265,7 @@ function render(){
     btns.appendChild(b);
     hero.appendChild(btns);
     w.appendChild(hero);
+    renderBacklog(w);
     renderRetired(w);
     return;
   }
@@ -308,6 +328,7 @@ function render(){
     action('cancel-plan', null, 'Cancelling plan'));
   bar.insertBefore(cancelPlan, bar.querySelector('.pbar'));
   w.appendChild(bar);
+  renderBacklog(w);
 
   // graph
   const gt = document.createElement('div'); gt.className='sec-title'; gt.textContent='Dependency graph';
@@ -333,6 +354,52 @@ function render(){
 }
 
 // Retired plans: read-only history browser (view-archive opens the archive view).
+function renderBacklog(w){
+  const items = Array.isArray(D.backlog) ? D.backlog : [];
+  const section = document.createElement('section'); section.className = 'backlog';
+  section.innerHTML = '<div class="backlog-head"><div><h2>Idea backlog</h2><p>Saved ideas and bugs stay separate from active plan features.</p></div></div>';
+  const form = document.createElement('form'); form.className = 'backlog-form';
+  form.innerHTML = '<select aria-label="Candidate type"><option value="idea">Idea</option><option value="bug">Bug</option></select>'+
+    '<input required maxlength="160" placeholder="Short title" aria-label="Backlog title">'+
+    '<textarea maxlength="4000" placeholder="Why it matters, context, or a repro" aria-label="Backlog details"></textarea>'+
+    '<div class="btns"><button class="act primary-act" type="submit">Save candidate</button><button class="act" type="button" hidden>Cancel edit</button></div>';
+  const [kind, title, details] = form.querySelectorAll('select,input,textarea');
+  const [save, cancel] = form.querySelectorAll('button');
+  let editing = null;
+  const reset = () => { editing = null; form.reset(); save.textContent = 'Save candidate'; cancel.hidden = true; };
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    backlogAction({ action: editing ? 'edit' : 'create', ...(editing ? { id: editing } : {}), kind: kind.value, title: title.value, details: details.value }, save, editing ? 'Candidate updated' : 'Candidate saved');
+  });
+  cancel.addEventListener('click', reset);
+  section.appendChild(form);
+  const list = document.createElement('div'); list.className = 'backlog-list';
+  if(!items.length) list.innerHTML = '<p class="backlog-empty">No saved candidates yet.</p>';
+  for(const item of items){
+    const row = document.createElement('div'); row.className = 'backlog-item';
+    row.innerHTML = '<div class="backlog-item-main"><input type="checkbox" aria-label="Select '+esc(item.title)+'" '+(item.selected?'checked':'')+'><div><div class="backlog-item-title">'+esc(item.title)+' <span class="chip cmut">'+esc(item.kind)+'</span></div><div class="backlog-item-details">'+esc(item.details || '')+'</div></div></div>';
+    const toggle = row.querySelector('input');
+    toggle.addEventListener('change', () => backlogAction({ action:'select', id:item.id, selected:toggle.checked }, toggle, toggle.checked ? 'Candidate selected' : 'Candidate deselected'));
+    const buttons = document.createElement('div'); buttons.className = 'btns';
+    const edit = document.createElement('button'); edit.className = 'act'; edit.type = 'button'; edit.textContent = 'Edit';
+    edit.addEventListener('click', () => { editing = item.id; kind.value = item.kind; title.value = item.title; details.value = item.details || ''; save.textContent = 'Update candidate'; cancel.hidden = false; title.focus(); });
+    const remove = document.createElement('button'); remove.className = 'act danger'; remove.type = 'button'; remove.textContent = 'Delete';
+    confirmButton(remove, 'Really delete — click again', () => backlogAction({ action:'delete', id:item.id }, remove, 'Candidate deleted'));
+    buttons.append(edit, remove); row.appendChild(buttons); list.appendChild(row);
+  }
+  section.appendChild(list);
+  const goal = selectedBacklogGoal();
+  if(goal){
+    const handoff = document.createElement('button'); handoff.className = 'act primary-act'; handoff.type = 'button';
+    handoff.textContent = D.plan ? 'Selected candidates saved' : 'Plan selected candidates';
+    handoff.title = D.plan ? 'Retire or finish the active plan before starting a new one.' : 'Start a new plan with the selected candidates as its initial goal.';
+    handoff.disabled = Boolean(D.plan);
+    handoff.addEventListener('click', () => action('plan', null, 'Starting /iterator-plan from backlog', goal));
+    section.appendChild(handoff);
+  }
+  w.appendChild(section);
+}
+
 function renderRetired(w){
   const R = D.retired || [];
   if(!R.length) return;

@@ -12,7 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { applyOp, topoSort, setFmKeys } from "../lib/write.mjs";
-import { frontmatter, gather, loadBundle } from "../lib/gather.mjs";
+import { frontmatter, gather } from "../lib/gather.mjs";
 
 process.env.ITERATOR_NOW = "2026-07-06T12:00:00Z";
 
@@ -2100,6 +2100,47 @@ test("plan approval on main creates the plan branch (worktree by default, in pla
 		const res3 = applyOp(PLAN_OP, root);
 		assert.equal(res3.branch, undefined);
 		assert.equal(git(root, "rev-parse", "--abbrev-ref", "HEAD"), "main");
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+// ---------------------------------------------------------------------------
+// op: backlog
+
+test("backlog writer saves, validates, selects, edits, and deletes candidates", () => {
+	const root = makeRepo();
+	try {
+		const created = applyOp(
+			{ op: "backlog", action: "create", kind: "bug", title: "Fix stale view", details: "Hub does not refresh." },
+			root,
+		);
+		assert.equal(created.item.id, "fix-stale-view");
+		assert.equal(created.item.selected, false);
+		assert.ok(existsSync(join(root, "memory", "backlog", "index.md")));
+		assert.match(read(root, "index.md"), /\[Backlog\]\(backlog\/index\.md\)/);
+
+		const selected = applyOp(
+			{ op: "backlog", action: "select", id: created.item.id, selected: true },
+			root,
+		);
+		assert.equal(selected.items[0].selected, true, "selection persists in the index");
+		const edited = applyOp(
+			{ op: "backlog", action: "edit", id: created.item.id, kind: "idea", title: "Refresh stale view", details: "Keep state current." },
+			root,
+		);
+		assert.equal(edited.item.kind, "idea");
+		assert.equal(edited.item.selected, true, "editing preserves selection");
+		assert.throws(
+			() => applyOp({ op: "backlog", action: "create", kind: "task", title: "x", details: "" }, root),
+			/backlog kind must be one of/,
+		);
+		assert.throws(
+			() => applyOp({ op: "backlog", action: "select", id: created.item.id, selected: "yes" }, root),
+			/backlog selected must be a boolean/,
+		);
+		const deleted = applyOp({ op: "backlog", action: "delete", id: created.item.id }, root);
+		assert.equal(deleted.items.length, 0);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}

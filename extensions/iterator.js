@@ -350,6 +350,33 @@ export default function iteratorExtension(pi) {
 		}
 	};
 
+	/** Save one backlog mutation without spending a model turn. */
+	const saveBacklog = async (input) => {
+		const cwd = ctxCwd();
+		session?.showWorking?.("Saving backlog candidate…");
+		try {
+			const result = await runJson(scriptPath("write"), [], {
+				cwd,
+				stdin: JSON.stringify({
+					op: "backlog",
+					action: input.action,
+					id: input.id,
+					title: input.title,
+					details: input.details,
+					kind: input.kind,
+					selected: input.selected,
+				}),
+			});
+			invalidateSession();
+			notifyUi(`backlog ${result.action}d: ${result.item.title}`, "info");
+		} catch (e) {
+			notifyUi(`backlog not saved — ${e.message}`, "error");
+		} finally {
+			session?.clearWorking?.();
+			await refreshHub(cwd);
+		}
+	};
+
 	/** Show the settings view as an idle dashboard page (unsolicited round). */
 	const openSettings = async () => {
 		const cwd = ctxCwd();
@@ -659,6 +686,10 @@ export default function iteratorExtension(pi) {
 					// Deterministic dashboard navigation/actions — no model turn.
 					if (result?.type === "settings" && result.values) {
 						void saveSettings(result.values);
+						return;
+					}
+					if (result?.type === "backlog") {
+						void saveBacklog(result);
 						return;
 					}
 					// Settings is an idle page: its Close button emits cancel, which

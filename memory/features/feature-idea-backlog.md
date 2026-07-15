@@ -2,12 +2,13 @@
 type: Feature
 title: Feature idea backlog
 description: Let users save ideas and bugs directly from Work, select them later, and create a plan from the selected candidates.
-status: pending
+status: done
 size: large
 depends_on: [scoped-dashboard-actions]
 files: ["lib/bundle.mjs", "lib/gather.mjs", "lib/write.mjs", "lib/session-server.mjs", "lib/views/hub.mjs", "extensions/iterator.js", "memory/backlog/index.md", "test/bundle.test.mjs", "test/gather.test.mjs", "test/write.test.mjs", "test/session-server.test.mjs", "test/ui.test.mjs"]
-timestamp: "2026-07-15T09:15:49.033Z"
+timestamp: "2026-07-15T12:12:26.270Z"
 tags: []
+done: 2026-07-15
 ---
 
 # Implementation notes
