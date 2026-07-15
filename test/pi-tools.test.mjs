@@ -220,21 +220,28 @@ test('nextAutoAction is inert outside active auto mode', () => {
 });
 
 test('nextAutoAction dispatches test → implement → review from bundle state', () => {
-  const feature = { name: 'a', status: 'pending', hasDiff: false };
+  const feature = { name: 'a', status: 'pending' };
   // No tests yet + testing on → tester turn.
   let a = nextAutoAction(sess({ features: [feature], next: { name: 'a', testsStatus: 'none' } }), S(), ST());
   assert.deepEqual(a, { step: 'test', role: 'tester', feature: 'a', cmd: '/skill:iterator-test a --auto' });
   assert.equal(AUTO_PHASE_FOR_STEP[a.step], 'testing');
-  // Tests red, no diff → implementer turn.
+  // Tests red, still pending → implementer turn.
   a = nextAutoAction(sess({ features: [feature], next: { name: 'a', testsStatus: 'red' } }), S(), ST());
   assert.equal(a.step, 'implement');
   assert.equal(a.cmd, '/skill:iterator-implement a --auto');
   // Testing off skips straight to implement.
   a = nextAutoAction(sess({ features: [feature], next: { name: 'a', testsStatus: 'none' } }), S({ testing_default: 'off' }), ST());
   assert.equal(a.step, 'implement');
-  // Implementation diff exists → reviewer turn.
-  a = nextAutoAction(sess({ features: [{ ...feature, hasDiff: true }], next: { name: 'a', testsStatus: 'red' } }), S(), ST());
+  // Feature flipped to implemented → reviewer turn (a status, not a diff
+  // heuristic), even when no other feature is ready.
+  a = nextAutoAction(sess({ features: [{ name: 'a', status: 'implemented' }], next: null }), S(), ST());
   assert.deepEqual(a, { step: 'review', role: 'reviewer', feature: 'a', cmd: '/skill:iterator-review a --agent' });
+  // Awaiting review is never misread as stuck.
+  a = nextAutoAction(
+    sess({ features: [{ name: 'a', status: 'implemented' }, { name: 'b', status: 'pending' }], next: null, total: 2 }),
+    S(), ST(),
+  );
+  assert.equal(a.step, 'review');
 });
 
 test('nextAutoAction reads the review verdict from the bundle and strikes', () => {
@@ -247,9 +254,15 @@ test('nextAutoAction reads the review verdict from the bundle and strikes', () =
   a = nextAutoAction(s, S(), ST({ phase: 'reviewing', active_feature: 'a', strikes: { a: 2 } }));
   assert.equal(a.escalate, true);
   assert.match(a.reason, /failed agent review 3/);
-  // Feature done → approved: fall through to the next feature (none → done).
+  // Feature done → approved: the plan is finished, so the once-only
+  // whole-plan review dispatches before done.
   const approved = sess({ features: [{ name: 'a', status: 'done' }], next: null, done: 1, total: 1 });
   a = nextAutoAction(approved, S(), ST({ phase: 'reviewing', active_feature: 'a' }));
+  assert.deepEqual(a, { step: 'plan-review', role: 'plan_reviewer', cmd: '/skill:iterator-review-plan --auto' });
+  // plan_reviewed recorded → truly done (no loop around the plan review).
+  const reviewed = sess({ features: [{ name: 'a', status: 'done' }], next: null, done: 1, total: 1 });
+  reviewed.hub.plan.planReviewed = '2026-07-15';
+  a = nextAutoAction(reviewed, S(), ST({ phase: 'reviewing', active_feature: null }));
   assert.deepEqual(a, { done: true });
 });
 

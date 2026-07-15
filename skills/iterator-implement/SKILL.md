@@ -1,22 +1,22 @@
 ---
 name: iterator-implement
-description: Implement features in dependency waves from the memory/ bundle. Builds every feature whose dependencies are all done — using each feature's tests as the goal when they exist (red/green flow, drive them green before review) — auto-opens the review UI scoped to the wave, and on Accept and commit commits each feature (feature(<slug>) with a Feature trailer), flips its status to done, records the commits, and — when okf-memory shares the bundle — evaluates whether the accepted work should create or update memory concepts. Use when the user types /iterator-implement, wants to build the next feature(s), or wants to work through the feature plan.
+description: Implement the next feature from the memory/ bundle — exactly one feature per round. Builds the dependency-ready feature using its tests as the goal when they exist (red/green flow, drive them green before review), flips it to implemented, auto-opens the review UI scoped to the feature, and on Accept and commit commits it (feature(<slug>) with a Feature trailer), flips its status to done, records the commits, and — when okf-memory shares the bundle — evaluates whether the accepted work should create or update memory concepts. Use when the user types /iterator-implement, wants to build the next feature, or wants to work through the feature plan.
 ---
 
 # iterator-implement
 
 The third step of the iterator flow: **plan → feature → implement → review**.
-Implements features in **dependency waves**: every pending feature whose
-dependencies are all done is mutually independent by construction, so one
-round builds them all, reviews them together, and on accept commits each
-feature separately and marks it done. Features unlocked by this wave become the
-next wave.
+Implements **exactly one feature per round**: the next dependency-ready
+feature is built, reviewed, and on accept committed and marked done — then the
+loop moves to the next feature. Every change made during a round belongs to
+that round's feature; the review shows incidental changes under the feature
+with a reassignable default rather than an "uncategorized" bucket.
 
 **pi mode:** see `<skill-dir>/../iterator/PI.md`.
 
 ## When to use this skill
 
-When the user types `/iterator-implement`, wants to build the next feature(s),
+When the user types `/iterator-implement`, wants to build the next feature,
 or wants to work through the feature plan. If `memory/features/` has no feature
 files, tell the user to run `/iterator-plan` → `/iterator-feature` first and
 stop. If the user's message contains a result payload from a previous session
@@ -25,36 +25,45 @@ stop. If the user's message contains a result payload from a previous session
 
 ## Steps
 
-### 1. Pick the dependency-ready wave
+### 1. Pick the next feature
 
 ```sh
 node <skill-dir>/../iterator/gather.mjs --step implement
 ```
 
-Do **not** read bundle files yourself. `wave` is every dependency-ready
-pending feature with its full contract, in topological order; the payload's
-`advice` string tells you what to do when the wave is empty, only drafts
-exist, or pending features are `stuck` (cycle / missing dependency — report it
-and stop; never guess an order). Follow it.
+Do **not** read bundle files yourself. `next` is the next dependency-ready
+pending feature with its full contract; the payload's `advice` string tells
+you what to do when nothing is ready — only drafts exist, features are
+awaiting review (`implemented`), or pending features are `stuck` (cycle /
+missing dependency — report it and stop; never guess an order). Follow it.
 
-- Implement the whole `wave`. **Never implement a feature before its
-  dependencies are done.**
+- Implement **only `next`**. **Never implement a feature before its
+  dependencies are satisfied** (done — or implemented, when the
+  `review_required` setting is off).
 - If the user named a specific feature, it must appear in `ready`; implement
-  just that feature (a one-feature wave). If not ready, name the missing
-  dependency (from `blocked`) and stop.
-- A very large wave is still one round: if building it all would be unwieldy
-  (more than ~5 features), take the first few in order and say which were
-  deferred.
+  that one instead. If not ready, name the missing dependency (from `blocked`)
+  and stop.
 
-### 2. Implement every feature — tests are the goal when they exist
+**Treat the gather payload as your entire context.** `finishedFeatures` tells
+you what this plan already changed (each finished feature's files and
+commits) — do not assume conversation memory from earlier rounds; every round
+must be executable from a fresh context.
 
-Implement the wave feature by feature, in order, using each contract's
-implementation notes, snippets, `ARCHITECTURE.md` (read if present), and
-`GUIDELINES.md` only if it exists. Keep each feature's edits scoped to its
-`files` where possible — wave features are committed one by one in step 5, so
-keep their edits separable.
+**Work in the payload's `root`.** All iterator work happens in the plan's
+worktree when one exists — gather/write re-root themselves automatically, but
+your **file edits and test runs must target paths under the payload's `root`**
+(it may differ from your session's cwd). Never edit the main checkout while a
+plan worktree is active.
 
-**Memory first:** before coding a feature, read the files in its contract's
+### 2. Implement the feature — tests are the goal when they exist
+
+Implement the feature using its contract's implementation notes, snippets,
+`ARCHITECTURE.md` (read if present), and `GUIDELINES.md` only if it exists.
+Prefer keeping edits inside the feature's `files`; when the work genuinely
+requires touching other paths, that is fine — the review will show them as
+this feature's incidental changes.
+
+**Memory first:** before coding, read the files in the contract's
 `relevantMemories` (the feature's stored `memories:` reading list unioned with
 a fresh anchor match; each entry carries the absolute `path` of one knowledge
 concept) — and ONLY those; never crawl all of `memory/`. Treat `pitfalls/*`
@@ -63,26 +72,37 @@ to change), `architecture/*` and `patterns/*` as how the surrounding code
 expects to be extended. An empty list means no anchored knowledge — proceed
 normally.
 
-**Decision conflicts:** if a wave feature's contract carries `conflicts`
+**Decision conflicts:** if the feature's contract carries `conflicts`
 (recorded decision concepts the feature contradicts), do **not** implement it
 silently — surface the conflict to the user first and let them resolve it
 (change the feature, or update the decision via `/iterator-knowledge`).
 
-**Design quality:** if any feature touches frontend/UI surface, follow the
+**Design quality:** if the feature touches frontend/UI surface, follow the
 `/iterator-design` skill while building. The payload's `designFile` tells you
 the state: non-null → read `memory/design.md` and follow its params (they win
 over generic taste); null → run `/iterator-design`'s first-time capture once,
 **before** styling the first UI feature. Run its self-check before opening the
-review UI. Skip silently if no feature has UI surface.
+review UI. Skip silently if the feature has no UI surface.
 
-**Green gate (per feature):** if a feature has `tests` (written red by
-`/iterator-test`), they define done. After implementing it, run exactly that
-feature's test files and loop *implement → run → fix* until they pass —
-**before** moving to the next wave feature. Never weaken or delete a test to
-get green; if a test looks wrong, say so. If a feature's tests are still red
+**Green gate:** if the feature has `tests` (written red by `/iterator-test`),
+they define done. After implementing, run exactly that feature's test files
+and loop *implement → run → fix* until they pass. Never weaken or delete a
+test to get green; if a test looks wrong, say so. If the tests are still red
 after a few honest attempts, stop and show the user the real failing output,
 then let them choose: keep fixing, open the review anyway (the red badge will
 be visible), or pause. Features without tests skip this gate — not an error.
+
+**Mark it implemented:** when the implementation is complete (tests green when
+they exist), flip the feature's status — code complete, awaiting review:
+
+```sh
+node <skill-dir>/../iterator/write.mjs << 'IMPLEMENTED_WRITE'
+{ "op": "update-feature", "feature": "<slug>", "set": { "status": "implemented" } }
+IMPLEMENTED_WRITE
+```
+
+This is what enables the Review button on the dashboard (and disables
+Implement); `status: done` is still set only by the accept flow in step 5.
 
 ### 3. Evaluate the memory impact (okf-memory shared bundle)
 
@@ -94,7 +114,7 @@ node <skill-dir>/../iterator/gather.mjs --step memorize
 ```
 
 If `okf` is `false`, skip this step entirely (do not create areas uninvited).
-Otherwise decide, for the wave's diff **plus** any `pendingCommits` (commits
+Otherwise decide, for the feature's diff **plus** any `pendingCommits` (commits
 since `last_memorized_commit` nobody memorized yet — usually your own
 `test(<slug>)` commits): does any of it change **lasting project knowledge**
 — architecture, a decision, a pattern/convention, a pitfall, or setup?
@@ -111,7 +131,7 @@ or a genuinely new durable fact appeared (`create`):
 
 If `extensionsContract` is set, `memory/EXTENSIONS.md` documents the bundle's
 write contract — follow it. Do not memorize code minutiae the repo already
-records; when `pendingCount` > 20, evaluate only the wave's diff and note
+records; when `pendingCount` > 20, evaluate only the feature's diff and note
 that `/iterator-memorize` should handle the backlog.
 
 ### 4. Auto-open the review UI (commit mode)
@@ -120,24 +140,26 @@ The review payload (diff parsed into hunks, mapped to features, stats) is
 computed by script; you add only the commit-mode fields:
 
 ```sh
-node <skill-dir>/../iterator/gather.mjs --step review --feature <slug>   # one-feature wave
-node <skill-dir>/../iterator/gather.mjs --step review                  # multi-feature wave
+node <skill-dir>/../iterator/gather.mjs --step review --feature <slug>
 ```
 
-Take the printed JSON and set `"mode": "commit"`; for each reviewed feature
-with tests, set its entry's `"tests": { "status": "<red|green>", "total": N,
+Take the printed JSON and set `"mode": "commit"`; when the feature has tests,
+set its entry's `"tests": { "status": "<red|green>", "total": N,
 "passing": N }` from your green-gate runs; when step 3 produced proposals,
 add `"memory": { "proposals": [ … ] }` (include `reason` — the UI shows it).
 Pipe the result into `node <skill-dir>/../iterator/server.mjs` via a heredoc.
-The UI shows test badges and the memory cards as toggleable items exactly
-where the commit decision happens.
+The UI shows the feature's diff split into Declared / Tests / Incidental
+groups (incidental = changed files outside the feature's declared surface,
+pre-assigned to this feature; the reviewer can reassign or skip each), plus
+test badges and the memory cards as toggleable items exactly where the commit
+decision happens.
 
 ### 5. Process the result (one JSON line)
 
 - `{ "type": "accept-commit", "features": [...], "memory": {...} }` → **the
-  entire acceptance is one deterministic write** — branch safety, per-feature
-  staging and `feature(<slug>)` commits with `Feature:` trailers, `status: done`
-  flips, sha recording, memory-card application, pointer advance, and the
+  entire acceptance is one deterministic write** — branch safety, staging and
+  the `feature(<slug>)` commit with its `Feature:` trailer, `status: done`
+  flip, sha recording, memory-card application, pointer advance, and the
   bookkeeping commit all happen inside the writer:
 
   ```sh
@@ -149,51 +171,60 @@ where the commit decision happens.
   ACCEPT_WRITE
   ```
 
-  Per feature: `testsStatus` only when it has tests — the color of the last
-  real run (keep `red` if the user accepted with red tests); `summary` is
-  your one-line commit summary. `memory.proposals` are the full step-3 cards;
-  the writer keeps only the ones in `accepted`. Set `"advance": true` **only**
+  `testsStatus` only when the feature has tests — the color of the last real
+  run (keep `red` if the user accepted with red tests); `summary` is your
+  one-line commit summary. `memory.proposals` are the full step-3 cards; the
+  writer keeps only the ones in `accepted`. Set `"advance": true` **only**
   when step 3's payload had `baseValid: true` and you evaluated all
   `pendingCommits` (pointer rule: never advance past commits nobody looked
   at — if `pendingCount` was > 20, set it `false` and tell the user
   `/iterator-memorize` has a backlog). `advance` with no cards is correct —
   "nothing worth memorizing" also means the pointer is up to date.
 
-  The writer is resumable (already-done features are skipped). The review UI
-  collects a disposition for every uncategorized file (`uncategorized:
-  [{path, feature|'skip'}]` in its accept result — pipe it through verbatim);
-  with `block_commit_on_leftovers` on, the writer **fails before committing**
-  if any file is left undisposed — relay its error rather than working around
-  it. Its result reports `uncommitted` (explicit skips) and `leftovers` (what
-  actually remains dirty after the commits) — tell the user about both, never
-  force-commit them. Report what was committed (and which memories were
-  written/skipped), then offer the next dependency-ready wave (loop to
-  step 1). If this wave finished the plan, offer **plan retirement** instead
-  (the `/iterator` hub skill's retire flow).
+  The writer is resumable (already-done features are skipped) and **never
+  dead-ends on unattributed files**: pipe the UI result's `uncategorized:
+  [{path, feature|'skip'|'bootstrap'}]` dispositions through verbatim;
+  anything without an explicit disposition follows its default (absorbed into
+  this feature's commit — or left uncommitted when
+  `block_commit_on_leftovers` is off), and content that was already staged
+  before the round lands as a separate `chore(bootstrap)` commit (the result's
+  `bootstrapCommit`). The result reports `defaulted` (absorbed files),
+  `uncommitted` (explicit skips) and `leftovers` (what actually remains dirty
+  after the commits) — tell the user about all of them, never force-commit
+  leftovers. Report what was committed (and which memories were
+  written/skipped), then offer the next ready feature (loop to step 1). If
+  this feature finished the plan, offer the **whole-plan review**
+  (`/iterator-review-plan`) and then plan retirement (the `/iterator` hub
+  skill's retire flow).
 
 - `{ "type": "review-feedback", ... }` → revise the implementation per the
-  per-feature notes and line comments, **re-run the affected features' tests**
-  (the green gate applies to every round), refresh the memory proposals if
-  the revision changes what is worth memorizing, then re-run from step 4 with
-  the fresh test state. **Do not commit yet.**
+  notes and line comments, **re-run the feature's tests** (the green gate
+  applies to every round), refresh the memory proposals if the revision
+  changes what is worth memorizing, then re-run from step 4 with the fresh
+  test state. The feature stays `implemented` during rework. **Do not commit
+  yet.**
 
 - `cancel` / `timeout` → relay the result's `report` and stop without
   committing; the working-tree changes remain for the user to inspect.
 
 ## Auto mode (`--auto`)
 
-When invoked as `/iterator-implement <feature> --auto` (dispatched by the
-auto-mode driver, never by hand):
+When invoked as `/skill:iterator-implement <feature> --auto` (dispatched by
+the auto-mode driver, never by hand):
 
-- Implement **only the named feature** (not the whole wave). All quality gates
-  above apply unchanged — memory first, design quality, and the green gate.
+- Implement **only the named feature**. All quality gates above apply
+  unchanged — memory first, design quality, and the green gate. The feature
+  may already be `implemented` (a rework round) — that is expected.
 - On a rework round the feature's `# Review` section carries the agent
   reviewer's notes (newest first) — read them via
   `gather.mjs --step review --feature <slug>`'s feature payload or the feature
-  contract, and address every point.
-- **Do NOT open the review UI and do NOT commit.** Finish the implementation
-  (tests green when the feature has tests), then report in one short paragraph
-  what changed and stop — the driver dispatches the agent review as the next
-  turn. If the feature cannot be finished (tests stuck red, missing
-  precondition), say so plainly and stop; the driver counts the failed review
-  rounds and escalates to the human.
+  contract, and address every point. If the dispatch carries user guidance
+  (after an escalation), it overrides everything else — follow it.
+- When the implementation is complete, flip the status to `implemented`
+  (step 2's update-feature write) — this is how the driver knows review is
+  next.
+- **Do NOT open the review UI and do NOT commit.** Report in one short
+  paragraph what changed and stop — the driver dispatches the agent review as
+  the next turn. If the feature cannot be finished (tests stuck red, missing
+  precondition), say so plainly, do NOT flip the status, and stop; the driver
+  counts the failed rounds and escalates to the human.

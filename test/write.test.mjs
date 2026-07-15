@@ -10,7 +10,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve as resolvePath } from "node:path";
 import { applyOp, topoSort, setFmKeys } from "../lib/write.mjs";
 import { frontmatter, gather } from "../lib/gather.mjs";
 
@@ -519,6 +519,58 @@ test("update-feature accepts draft and pending status values", () => {
 					root,
 				),
 			/invalid status 'wip'/,
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("update-feature allows implemented only from pending (idempotent re-flip ok)", () => {
+	const root = makeRepo();
+	try {
+		applyOp(PLAN_OP, root);
+		applyOp(FEATURES_OP, root);
+		applyOp(
+			{
+				op: "update-feature",
+				feature: "config-module",
+				set: { status: "implemented" },
+			},
+			root,
+		);
+		assert.equal(
+			frontmatter(read(root, "features", "config-module.md")).status,
+			"implemented",
+		);
+		// Idempotent rework round: implemented → implemented is fine.
+		applyOp(
+			{
+				op: "update-feature",
+				feature: "config-module",
+				set: { status: "implemented" },
+			},
+			root,
+		);
+		// But a draft can never jump straight to implemented.
+		applyOp(
+			{
+				op: "update-feature",
+				feature: "config-module",
+				set: { status: "draft" },
+			},
+			root,
+		);
+		assert.throws(
+			() =>
+				applyOp(
+					{
+						op: "update-feature",
+						feature: "config-module",
+						set: { status: "implemented" },
+					},
+					root,
+				),
+			/only reachable from pending/,
 		);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
@@ -1926,21 +1978,12 @@ test("state op tracks mode/phase/pause and strike bookkeeping", () => {
 	}
 });
 
-test("accept-commit enforces uncategorized dispositions (block, skip, assign)", () => {
+test("accept-commit defaults undisposed files into the accepted feature (no dead-end)", () => {
 	const root = makeWaveRepo();
 	try {
 		writeFileSync(join(root, "src", "stray.txt"), "stray\n");
 
-		// Undisposed leftover + block_commit_on_leftovers on (default) → fail
-		// BEFORE any commit or branch creation.
-		assert.throws(
-			() => applyOp({ op: "accept-commit", features: ["feature-a"] }, root),
-			/uncommitted leftovers: src\/stray\.txt/,
-		);
-		assert.equal(
-			git(root, "rev-parse", "--abbrev-ref", "HEAD"),
-			git(root, "symbolic-ref", "--short", "HEAD"),
-		);
+		// Unknown feature in an explicit disposition is still a hard error.
 		assert.throws(
 			() =>
 				applyOp(
@@ -1956,16 +1999,10 @@ test("accept-commit enforces uncategorized dispositions (block, skip, assign)", 
 			/unknown feature 'no-such-feature'/,
 		);
 
-		// Assigning the stray to feature-a lands it in feature-a's commit; the
-		// result reports the truthful post-commit leftovers.
-		const res = applyOp(
-			{
-				op: "accept-commit",
-				features: ["feature-a"],
-				uncategorized: [{ path: "src/stray.txt", feature: "feature-a" }],
-			},
-			root,
-		);
+		// Undisposed stray → absorbed into the accepted feature's commit by
+		// default (block_commit_on_leftovers on) — the op never dead-ends on
+		// unattributed files.
+		const res = applyOp({ op: "accept-commit", features: ["feature-a"] }, root);
 		const shown = git(
 			root,
 			"show",
@@ -1977,13 +2014,220 @@ test("accept-commit enforces uncategorized dispositions (block, skip, assign)", 
 			.filter(Boolean);
 		assert.ok(
 			shown.includes("src/stray.txt"),
-			"assigned stray committed with the feature",
+			"defaulted stray committed with the feature",
 		);
+		assert.deepEqual(res.defaulted, ["src/stray.txt"]);
 		assert.deepEqual(res.uncommitted, []);
-		// b.ts is still staged for the other (unaccepted) feature → a leftover.
+		// b.ts belongs to the other (unaccepted) feature → a leftover.
 		assert.ok(
 			res.leftovers.includes("src/b.ts"),
 			"leftovers reports remaining dirt",
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("accept-commit honors explicit skip and lands pre-staged baselines as chore(bootstrap)", () => {
+	const root = makeWaveRepo();
+	try {
+		writeFileSync(join(root, "src", "stray.txt"), "stray\n");
+		writeFileSync(join(root, "src", "baseline.txt"), "baseline\n");
+		git(root, "add", "src/baseline.txt"); // pre-staged + unmatched → bootstrap default
+		const res = applyOp(
+			{
+				op: "accept-commit",
+				features: ["feature-a"],
+				uncategorized: [{ path: "src/stray.txt", feature: "skip" }],
+			},
+			root,
+		);
+		// Explicit skip stays uncommitted.
+		assert.ok(res.uncommitted.includes("src/stray.txt"));
+		assert.ok(res.leftovers.includes("src/stray.txt"));
+		// The baseline lands as its own chore commit BEFORE the feature commit.
+		assert.ok(res.bootstrapCommit, "bootstrap commit recorded");
+		assert.match(
+			git(root, "show", "-s", "--format=%s", res.bootstrapCommit),
+			/^chore\(bootstrap\)/,
+		);
+		assert.deepEqual(
+			git(root, "show", "--name-only", "--format=", res.bootstrapCommit)
+				.split("\n")
+				.filter(Boolean),
+			["src/baseline.txt"],
+		);
+		git(root, "merge-base", "--is-ancestor", res.bootstrapCommit, res.committed[0].sha);
+		const feat = git(
+			root,
+			"show",
+			"--name-only",
+			"--format=",
+			res.committed[0].sha,
+		)
+			.split("\n")
+			.filter(Boolean);
+		assert.ok(
+			!feat.includes("src/baseline.txt") && !feat.includes("src/stray.txt"),
+			"the feature commit contains neither the baseline nor the skip",
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("accept-commit accepts implemented features and gates deps via review_required", () => {
+	const root = makeRepo();
+	try {
+		git(root, "config", "user.email", "t@t");
+		git(root, "config", "user.name", "t");
+		applyOp(PLAN_OP, root);
+		applyOp(FEATURES_OP, root); // auth-middleware depends on config-module
+		mkdirSync(join(root, "src", "auth"), { recursive: true });
+		writeFileSync(join(root, "src", "config.ts"), "export const cfg = 1;\n");
+		git(root, "add", ".");
+		git(root, "commit", "-qm", "init");
+
+		// config-module implemented (code complete, awaiting review).
+		writeFileSync(join(root, "src", "config.ts"), "export const cfg = 2;\n");
+		applyOp(
+			{
+				op: "update-feature",
+				feature: "config-module",
+				set: { status: "implemented" },
+			},
+			root,
+		);
+		writeFileSync(join(root, "src", "auth", "index.ts"), "export {};\n");
+
+		// review_required on (default): the dependent cannot land first.
+		assert.throws(
+			() => applyOp({ op: "accept-commit", features: ["auth-middleware"] }, root),
+			/waiting on: config-module/,
+		);
+		// The implemented feature itself lands fine → done.
+		const res = applyOp(
+			{ op: "accept-commit", features: ["config-module"] },
+			root,
+		);
+		assert.equal(res.committed[0].feature, "config-module");
+		assert.equal(
+			frontmatter(read(root, "features", "config-module.md")).status,
+			"done",
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("accept-commit review_required off lets implemented dependencies satisfy dependents", () => {
+	const root = makeRepo();
+	try {
+		git(root, "config", "user.email", "t@t");
+		git(root, "config", "user.name", "t");
+		applyOp(PLAN_OP, root);
+		applyOp(FEATURES_OP, root);
+		applyOp({ op: "settings", values: { review_required: "off" } }, root);
+		mkdirSync(join(root, "src", "auth"), { recursive: true });
+		writeFileSync(join(root, ".keep"), "");
+		git(root, "add", ".");
+		git(root, "commit", "-qm", "init");
+		applyOp(
+			{
+				op: "update-feature",
+				feature: "config-module",
+				set: { status: "implemented" },
+			},
+			root,
+		);
+		writeFileSync(join(root, "src", "auth", "index.ts"), "export {};\n");
+		const res = applyOp(
+			{ op: "accept-commit", features: ["auth-middleware"] },
+			root,
+		);
+		assert.equal(res.committed[0].feature, "auth-middleware");
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("record-plan-review appends the report and sets plan_reviewed", () => {
+	const root = makeRepo();
+	try {
+		applyOp(PLAN_OP, root);
+		assert.throws(
+			() => applyOp({ op: "record-plan-review" }, root),
+			/needs a report/,
+		);
+		const res = applyOp(
+			{
+				op: "record-plan-review",
+				by: "agent",
+				model: "anthropic/claude-fable-5",
+				report: "Goal covered; no scope drift.",
+			},
+			root,
+		);
+		assert.ok(res.planReviewed, "date recorded");
+		const plan = read(root, "plan.md");
+		assert.match(plan, /plan_reviewed: \d{4}-\d{2}-\d{2}/);
+		assert.match(plan, /# Plan review/);
+		assert.match(plan, /Goal covered; no scope drift\./);
+		assert.match(plan, /agent review: anthropic\/claude-fable-5/);
+		// A second review lands ABOVE the first (newest first).
+		applyOp(
+			{ op: "record-plan-review", report: "Second look, still clean." },
+			root,
+		);
+		const twice = read(root, "plan.md");
+		assert.ok(
+			twice.indexOf("Second look") < twice.indexOf("Goal covered"),
+			"newest first",
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("restart-feature discards the feature's changes and resets it to pending", () => {
+	const root = makeWaveRepo(); // a.ts + b.ts staged for the two features
+	try {
+		applyOp(
+			{
+				op: "update-feature",
+				feature: "feature-a",
+				set: { status: "implemented" },
+			},
+			root,
+		);
+		applyOp(
+			{
+				op: "state",
+				set: {
+					mode: "auto",
+					phase: "escalated",
+					paused: true,
+					escalation: { feature: "feature-a", reason: "3 failed reviews" },
+				},
+				strike: "feature-a",
+			},
+			root,
+		);
+		const res = applyOp({ op: "restart-feature", feature: "feature-a" }, root);
+		assert.ok(res.discarded.includes("src/a.ts"), "feature file discarded");
+		assert.ok(!existsSync(join(root, "src", "a.ts")), "new file removed");
+		assert.ok(existsSync(join(root, "src", "b.ts")), "other feature untouched");
+		const fm = frontmatter(read(root, "features", "feature-a.md"));
+		assert.equal(fm.status, "pending");
+		const state = frontmatter(read(root, "state.md"));
+		assert.equal(state.phase, "implementing");
+		assert.equal(state.paused, "false");
+		assert.equal(JSON.parse(state.escalation), null, "escalation cleared");
+		assert.deepEqual(JSON.parse(state.strikes), {}, "strike cleared");
+		// done features are protected.
+		assert.throws(
+			() => applyOp({ op: "restart-feature", feature: "nope" }, root),
+			/no feature/,
 		);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
@@ -2301,6 +2545,42 @@ test("plan approval on main creates the plan branch (worktree by default, in pla
 		assert.equal(git(root, "rev-parse", "--abbrev-ref", "HEAD"), "main");
 	} finally {
 		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("loadBundle re-roots every gather/write into the plan's worktree", async () => {
+	const { loadBundle } = await import("../lib/gather.mjs");
+	const root = mkdtempSync(join(tmpdir(), "iterator-worktree-"));
+	try {
+		git(root, "init", "-q");
+		git(root, "config", "user.email", "t@t");
+		git(root, "config", "user.name", "t");
+		git(root, "checkout", "-qb", "main");
+		writeFileSync(join(root, ".keep"), "");
+		git(root, "add", ".keep");
+		git(root, "commit", "-qm", "init");
+		const planRes = applyOp(PLAN_OP, root); // worktree_per_plan default: on
+		assert.ok(planRes.worktree, "fixture must create a worktree");
+
+		// A gather invoked from the MAIN checkout operates on the worktree.
+		const b = loadBundle(root);
+		assert.equal(resolvePath(b.root), resolvePath(planRes.worktree));
+		assert.equal(b.branch, "iterator/add-jwt-auth");
+
+		// Writes follow: a feature written "from main" lands in the worktree.
+		applyOp(FEATURES_OP, root);
+		assert.ok(
+			existsSync(join(planRes.worktree, "memory", "features", "config-module.md")),
+			"feature file written to the worktree bundle",
+		);
+		assert.ok(
+			!existsSync(join(root, "memory", "features", "config-module.md")),
+			"main checkout's bundle stays a bare pointer",
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+		const wt = `${root}-iterator-add-jwt-auth`;
+		if (existsSync(wt)) rmSync(wt, { recursive: true, force: true });
 	}
 });
 

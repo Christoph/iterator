@@ -57,7 +57,7 @@ rewriting every `depends_on` reference to it.
 type: Feature                             # REQUIRED (OKF type)
 title: Auth middleware                  # display name
 description: JWT-based auth middleware for all protected routes.  # one line
-status: pending                         # draft | pending | done
+status: pending                         # draft | pending | implemented | done
 size: small                             # small | medium | large — how big the feature feels
 depends_on: [config-module]             # feature slugs; [] if none
 files: ["src/auth.ts", "src/middleware/*.ts"]   # paths/globs this feature owns
@@ -108,7 +108,7 @@ What breaks if this feature is wrong; which other features/files feel it.
 | `type` | yes | Always `Feature`. OKF consumers route on this. |
 | `title` | yes | Human display name. |
 | `description` | yes | One sentence; copied into `features/index.md` entries. |
-| `status` | yes | `draft`, `pending`, or `done`. `/iterator-feature` writes proposals as `draft`; accepting the feature set in the UI promotes every draft to `pending`. Drafts are never implementable/testable. Only `/iterator-implement` sets `done` (on Accept-and-commit). |
+| `status` | yes | `draft`, `pending`, `implemented`, or `done`. `/iterator-feature` writes proposals as `draft`; accepting the feature set in the UI promotes every draft to `pending`. Drafts are never implementable/testable. `implemented` = code complete, awaiting review — set by the implement flow (update-feature) when the implementation finishes; it enables Review and disables Implement. Only the accept flow sets `done` (on Accept-and-commit). With the `review_required` setting on (default), dependents wait for `done`; off lets `implemented` dependencies satisfy them. |
 | `size` | yes | `small` \| `medium` \| `large` — a judgment call on how big the **feature** feels, not a line count. A feature is one user-visible capability (a vertical slice incl. its tests); `large` means "probably two features" and gets a ⚠️ in the UIs — prefer splitting. Reviewability is enforced against the *actual* diff at review time. |
 | `depends_on` | yes (may be `[]`) | Feature slugs that must be `done` before this feature is implemented. Must be acyclic and reference existing files. This is the **canonical** dependency data; the `# Depends on` body section mirrors it with optional "why" prose. |
 | `files` | yes | Paths or simple globs the feature owns — **including its test files** (a feature's tests are reviewed together with its logic, never separately). `/iterator-review` maps diff hunks to a feature through these (first matching feature wins), with the feature's `tests` entries as an exact-match fallback. |
@@ -138,6 +138,7 @@ description: JWT-based auth for all protected API routes.
 status: draft                           # draft | approved
 branch: iterator/add-jwt-authentication # where the work happens (branch-per-plan)
 worktree: ../repo-iterator-add-jwt-authentication  # present only in worktree-per-plan mode
+plan_reviewed: 2026-07-04               # present only after the whole-plan review (record-plan-review)
 created: 2026-07-02
 timestamp: 2026-07-02T10:00:00Z
 ---
@@ -163,7 +164,13 @@ timestamp: 2026-07-02T10:00:00Z
 `status: approved` is set when the user accepts the plan in the UI. On
 approval from `main`/`master` (settings `branch_per_plan: on`) the writer
 creates `iterator/<plan-slug>` — in a separate git **worktree** by default
-(`worktree_per_plan: on`; the frontmatter records both). The
+(`worktree_per_plan: on`; the frontmatter records both). When a worktree is
+recorded, **all iterator work happens inside it** — gathers and writes
+re-root themselves to the worktree, so implementation, review, and commits
+land there no matter where the session sits (this is what enables running
+plans in parallel later). `plan_reviewed` is set by the `record-plan-review`
+op after `/iterator-review-plan` checks the finished work against the plan;
+the review report is appended to the body as `# Plan review` sections. The
 `# Dependencies` section lists **only new external packages/libraries/
 services** the plan requires (`` `name` — why ``), never todos or work
 items. `# Architecture` and `# Key decisions` are written as markdown
@@ -247,9 +254,11 @@ ops and read by every gather:
 - **`state.md`** (`type: State`) — the machine's runtime flow state: `mode`
   (`manual|auto`), `paused`, `phase`
   (`idle|slicing|testing|implementing|reviewing|escalated|done`),
-  `active_feature`, and `strikes` (a JSON scalar mapping feature slugs to their
-  needs-work review counts). This is what makes Pause/Continue and
-  auto-mode resume possible across sessions.
+  `active_feature`, `strikes` (a JSON scalar mapping feature slugs to their
+  needs-work review counts), and `escalation` (a JSON scalar
+  `{feature, reason, at}` or `null` — why auto mode stopped; rendered as the
+  dashboard's attention banner with its recovery actions). This is what makes
+  Pause/Continue and auto-mode resume possible across sessions.
 - **`usage.md`** (`type: Usage`) — the active plan's token ledger:
   `totals` (JSON scalar; per-step × per-model input/output/cache-read/
   cache-write/turns plus per-feature rollups) with a regenerated

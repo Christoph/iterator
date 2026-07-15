@@ -36,7 +36,7 @@
  * to the git root). No bundle → hub prints `"plan": null` (Create-plan hero).
  */
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { isAbsolute, join, relative } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { git } from "./git.mjs";
 import { effectiveSettings, parseState } from "./settings.mjs";
 import {
@@ -138,6 +138,22 @@ export function loadBundle(startDir) {
 		plan = { raw, fm: frontmatter(raw), sections: sections(raw) };
 	}
 
+	// ALL plan work happens in the plan's worktree when one is recorded
+	// (worktree_per_plan): re-root so every gather/write — and therefore every
+	// implement/review/commit — operates on that checkout no matter where it
+	// was invoked from. The session may sit in the main checkout while the
+	// work lives in the worktree; this is also what lets plans run in
+	// parallel later. The worktree's own plan.md records the same path, so
+	// the recursion terminates after one hop.
+	if (plan?.fm.worktree) {
+		const wt = isAbsolute(String(plan.fm.worktree))
+			? String(plan.fm.worktree)
+			: resolve(root, String(plan.fm.worktree));
+		if (existsSync(wt) && resolve(wt) !== resolve(root)) {
+			return loadBundle(wt);
+		}
+	}
+
 	let design = null;
 	const designFile = join(memDir, "design.md");
 	if (existsSync(designFile)) {
@@ -161,9 +177,7 @@ export function loadBundle(startDir) {
 	const settingsDefined = existsSync(settingsFile);
 	const stateFile = join(memDir, "state.md");
 	const state = parseState(
-		existsSync(stateFile)
-			? frontmatter(readFileSync(stateFile, "utf8"))
-			: null,
+		existsSync(stateFile) ? frontmatter(readFileSync(stateFile, "utf8")) : null,
 	);
 
 	const featuresDir = join(memDir, "features");
@@ -318,7 +332,10 @@ export function gather(startDir) {
 			features: [],
 			// Tracked files for the goal box's @-mention suggestions (capped so
 			// the embedded payload stays small).
-			files: git(["ls-files"], b.root).split("\n").filter(Boolean).slice(0, 1000),
+			files: git(["ls-files"], b.root)
+				.split("\n")
+				.filter(Boolean)
+				.slice(0, 1000),
 			knowledgeInitialized: knowledgeReady(b.memDir),
 			settings: b.settings,
 			state: b.state,
@@ -384,6 +401,10 @@ export function gather(startDir) {
 		plan: {
 			title: b.plan.fm.title || "Plan",
 			status: b.plan.fm.status || "draft",
+			// Whole-plan review marker (record-plan-review op) and the plan's
+			// worktree, when one was created at approval time.
+			planReviewed: b.plan.fm.plan_reviewed || null,
+			worktree: b.plan.fm.worktree || null,
 		},
 		progress: progress(b.features),
 		features,
@@ -528,31 +549,60 @@ function unionMemories(c, concepts) {
 export function gatherImplement(startDir) {
 	const b = loadBundle(startDir);
 	const concepts = loadConcepts(b.memDir);
-	const done = new Set(
-		b.features.filter((c) => c.fm.status === "done").map((c) => c.slug),
-	);
+	// A dependency satisfies its dependents when it is done (reviewed &
+	// committed) — or merely implemented, when review_required is off.
+	const satisfies = (c) =>
+		c.fm.status === "done" ||
+		(c.fm.status === "implemented" && b.settings.review_required === "off");
+	const satisfied = new Set(b.features.filter(satisfies).map((c) => c.slug));
 	// Drafts are not implementable — they are an unaccepted feature proposal.
 	const pending = b.features.filter(
 		(c) => (c.fm.status || "pending") === "pending",
 	);
+	const implemented = b.features
+		.filter((c) => c.fm.status === "implemented")
+		.map((c) => c.slug);
 	const drafts = b.features
 		.filter((c) => c.fm.status === "draft")
 		.map((c) => c.slug);
 	const ready = pending.filter((c) =>
-		listy(c.fm.depends_on).every((d) => done.has(d)),
+		listy(c.fm.depends_on).every((d) => satisfied.has(d)),
 	);
 	const nextFeature = ready[0] || null;
+	// Implemented-but-unreviewed features are not stuck — they are awaiting
+	// review, which unblocks their dependents once accepted.
+	const stuck =
+		pending.length > 0 && ready.length === 0 && implemented.length === 0;
 	return {
 		step: "implement",
 		branch: b.branch,
+		// Where the work lives: the plan worktree when one is recorded (loadBundle
+		// re-roots) — every file edit must happen under this path.
+		root: b.root,
 		plan: b.plan?.fm.title || null,
 		progress: progress(b.features),
 		next: nextFeature && implementContract(nextFeature, concepts),
-		// The wave: EVERY dependency-ready feature with its full contract — they
-		// are mutually independent, so one implement round can build them all.
-		wave: ready.map((c) => implementContract(c, concepts)),
+		// One feature per round: the wave carries only `next` (field kept for
+		// contract stability with existing consumers).
+		wave: nextFeature ? [implementContract(nextFeature, concepts)] : [],
 		ready: ready.map((c) => c.slug),
+		implemented,
 		drafts,
+		// What this plan already changed — so a fresh context can implement the
+		// next feature without assuming conversation memory.
+		finishedFeatures: b.features
+			.filter((c) => ["done", "implemented"].includes(c.fm.status))
+			.map((c) => ({
+				name: c.slug,
+				title: c.fm.title || c.slug,
+				description: c.fm.description || "",
+				status: c.fm.status,
+				files: listy(c.fm.files),
+				commits: resolveFeatureCommits(b.root, c).map((sha) => ({
+					sha: sha.slice(0, 10),
+					subject: git(["log", "-1", "--format=%s", sha], b.root),
+				})),
+			})),
 		// Project design params (memory/design.md) — path when captured, else null.
 		designFile: b.design ? join(b.memDir, "design.md") : null,
 		settings: b.settings,
@@ -561,18 +611,20 @@ export function gatherImplement(startDir) {
 			.filter((c) => !ready.includes(c))
 			.map((c) => ({
 				name: c.slug,
-				waitingOn: listy(c.fm.depends_on).filter((d) => !done.has(d)),
+				waitingOn: listy(c.fm.depends_on).filter((d) => !satisfied.has(d)),
 			})),
-		// pending features remain but none is ready → cycle or missing dependency
-		stuck: pending.length > 0 && ready.length === 0,
-		advice:
-			pending.length > 0 && ready.length === 0
-				? "No feature is ready but pending features remain — a dependency cycle or a missing dependency; fix depends_on via /iterator-feature."
+		// pending features remain but nothing is ready or awaiting review →
+		// cycle or missing dependency
+		stuck,
+		advice: stuck
+			? "No feature is ready but pending features remain — a dependency cycle or a missing dependency; fix depends_on via /iterator-feature."
+			: !ready.length && implemented.length
+				? `Awaiting review: ${implemented.join(", ")} — review (and accept) before dependents unblock.`
 				: !ready.length && drafts.length
 					? "Only draft features exist — accept the feature breakdown (/iterator-feature) before implementing."
 					: !ready.length
 						? "Nothing to implement — every feature is done (or no features exist yet)."
-						: `Implement the dependency-ready wave (${ready.map((c) => c.slug).join(", ")}) — the features are mutually independent, build them all in this round.`,
+						: `Implement exactly ONE feature this round: '${nextFeature.slug}' (the contract in \`next\`). Other ready features wait for their own round.`,
 	};
 }
 
@@ -718,7 +770,9 @@ export function gatherSession(startDir) {
 function usageTotalsAt(file) {
 	if (!existsSync(file)) return null;
 	try {
-		const v = JSON.parse(String(frontmatter(readFileSync(file, "utf8")).totals || "{}"));
+		const v = JSON.parse(
+			String(frontmatter(readFileSync(file, "utf8")).totals || "{}"),
+		);
 		return {
 			steps: v.steps && typeof v.steps === "object" ? v.steps : {},
 			features: v.features && typeof v.features === "object" ? v.features : {},
@@ -782,7 +836,9 @@ export function gatherArchive(startDir, target) {
 					? frontmatter(readFileSync(planFile, "utf8"))
 					: {};
 				const featureCount = readdirSync(dir).filter(
-					(f) => f.endsWith(".md") && !["plan.md", "usage.md", "index.md"].includes(f),
+					(f) =>
+						f.endsWith(".md") &&
+						!["plan.md", "usage.md", "index.md"].includes(f),
 				).length;
 				return {
 					name,
@@ -808,7 +864,10 @@ export function gatherArchive(startDir, target) {
 	const planRaw = existsSync(planFile) ? readFileSync(planFile, "utf8") : "";
 	const planFm = frontmatter(planRaw);
 	const features = readdirSync(entry.dir)
-		.filter((f) => f.endsWith(".md") && !["plan.md", "usage.md", "index.md"].includes(f))
+		.filter(
+			(f) =>
+				f.endsWith(".md") && !["plan.md", "usage.md", "index.md"].includes(f),
+		)
 		.sort()
 		.map((f) => {
 			const raw = readFileSync(join(entry.dir, f), "utf8");
@@ -837,7 +896,10 @@ export function gatherArchive(startDir, target) {
 		planStatus: planFm.status || null,
 		sections: sections(planRaw),
 		features,
-		usage: { totals: totals || { steps: {}, features: {} }, grand: usageGrand(totals) },
+		usage: {
+			totals: totals || { steps: {}, features: {} },
+			grand: usageGrand(totals),
+		},
 	};
 }
 
@@ -1037,7 +1099,7 @@ export function gatherTest(startDir, slug) {
 	return {
 		step: "test",
 		branch: b.branch,
-		mode: c.fm.status === "done" ? "green" : "red",
+		mode: ["done", "implemented"].includes(c.fm.status) ? "green" : "red",
 		settings: b.settings,
 		feature: { name: c.slug, description: c.fm.description || "" },
 		contract: {
@@ -1187,7 +1249,7 @@ const DOC_FILE_RE = /\.(md|mdx|markdown|txt|rst|adoc)$/i;
 const COMMENT_LINE_RE = /^\s*($|\/\/|\/\*|\*\/|\*($|\s)|#|<!--|--($|\s))/;
 
 /** Validated commit shas for a feature, oldest first (recorded → trailer). */
-function resolveFeatureCommits(root, c) {
+export function resolveFeatureCommits(root, c) {
 	const recorded = listy(c.fm.commits)
 		.map((e) => String(e).match(/sha:\s*([0-9a-f]{6,40})/i)?.[1])
 		.filter(Boolean)
@@ -1207,13 +1269,16 @@ export function gatherReview(startDir, opts = {}) {
 	// (`git add -N`) makes them diffable as all-addition hunks without
 	// committing anything — a brand-new file created by a feature must show in
 	// review and land in its commit. Bundle bookkeeping files stay untouched.
-	const untracked = git(
-		["ls-files", "--others", "--exclude-standard"],
-		b.root,
-	)
+	const untracked = git(["ls-files", "--others", "--exclude-standard"], b.root)
 		.split("\n")
 		.filter(Boolean)
 		.filter((f) => !f.startsWith(`${b.memName}/`));
+	// Snapshot the index BEFORE intent-to-add: content already staged when the
+	// round started (a pre-existing baseline) gets a bootstrap disposition
+	// instead of dead-ending the review as unattributable.
+	const stagedSet = new Set(
+		git(["diff", "--cached", "--name-only"], b.root).split("\n").filter(Boolean),
+	);
 	if (untracked.length) git(["add", "-N", "--", ...untracked], b.root);
 	const untrackedSet = new Set(untracked);
 	let diffText = hasHead
@@ -1249,7 +1314,11 @@ export function gatherReview(startDir, opts = {}) {
 
 	// Map each changed file to its owning feature: an exact `tests` entry wins
 	// (a feature's tests are reviewed WITH its logic, never as uncategorized),
-	// then the first feature whose `files` globs match.
+	// then the first feature whose `files` globs match. Every file gets a
+	// group — declared | tests | incidental | bootstrap — so the review is
+	// fully structured by feature: unmatched files are never left floating,
+	// they default to the round's active feature (incidental) or, when they
+	// were already staged before the round, to a bootstrap disposition.
 	const parsed = parseDiff(diffText).filter(
 		(f) => !f.path.startsWith(`${b.memName}/`),
 	);
@@ -1259,11 +1328,25 @@ export function gatherReview(startDir, opts = {}) {
 		res: listy(c.fm.files).map(globToRegExp),
 		tests: new Set(listy(c.fm.tests).map(String)),
 	}));
+	// Default owner for unmatched files: the requested/round feature, else the
+	// runtime's active feature, else the first feature still in flight.
+	const inFlight = (c) =>
+		["pending", "implemented"].includes(c.fm.status || "pending");
+	const defaultOwner =
+		opts.defaultOwner ||
+		(opts.feature && selected[0]?.slug) ||
+		(b.features.some((c) => c.slug === b.state.active_feature && inFlight(c))
+			? b.state.active_feature
+			: null) ||
+		b.features.find(inFlight)?.slug ||
+		b.features[0]?.slug ||
+		null;
 	const byFeature = new Map();
 	const uncategorized = [];
+	const defaulted = [];
 	for (const f of parsed) {
 		// A focused review belongs to the requested feature even when an earlier,
-		// already-done feature declares an overlapping file. The normal wave
+		// already-done feature declares an overlapping file. The normal round
 		// review retains its stable first-owner mapping.
 		const matches = (o) =>
 			o.tests.has(f.path) || o.res.some((re) => re.test(f.path));
@@ -1274,9 +1357,19 @@ export function gatherReview(startDir, opts = {}) {
 			);
 			if (selectedOwner) owner = selectedOwner;
 		}
-		if (!owner) {
-			uncategorized.push(f);
-			continue;
+		if (owner) {
+			f.group = owner.tests.has(f.path) ? "tests" : "declared";
+		} else {
+			const bootstrap = stagedSet.has(f.path) && !untrackedSet.has(f.path);
+			f.group = bootstrap ? "bootstrap" : "incidental";
+			if (!defaultOwner) {
+				uncategorized.push(f);
+				continue;
+			}
+			f.defaulted = true;
+			f.disposition = bootstrap ? "bootstrap" : defaultOwner;
+			defaulted.push(f.path);
+			owner = { slug: defaultOwner };
 		}
 		if (opts.feature && owner.slug !== opts.feature) continue;
 		if (!byFeature.has(owner.slug)) byFeature.set(owner.slug, []);
@@ -1354,6 +1447,7 @@ export function gatherReview(startDir, opts = {}) {
 	return {
 		step: "review",
 		branch: b.branch,
+		root: b.root,
 		commit: commitLabel,
 		plan: b.plan?.fm.title || "",
 		progress: progress(b.features),
@@ -1361,10 +1455,94 @@ export function gatherReview(startDir, opts = {}) {
 		hasChanges,
 		source,
 		features,
+		// Unmatched files that were auto-assigned to the active feature — the
+		// review UI shows them under "Incidental" with a reassignable default.
+		activeFeature: defaultOwner,
+		defaulted,
 		uncategorized,
 		pitfalls: pitfallsFor(uncategorized.map((f) => f.path)),
 		// Project design params — UI-touching diffs are reviewed against them.
 		designFile: b.design ? join(b.memDir, "design.md") : null,
+	};
+}
+
+// ---------------------------------------------------------------------------
+// plan-review (whole-plan review — /iterator-review-plan)
+
+/**
+ * Everything the plan reviewer needs to check the finished work against the
+ * plan: the plan's sections, every feature (status, review history, commits),
+ * and the whole-plan diff built from the union of feature commits — a single
+ * range diff when they are contiguous in history, else concatenated shows.
+ * Agent-facing (no UI): the reviewer reads this and records its report via
+ * the record-plan-review op.
+ */
+export function gatherPlanReview(startDir) {
+	const b = loadBundle(startDir);
+	if (!b.plan) return { step: "plan-review", error: "no plan.md to review" };
+	const full = (sha) => git(["rev-parse", sha], b.root) || sha;
+	const feats = b.features.map((c) => ({
+		name: c.slug,
+		title: c.fm.title || c.slug,
+		description: c.fm.description || "",
+		status: c.fm.status || "pending",
+		files: listy(c.fm.files),
+		review: c.sections["Review"] || "",
+		commits: resolveFeatureCommits(b.root, c).map(full),
+	}));
+	const shas = [...new Set(feats.flatMap((f) => f.commits))];
+	const ordered = shas.length
+		? git(["rev-list", "--reverse", "--no-walk", ...shas], b.root)
+				.split("\n")
+				.filter(Boolean)
+		: [];
+	const pathspec = ["--", ".", `:(exclude)${b.memName}`];
+	let diff = "";
+	let diffLabel = "";
+	if (ordered.length) {
+		const first = ordered[0];
+		const last = ordered[ordered.length - 1];
+		const between = git(["rev-list", "--count", `${first}^..${last}`], b.root);
+		if (between && Number(between) === ordered.length) {
+			diff = git(["diff", "--text", `${first}^`, last, ...pathspec], b.root);
+			diffLabel = `${first.slice(0, 7)}^..${last.slice(0, 7)}`;
+		} else {
+			diff = ordered
+				.map((sha) =>
+					git(["show", "--text", "--format=commit %h %s", sha, ...pathspec], b.root),
+				)
+				.join("\n");
+			diffLabel = `${ordered.length} feature commits (non-contiguous)`;
+		}
+	}
+	// Cap the raw diff so a huge plan cannot blow the payload; the reviewer
+	// still has the per-feature commit list to dig further with git.
+	const MAX_DIFF = 400_000;
+	const truncated = diff.length > MAX_DIFF;
+	return {
+		step: "plan-review",
+		branch: b.branch,
+		root: b.root,
+		plan: {
+			title: b.plan.fm.title || "Plan",
+			description: b.plan.fm.description || "",
+			planReviewed: b.plan.fm.plan_reviewed || null,
+			goal: b.plan.sections["Goal"] || "",
+			architecture: b.plan.sections["Architecture"] || "",
+			keyDecisions: b.plan.sections["Key decisions"] || "",
+			dependencies: b.plan.sections["Dependencies"] || "",
+		},
+		progress: progress(b.features),
+		features: feats,
+		commits: ordered.map((sha) => ({
+			sha: sha.slice(0, 10),
+			subject: git(["log", "-1", "--format=%s", sha], b.root),
+			feature: feats.find((f) => f.commits.includes(sha))?.name || null,
+		})),
+		diffLabel,
+		diffTruncated: truncated,
+		diff: truncated ? diff.slice(0, MAX_DIFF) : diff,
+		settings: b.settings,
 	};
 }
 
@@ -1394,6 +1572,7 @@ export function runCli(args) {
 		knowledge: () => gatherKnowledge(rootArg),
 		test: () => gatherTest(rootArg, feature),
 		review: () => gatherReview(rootArg, { feature }),
+		"plan-review": () => gatherPlanReview(rootArg),
 	};
 	// One-JSON-line contract, success or failure: a throw (corrupt bundle,
 	// racing file deletion, unreadable file) must never print a stack trace
@@ -1406,7 +1585,9 @@ export function runCli(args) {
 		}
 		process.stdout.write(JSON.stringify(steps[step]()) + "\n");
 	} catch (e) {
-		process.stdout.write(JSON.stringify({ ok: false, error: e.message }) + "\n");
+		process.stdout.write(
+			JSON.stringify({ ok: false, error: e.message }) + "\n",
+		);
 		process.exit(1);
 	}
 }

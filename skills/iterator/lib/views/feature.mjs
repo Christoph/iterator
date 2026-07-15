@@ -174,6 +174,7 @@ function makeCard(c){
       '<input class="fctitle" value="'+esc(c.name)+'"'+(done?' disabled':'')+'>'+
       '<span class="chip '+sizeClass(c)+'">'+sizeLabel(c)+'</span>'+
       (done?'<span class="donechip">✓ done</span>':'')+
+      (c.status==='implemented'?'<span class="chip cy"><i class="sdot"></i>implemented</span>':'')+
       (c.status==='draft'?'<span class="chip cy"><i class="sdot"></i>draft</span>':'')+
       ((c.conflicts&&c.conflicts.length)?'<span class="chip cr" title="'+esc(c.conflicts.map(x=>x.decision+(x.note?': '+x.note:'')).join('\\n'))+'">\\u26a0 conflicts with '+esc(c.conflicts.map(x=>x.decision).join(', '))+'</span>':'')+
     '</div><div class="card-btns">'+

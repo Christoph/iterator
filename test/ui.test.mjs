@@ -279,6 +279,93 @@ test("hub backlog submits scoped CRUD actions and hands selected candidates to p
 	assert.match(html, /selectedBacklogGoal/);
 });
 
+test("hub gates Implement/Review on status and renders escalation + review-plan controls", async () => {
+	const { render: hub } = await import("../lib/views/hub.mjs");
+	const html = hub({
+		step: "hub",
+		branch: "iterator/p",
+		plan: { title: "P", status: "approved", planReviewed: null, worktree: null },
+		progress: { done: 0, total: 1 },
+		features: [
+			{
+				name: "a",
+				title: "A",
+				status: "implemented",
+				size: "small",
+				testsStatus: "none",
+				dependsOn: [],
+				hasDiff: true,
+				hasCommits: false,
+				conflicts: 0,
+			},
+		],
+		state: {
+			mode: "auto",
+			paused: true,
+			phase: "escalated",
+			strikes: {},
+			escalation: { feature: "a", reason: "failed agent review 3 time(s)", at: "2026-07-15" },
+		},
+		settings: { review_required: "on" },
+		dirty: { count: 0, files: [] },
+		retired: [],
+		backlog: [],
+	});
+	// Implement disabled once implemented; Review unlocks exactly then.
+	assert.match(html, /Implemented — review it/);
+	assert.match(html, /review unlocks once the feature is implemented/);
+	// Dependency gating honors review_required via depSatisfied.
+	assert.match(html, /review_required==='off'/);
+	// Escalation banner with both recovery actions.
+	assert.match(html, /Needs your attention/);
+	assert.match(html, /escalation-restart/);
+	assert.match(html, /escalation-guide/);
+	assert.match(html, /Guide the agent/);
+	// Whole-plan review button (all features implemented|done) + armed retire.
+	assert.match(html, /action\('review-plan'/);
+	assert.match(html, /Retires the plan/);
+});
+
+test("review view groups files by Declared/Tests/Incidental with pre-seeded dispositions", async () => {
+	const { render } = await import("../lib/views/review.mjs");
+	const html = render({
+		step: "review",
+		branch: "b",
+		mode: "commit",
+		hasFeaturesFile: true,
+		hasChanges: true,
+		activeFeature: "a",
+		defaulted: ["notes.txt"],
+		features: [
+			{
+				name: "a",
+				description: "",
+				dependsOn: [],
+				stats: { added: 1, removed: 0, files: 2, complexity: "green" },
+				files: [
+					{ path: "src/a.ts", group: "declared", hunks: [] },
+					{
+						path: "notes.txt",
+						group: "incidental",
+						defaulted: true,
+						disposition: "a",
+						hunks: [],
+					},
+				],
+				pitfalls: [],
+			},
+		],
+		uncategorized: [],
+	});
+	// The three sub-groups exist and incidental/bootstrap carry dispositions.
+	assert.match(html, /Declared \\u2014 the feature/);
+	assert.match(html, /Incidental \\u2014 changed outside the declared surface/);
+	assert.match(html, /chore\(bootstrap\) commit/);
+	assert.match(html, /leave uncommitted \(skip\)/);
+	// Dispositions are pre-seeded from the gather defaults — never undisposed.
+	assert.match(html, /file\.defaulted && file\.disposition/);
+});
+
 test("hub hero goal box persists an unsent draft and clears it on plan start", async () => {
 	const { render: hub } = await import("../lib/views/hub.mjs");
 	const html = hub({

@@ -79,6 +79,24 @@ export const SETTINGS_DEFS = {
 		label: "Reviewer thinking",
 		help: "Thinking level for review turns — the stand-in reviewer needs depth to catch what you would.",
 	},
+	// Plan-review keys inherit from the feature reviewer unless explicitly set:
+	// the final whole-plan review is the same stand-in role by default, but can
+	// be pointed at a different (e.g. stronger) reviewer independently.
+	plan_reviewer_model: {
+		kind: "model",
+		default: "active",
+		inherits: "reviewer_model",
+		label: "Plan reviewer model",
+		help: "Model for the whole-plan review (/iterator-review-plan). Unset = same as the reviewer model.",
+	},
+	plan_reviewer_thinking: {
+		kind: "enum",
+		values: ["active", "off", "minimal", "low", "medium", "high", "xhigh"],
+		default: "high",
+		inherits: "reviewer_thinking",
+		label: "Plan reviewer thinking",
+		help: "Thinking level for the whole-plan review. Unset = same as the reviewer thinking level.",
+	},
 	testing_default: {
 		kind: "enum",
 		values: ["on", "off"],
@@ -98,7 +116,14 @@ export const SETTINGS_DEFS = {
 		values: ["on", "off"],
 		default: "on",
 		label: "Worktree per plan",
-		help: "Check the plan branch out in a separate git worktree (../<repo>-iterator-<plan-slug>) so the main checkout stays untouched; off = plain checkout -b in place. Only applies when branch-per-plan is on.",
+		help: "Check the plan branch out in a separate git worktree (../<repo>-iterator-<plan-slug>) so the main checkout stays untouched; off = plain checkout -b in place. Only applies when branch-per-plan is on. Ignored while auto mode is on (auto runs in the current checkout).",
+	},
+	review_required: {
+		kind: "enum",
+		values: ["on", "off"],
+		default: "on",
+		label: "Review before dependents",
+		help: "on = a feature's dependencies must be reviewed & committed (done) before it can be implemented; off = implemented (unreviewed) dependencies suffice.",
 	},
 	max_review_iterations: {
 		kind: "int",
@@ -113,7 +138,7 @@ export const SETTINGS_DEFS = {
 		values: ["on", "off"],
 		default: "on",
 		label: "Block commit on leftovers",
-		help: "Refuse accept-commit while changed files are neither assigned to a feature nor explicitly skipped.",
+		help: "on = changed files that are neither assigned to a feature nor explicitly skipped are absorbed into the accepted feature's commit; off = they stay uncommitted in the working tree.",
 	},
 	memorize_nudge: {
 		kind: "int",
@@ -199,7 +224,13 @@ export function effectiveSettings(fm) {
 			Object.entries(fm || {}).filter(([k]) => SETTINGS_KEYS.includes(k)),
 		),
 	);
-	return { ...out, ...values };
+	const merged = { ...out, ...values };
+	// Inheriting keys (plan reviewer) track their parent unless explicitly set.
+	for (const k of SETTINGS_KEYS) {
+		const from = SETTINGS_DEFS[k].inherits;
+		if (from && !(k in values)) merged[k] = merged[from];
+	}
+	return merged;
 }
 
 // ---------------------------------------------------------------------------
@@ -221,6 +252,7 @@ export const STATE_DEFAULTS = {
 	phase: "idle",
 	active_feature: null,
 	strikes: {}, // { <feature-slug>: needs-work count }
+	escalation: null, // { feature: string|null, reason: string, at: iso } | null
 };
 
 /**
@@ -246,6 +278,18 @@ export function parseState(fm) {
 		}
 	} catch {
 		/* mangled strikes → empty */
+	}
+	try {
+		const e = JSON.parse(String(fm.escalation || "null"));
+		if (e && typeof e === "object" && !Array.isArray(e) && e.reason) {
+			out.escalation = {
+				feature: e.feature ? String(e.feature) : null,
+				reason: String(e.reason),
+				at: e.at ? String(e.at) : null,
+			};
+		}
+	} catch {
+		/* mangled escalation → null */
 	}
 	return out;
 }

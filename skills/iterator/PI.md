@@ -15,5 +15,5 @@ result payloads, and rules are unchanged — only the transport differs:
 
 The dashboard stays clickable while you are idle — a user click arrives as a
 new `/skill:iterator-*` turn, which you handle per the target skill. In pi,
-`/iterator-next` implements the next ready wave directly, and a bare
+`/iterator-next` implements the next ready feature directly, and a bare
 `/iterator-implement` offers a terminal feature picker.
