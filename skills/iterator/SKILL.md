@@ -92,9 +92,10 @@ condense it:
    union of the features' files. The op refuses when features are not all done
    (`force: true` overrides, e.g. abandoning a plan).
 
-Confirm with the user before retiring — it clears the Work side. Afterwards
-report the concept id and archive path; the next `/iterator-plan` starts
-fresh.
+The dashboard's Retire click (a two-step armed button) IS the confirmation —
+proceed directly to the condensation and the retire-plan write; **never ask
+again in the CLI** (no questions, no AskUserQuestion). Afterwards report the
+concept id and archive path; the next `/iterator-plan` starts fresh.
 
 ### 4. Loop
 

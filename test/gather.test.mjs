@@ -1,7 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import {
+	mkdtempSync,
+	mkdirSync,
+	readFileSync,
+	writeFileSync,
+	rmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -10,6 +16,7 @@ import {
 	gatherImplement,
 	gatherKnowledge,
 	gatherPlan,
+	gatherPlanReview,
 	gatherMemorize,
 	gatherRange,
 	gatherReview,
@@ -104,12 +111,41 @@ files: ["src/auth/*.ts"]
 	return root;
 }
 
+test("gather exposes the indexed backlog separately from plan features", () => {
+	const root = makeFixture();
+	try {
+		mkdirSync(join(root, "memory", "backlog"), { recursive: true });
+		writeFileSync(
+			join(root, "memory", "backlog", "index.md"),
+			`---\ntype: Backlog\ntitle: Iterator backlog\nitems: '[{"id":"fix-shell","title":"Fix shell","details":"Session error","kind":"bug","selected":true}]'\n---\n\n# Backlog\n`,
+		);
+		const p = gather(root);
+		assert.deepEqual(p.backlog, [
+			{
+				id: "fix-shell",
+				title: "Fix shell",
+				details: "Session error",
+				kind: "bug",
+				selected: true,
+			},
+		]);
+		assert.ok(!p.features.some((feature) => feature.name === "fix-shell"));
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("gather builds the hub payload from bundle + git state", () => {
 	const root = makeFixture();
 	try {
 		const p = gather(root);
 		assert.equal(p.step, "hub");
-		assert.deepEqual(p.plan, { title: "Add JWT auth", status: "approved" });
+		assert.deepEqual(p.plan, {
+			title: "Add JWT auth",
+			status: "approved",
+			planReviewed: null,
+			worktree: null,
+		});
 		assert.deepEqual(p.progress, { done: 1, total: 2 });
 		assert.deepEqual(
 			p.features.map((c) => c.name),
@@ -223,6 +259,23 @@ d
 	}
 });
 
+test("focused review favors its feature over an earlier overlapping file owner", () => {
+	const root = makeFixture();
+	try {
+		writeFileSync(
+			join(root, "memory", "features", "config-module.md"),
+			`---\ntype: Feature\ntitle: Config module\nstatus: done\nfiles: ["src/auth/*.ts"]\n---\n`,
+		);
+		const p = gatherReview(root, { feature: "auth-middleware" });
+		assert.deepEqual(
+			p.features[0].files.map((file) => file.path),
+			["src/auth/index.ts"],
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("review payload carries actual diff stats per feature", () => {
 	const root = makeFixture();
 	try {
@@ -293,7 +346,7 @@ test("globToRegExp handles exact paths, * and **", () => {
 	assert.ok(globToRegExp("src/**").test("src/deep/a.ts"));
 });
 
-test("implement wave lists every dependency-ready feature with its full contract", () => {
+test("implement rounds carry exactly ONE feature (next) with its full contract", () => {
 	const root = makeFixture();
 	try {
 		// A second dependency-free pending feature: ready alongside auth-middleware.
@@ -315,23 +368,88 @@ Pino, one logger.
 `,
 		);
 		const p = gatherImplement(root);
+		assert.ok(p.ready.length >= 2, "both features are ready");
 		assert.deepEqual(
 			p.wave.map((c) => c.name),
+			[p.next.name],
+			"one feature per round: the wave carries only next",
+		);
+		assert.ok(
+			"implementationNotes" in p.next &&
+				"blastRadius" in p.next &&
+				"tests" in p.next,
+			"next carries the full contract",
+		);
+		assert.match(p.advice, /exactly ONE feature/);
+		// finishedFeatures: what this plan already changed, for a fresh context.
+		assert.deepEqual(
+			p.finishedFeatures.map((f) => f.name),
+			["config-module"],
+		);
+		const fin = p.finishedFeatures[0];
+		assert.equal(fin.status, "done");
+		assert.ok(fin.commits.length >= 1, "commits resolved via trailer/recorded");
+		assert.ok(fin.commits[0].sha && fin.commits[0].subject);
+		// tmpdir may be a symlink (/var → /private/var on macOS) — compare tails.
+		assert.ok(
+			String(p.root).endsWith(root.split("/").pop()),
+			"payload names the working root",
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("implement readiness honors review_required for implemented dependencies", () => {
+	const root = makeFixture();
+	try {
+		// Make auth-middleware's dependency merely implemented, not done.
+		const cfg = join(root, "memory", "features", "config-module.md");
+		writeFileSync(
+			cfg,
+			readFileSync(cfg, "utf8").replace("status: done", "status: implemented"),
+		);
+		let p = gatherImplement(root);
+		assert.deepEqual(p.ready, [], "review_required on: implemented dep blocks");
+		assert.deepEqual(p.implemented, ["config-module"]);
+		assert.equal(p.stuck, false, "awaiting review is not a stuck graph");
+		assert.match(p.advice, /Awaiting review/);
+
+		writeFileSync(
+			join(root, "memory", "settings.md"),
+			`---\ntype: Settings\ntitle: Project settings\nreview_required: off\n---\n`,
+		);
+		p = gatherImplement(root);
+		assert.deepEqual(
 			p.ready,
-			"wave covers exactly the ready set",
+			["auth-middleware"],
+			"review_required off: implemented dep satisfies",
 		);
-		assert.equal(
-			p.next.name,
-			p.wave[0].name,
-			"next stays the first wave feature",
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("plan-review gathers the plan sections, features, and the whole-plan diff", () => {
+	const root = makeFixture();
+	try {
+		const p = gatherPlanReview(root);
+		assert.equal(p.step, "plan-review");
+		assert.equal(p.plan.title, "Add JWT auth");
+		assert.equal(p.plan.planReviewed, null);
+		assert.ok(p.plan.goal, "goal section rides along");
+		assert.deepEqual(
+			p.features.map((f) => f.name).sort(),
+			["auth-middleware", "config-module"],
 		);
-		assert.ok(p.wave.length >= 2, "both ready features are in the wave");
-		for (const c of p.wave) {
-			assert.ok(
-				"implementationNotes" in c && "blastRadius" in c && "tests" in c,
-				`wave feature ${c.name} carries the full contract`,
-			);
-		}
+		const done = p.features.find((f) => f.name === "config-module");
+		assert.ok(done.commits.length >= 1, "feature commits resolved");
+		assert.ok(p.commits.length >= 1, "ordered commit list");
+		assert.equal(p.commits[0].feature, "config-module");
+		assert.ok(p.commits[0].sha && p.commits[0].subject);
+		assert.match(p.diff, /src\/config\.ts/, "the whole-plan diff covers the feature commit");
+		assert.ok(!p.diff.includes("memory/"), "bundle bookkeeping excluded");
+		assert.equal(p.diffTruncated, false);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
@@ -939,13 +1057,34 @@ test("gatherUsage and gatherArchive read the ledger and retired plans", async ()
 		applyOp(
 			{
 				op: "features",
-				features: [{ name: "only-feature", description: "d", files: ["src/x.ts"] }],
+				features: [
+					{ name: "only-feature", description: "d", files: ["src/x.ts"] },
+				],
 			},
 			root,
 		);
-		applyOp({ op: "update-feature", feature: "only-feature", set: { status: "done" } }, root);
 		applyOp(
-			{ op: "usage", rows: [{ step: "implement", feature: "only-feature", provider: "p", model: "m", input: 42, output: 7 }] },
+			{
+				op: "update-feature",
+				feature: "only-feature",
+				set: { status: "done" },
+			},
+			root,
+		);
+		applyOp(
+			{
+				op: "usage",
+				rows: [
+					{
+						step: "implement",
+						feature: "only-feature",
+						provider: "p",
+						model: "m",
+						input: 42,
+						output: 7,
+					},
+				],
+			},
 			root,
 		);
 

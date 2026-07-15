@@ -23,8 +23,9 @@
  * merges the small agent-authored `extra` on top — the model never pipes
  * gathered/feature payloads around. The view lands in a session-scoped
  * dashboard (lib/session-server.mjs): one browser tab for the whole pi
- * session, views swapped over SSE, started on session_start when a bundle
- * exists (else lazily), stopped on session_shutdown. While the agent is
+ * session, views swapped over SSE, started on every session_start so a fresh
+ * project immediately receives the Create-plan hero, stopped on
+ * session_shutdown. While the agent is
  * idle the hub stays clickable — an unsolicited click (e.g. "Implement
  * feature X") is dispatched as a /skill:iterator-* turn.
  *
@@ -105,6 +106,7 @@ const GATHER_STEPS = [
 	"knowledge",
 	"test",
 	"review",
+	"plan-review",
 ];
 const UI_STEPS = [
 	"hub",
@@ -152,6 +154,11 @@ const COMMANDS = [
 	{
 		name: "iterator-review",
 		description: "Review a feature's diff and record the outcome.",
+	},
+	{
+		name: "iterator-review-plan",
+		description:
+			"Review the whole finished plan against its goals and decisions; record the report in plan.md.",
 	},
 	{
 		name: "iterator-knowledge",
@@ -283,6 +290,7 @@ export default function iteratorExtension(pi) {
 				mode: settings?.auto_mode === "on" ? state?.mode || "manual" : "manual",
 				paused: !!state?.paused,
 				phase: state?.phase || "idle",
+				escalation: state?.escalation || null,
 			});
 		} catch {
 			/* a broken bundle read must never take pi down */
@@ -349,6 +357,33 @@ export default function iteratorExtension(pi) {
 		}
 	};
 
+	/** Save one backlog mutation without spending a model turn. */
+	const saveBacklog = async (input) => {
+		const cwd = ctxCwd();
+		session?.showWorking?.("Saving backlog candidate…");
+		try {
+			const result = await runJson(scriptPath("write"), [], {
+				cwd,
+				stdin: JSON.stringify({
+					op: "backlog",
+					action: input.action,
+					id: input.id,
+					title: input.title,
+					details: input.details,
+					kind: input.kind,
+					selected: input.selected,
+				}),
+			});
+			invalidateSession();
+			notifyUi(`backlog ${result.action}d: ${result.item.title}`, "info");
+		} catch (e) {
+			notifyUi(`backlog not saved — ${e.message}`, "error");
+		} finally {
+			session?.clearWorking?.();
+			await refreshHub(cwd);
+		}
+	};
+
 	/** Show the settings view as an idle dashboard page (unsolicited round). */
 	const openSettings = async () => {
 		const cwd = ctxCwd();
@@ -396,7 +431,7 @@ export default function iteratorExtension(pi) {
 					);
 				await pushStatus(cwd);
 			} else if (input.action === "continue") {
-				await writeState({ paused: false });
+				await writeState({ paused: false, escalation: null });
 				if (lastCtx?.hasUI) lastCtx.ui.notify("iterator: continuing", "info");
 				await pushStatus(cwd);
 				resumeAuto(cwd); // no-op unless auto mode has work to pick up
@@ -413,6 +448,7 @@ export default function iteratorExtension(pi) {
 					phase: "idle",
 					active_feature: null,
 					strikes: {},
+					escalation: null,
 				});
 				autoSteps = 0;
 				await restoreModel();
@@ -525,21 +561,42 @@ export default function iteratorExtension(pi) {
 				return;
 			}
 			if (action.escalate) {
-				await writeState({ phase: "escalated", paused: true });
+				// The escalation detail rides into state.md so the dashboard renders
+				// the attention banner (which feature, why, recovery actions) — not
+				// just a CLI line.
+				await writeState({
+					phase: "escalated",
+					paused: true,
+					escalation: {
+						feature: action.feature || null,
+						reason: action.reason || "auto mode stopped",
+					},
+				});
 				autoSteps = 0;
 				await restoreModel();
 				notifyUi(`auto mode needs you: ${action.reason}`, "warning");
+				session?.clearWorking?.();
+				await pushStatus(cwd);
 				await refreshHub(cwd);
 				return;
 			}
 			if (++autoSteps > AUTO_MAX_STEPS) {
-				await writeState({ phase: "escalated", paused: true });
+				await writeState({
+					phase: "escalated",
+					paused: true,
+					escalation: {
+						feature: null,
+						reason: `auto mode circuit breaker: ${AUTO_MAX_STEPS} steps in one session — pausing for a human look`,
+					},
+				});
 				autoSteps = 0;
 				await restoreModel();
 				notifyUi(
 					`auto mode circuit breaker: ${AUTO_MAX_STEPS} steps in one session — pausing for a human look`,
 					"warning",
 				);
+				session?.clearWorking?.();
+				await pushStatus(cwd);
 				await refreshHub(cwd);
 				return;
 			}
@@ -550,6 +607,24 @@ export default function iteratorExtension(pi) {
 					stdin: JSON.stringify({ op: "state", strike: action.strike }),
 				});
 				invalidateSession();
+			}
+			// Fresh context per feature: when the next implement round targets a
+			// DIFFERENT feature than the previous one, clear the conversation
+			// context if the runtime supports it. Correctness never depends on
+			// this — the implement gather payload (contract, relevantMemories,
+			// finishedFeatures) is self-contained by design.
+			if (
+				action.step === "implement" &&
+				action.feature &&
+				sess.state?.active_feature &&
+				sess.state.active_feature !== action.feature
+			) {
+				try {
+					if (typeof pi.clearContext === "function") await pi.clearContext();
+					else if (typeof pi.compact === "function") await pi.compact();
+				} catch {
+					/* best-effort only */
+				}
 			}
 			await writeState({
 				phase: AUTO_PHASE_FOR_STEP[action.step] || "implementing",
@@ -598,8 +673,28 @@ export default function iteratorExtension(pi) {
 
 	/** Flip into auto mode (feature approval with auto_mode:on, or the hub button). */
 	const startAuto = async (cwd) => {
-		await writeState({ mode: "auto", paused: false, phase: "implementing" });
+		await writeState({
+			mode: "auto",
+			paused: false,
+			phase: "implementing",
+			escalation: null,
+		});
 		autoSteps = 0;
+		// All iterator work happens in the plan's worktree (gather/write re-root
+		// there automatically) — but if the recorded worktree is missing on
+		// disk, auto would silently drive the current checkout: say so.
+		try {
+			const { hub } = await gatherSession(cwd);
+			const wt = hub?.plan?.worktree;
+			if (wt && !existsSync(wt)) {
+				notifyUi(
+					`the plan records worktree ${wt} but it does not exist — auto mode will drive the current checkout`,
+					"warning",
+				);
+			}
+		} catch {
+			/* advisory only */
+		}
 		await pushStatus(cwd);
 		await kickAuto(cwd);
 	};
@@ -636,6 +731,63 @@ export default function iteratorExtension(pi) {
 		}
 	};
 
+	/**
+	 * Escalation recovery — the dashboard banner's two actions. Both clear the
+	 * escalation state; restart additionally discards the feature's changes
+	 * (writer op restart-feature, deterministic — no model turn), guide
+	 * resumes the flow with the user's instructions as a fresh auto round.
+	 */
+	const escalationRestart = async (feature) => {
+		const cwd = ctxCwd();
+		session?.showWorking?.(`Restarting ${feature} — discarding its changes…`);
+		try {
+			const result = await runJson(scriptPath("write"), [], {
+				cwd,
+				stdin: JSON.stringify({ op: "restart-feature", feature }),
+			});
+			invalidateSession();
+			notifyUi(
+				`feature ${feature} restarted — discarded ${(result.discarded || []).length} file(s)`,
+			);
+			session?.clearWorking?.();
+			await pushStatus(cwd);
+			await refreshHub(cwd);
+			const { state } = await gatherSession(cwd);
+			if (state?.mode === "auto") resumeAuto(cwd);
+		} catch (e) {
+			session?.clearWorking?.();
+			notifyUi(`restart failed: ${e.message}`, "error");
+		}
+	};
+
+	const escalationGuide = async (feature, guidance) => {
+		const cwd = ctxCwd();
+		try {
+			await runJson(scriptPath("write"), [], {
+				cwd,
+				stdin: JSON.stringify({
+					op: "state",
+					set: {
+						paused: false,
+						phase: "implementing",
+						escalation: null,
+					},
+					...(feature ? { clearStrike: feature } : {}),
+				}),
+			});
+			invalidateSession();
+			await pushStatus(cwd);
+			session?.showWorking?.("Resuming with your guidance…");
+			dispatch(
+				feature
+					? `/skill:iterator-implement ${feature} --auto — user guidance: ${guidance}`
+					: guidance,
+			);
+		} catch (e) {
+			notifyUi(`guide failed: ${e.message}`, "error");
+		}
+	};
+
 	/** Open one retired plan read-only on the Work tab (deterministic). */
 	const openArchive = async (target) => {
 		const cwd = ctxCwd();
@@ -658,6 +810,10 @@ export default function iteratorExtension(pi) {
 					// Deterministic dashboard navigation/actions — no model turn.
 					if (result?.type === "settings" && result.values) {
 						void saveSettings(result.values);
+						return;
+					}
+					if (result?.type === "backlog") {
+						void saveBacklog(result);
 						return;
 					}
 					// Settings is an idle page: its Close button emits cancel, which
@@ -695,6 +851,23 @@ export default function iteratorExtension(pi) {
 						["cancel-feature", "cancel-plan"].includes(result.action)
 					) {
 						void cancelWork(result.action, result.feature || null);
+						return;
+					}
+					// Escalation banner recovery: deterministic restart, or resume
+					// with the user's guidance as a fresh implement round.
+					if (
+						result?.type === "action" &&
+						result.action === "escalation-restart" &&
+						result.feature
+					) {
+						void escalationRestart(result.feature);
+						return;
+					}
+					if (result?.type === "action" && result.action === "escalation-guide") {
+						void escalationGuide(
+							result.feature || null,
+							String(result.prompt || "").trim() || "continue",
+						);
 						return;
 					}
 					const cmd = actionToCommand(result);
@@ -852,6 +1025,8 @@ export default function iteratorExtension(pi) {
 			"per-feature commits with trailers, done flips, sha recording, memory verdicts, pointer " +
 			"advance — pass the UI result plus per-feature testsStatus/summary and advance:true|false), " +
 			"record-review (pipe a review-feedback UI result verbatim to record statuses/notes), " +
+			"record-plan-review (record the whole-plan review's report in plan.md + set plan_reviewed), " +
+			"restart-feature (escalation recovery: discard a feature's working-tree changes and reset it to pending), " +
 			"refresh-format (recopy templates/format.md over the bundle's stale copy), " +
 			"retire-plan (condense a finished plan into a decisions/ concept and archive its " +
 			"features — pass concept:{slug,title,description,body}), settings (merge project " +
@@ -875,6 +1050,8 @@ export default function iteratorExtension(pi) {
 						"retire-plan",
 						"accept-commit",
 						"record-review",
+						"record-plan-review",
+						"restart-feature",
 					].map((s) => Type.Literal(s)),
 					{ description: "Writer operation." },
 				),
@@ -1032,15 +1209,16 @@ export default function iteratorExtension(pi) {
 				// opens a gate view (test plan / question) would hang the feature in
 				// its phase forever — refuse the round and tell the agent to
 				// continue non-interactively instead.
-				if (["test", "question"].includes(params.step)) {
+				if (["test", "question", "review"].includes(params.step)) {
 					const st = (await gatherSession(ctx.cwd))?.state;
 					if (st?.mode === "auto" && !st?.paused) {
 						return asText({
 							type: "auto-skip",
 							report:
 								"Auto mode is driving this flow — do NOT wait for a browser answer. " +
-								"Proceed non-interactively as your skill's --auto section describes " +
-								"(tester: write the red tests, commit via the writer, report, stop).",
+								"Proceed non-interactively as your skill's --auto/--agent section describes " +
+								"(tester: write the red tests and commit via the writer; reviewer: judge the " +
+								"gathered diff and record/accept via the writer). Report and stop.",
 						});
 					}
 				}
@@ -1162,12 +1340,13 @@ export default function iteratorExtension(pi) {
 	};
 
 	// ---------------------------------------------------------------------
-	// Session lifecycle: dashboard up while a bundle exists, down with pi.
+	// Session lifecycle: dashboard up for every project, down with pi. A
+	// bundle-less project renders the hub's Create-plan hero rather than an
+	// empty Work tab.
 
 	pi.on("session_start", async (_event, ctx) => {
 		rememberCtx(ctx);
 		await refreshStatus(ctx);
-		if (!bundleExists(ctx.cwd)) return; // start lazily on first use instead
 		try {
 			await ensureServer(ctx);
 			// An auto run interrupted by a restart never resumes by surprise:

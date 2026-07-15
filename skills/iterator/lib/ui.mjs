@@ -12,7 +12,7 @@
  * value containing `</script>` cannot terminate the embedded <script> block.
  */
 
-import { RUN_ID } from './server.mjs';
+import { RUN_ID } from "./server.mjs";
 
 /* ------------------------------------------------------------------ *
  * Server-side helpers
@@ -20,17 +20,19 @@ import { RUN_ID } from './server.mjs';
 
 /** Embed a value as safe inline-<script> JSON (escapes `<`, U+2028, U+2029). */
 export function embed(obj) {
-  return JSON.stringify(obj == null ? null : obj)
-    .replace(/</g, '\\u003c')
-    .replace(/\u2028/g, '\\u2028')
-    .replace(/\u2029/g, '\\u2029');
+	return JSON.stringify(obj == null ? null : obj)
+		.replace(/</g, "\\u003c")
+		.replace(/\u2028/g, "\\u2028")
+		.replace(/\u2029/g, "\\u2029");
 }
 
 /** HTML-escape a string for server-side interpolation. */
 export function escHtml(s) {
-  return String(s == null ? '' : s)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+	return String(s == null ? "" : s)
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;");
 }
 
 /* ------------------------------------------------------------------ *
@@ -249,19 +251,26 @@ function mdToHtml(src){
  * Page assembly
  * ------------------------------------------------------------------ */
 
-function header(subtitle, showPrimary, idleLabel) {
-  return '<header class="it-header">\n' +
-    '  <div class="it-hl">' +
-    '<span class="it-logo">iterator</span>' +
-    '<span class="it-sub">' + escHtml(subtitle) + '</span>' +
-    '<span class="tag" id="branch"></span></div>\n' +
-    '  <div class="it-hr">' +
-    '<button class="it-btn" onclick="toggleTheme()">Toggle theme</button>' +
-    '<button class="it-btn cancel" onclick="cancelFlow()">Cancel</button>' +
-    (showPrimary
-      ? '<button class="it-btn primary" id="primary" onclick="primaryClick()">' + escHtml(idleLabel) + '</button>'
-      : '') +
-    '</div>\n</header>\n';
+function header(subtitle, showPrimary, idleLabel, showCancel) {
+	return (
+		'<header class="it-header">\n' +
+		'  <div class="it-hl">' +
+		'<span class="it-logo">iterator</span>' +
+		'<span class="it-sub">' +
+		escHtml(subtitle) +
+		"</span>" +
+		'<span class="tag" id="branch"></span></div>\n' +
+		'  <div class="it-hr">' +
+		(showCancel
+			? '<button class="it-btn cancel" onclick="cancelFlow()">Cancel</button>'
+			: "") +
+		(showPrimary
+			? '<button class="it-btn primary" id="primary" onclick="primaryClick()">' +
+				escHtml(idleLabel) +
+				"</button>"
+			: "") +
+		"</div>\n</header>\n"
+	);
 }
 
 /**
@@ -281,24 +290,45 @@ function header(subtitle, showPrimary, idleLabel) {
  * @param {boolean}[o.primary]      set false to omit the primary button
  */
 export function renderPage(o) {
-  const step = o.step || 'iterator';
-  const subtitle = o.subtitle != null ? o.subtitle : ('/ ' + step);
-  const branch = o.branch || 'HEAD';
-  const title = o.title ? (step + ' — ' + o.title) : ('iterator — ' + step);
-  const primary = { idle: o.primaryIdle || 'Accept', changed: o.primaryChanged || 'Send review' };
-  const showPrimary = o.primary !== false;
-  return '<!DOCTYPE html>\n<html lang="en" data-theme="dark">\n<head>\n' +
-    '<meta charset="UTF-8">\n' +
-    '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
-    '<title>' + escHtml(title) + '</title>\n<style>\n' + BASE_CSS + (o.css || '') + '\n</style>\n</head>\n<body>\n' +
-    header(subtitle, showPrimary, primary.idle) +
-    (o.body || '') + '\n' +
-    '<script>\n' +
-    'const D = ' + embed(o.data == null ? {} : o.data) + ';\n' +
-    'const __RUN = ' + embed(RUN_ID) + ';\n' +
-    'const __PRIMARY = ' + embed(primary) + ';\n' +
-    'document.getElementById("branch").textContent = ' + embed(branch) + ';\n' +
-    SHARED_JS + '\n' +
-    (o.clientJs || '') + '\n' +
-    '</script>\n</body>\n</html>';
+	const step = o.step || "iterator";
+	const subtitle = o.subtitle != null ? o.subtitle : "/ " + step;
+	const branch = o.branch || "HEAD";
+	const title = o.title ? step + " — " + o.title : "iterator — " + step;
+	const primary = {
+		idle: o.primaryIdle || "Accept",
+		changed: o.primaryChanged || "Send review",
+	};
+	const showPrimary = o.primary !== false;
+	return (
+		'<!DOCTYPE html>\n<html lang="en" data-theme="dark">\n<head>\n' +
+		'<meta charset="UTF-8">\n' +
+		'<meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
+		"<title>" +
+		escHtml(title) +
+		"</title>\n<style>\n" +
+		BASE_CSS +
+		(o.css || "") +
+		"\n</style>\n</head>\n<body>\n" +
+		header(subtitle, showPrimary, primary.idle, o.cancel !== false) +
+		(o.body || "") +
+		"\n" +
+		"<script>\n" +
+		"const D = " +
+		embed(o.data == null ? {} : o.data) +
+		";\n" +
+		"const __RUN = " +
+		embed(RUN_ID) +
+		";\n" +
+		"const __PRIMARY = " +
+		embed(primary) +
+		";\n" +
+		'document.getElementById("branch").textContent = ' +
+		embed(branch) +
+		";\n" +
+		SHARED_JS +
+		"\n" +
+		(o.clientJs || "") +
+		"\n" +
+		"</script>\n</body>\n</html>"
+	);
 }

@@ -8,7 +8,7 @@ last_memorized_commit: 308b031eeaa0cda55e4e828a3f3d300f1b35301f
 * [Format](format.md) - Metadata schema for this bundle.
 * [Features](features/) - One document per implementation feature.
 * [Log](log.md) - Chronological history of plan/feature/implement/review events.
-* [Design](design.md) - Quiet dark developer-tool interface with compact, stateful navigation.
+* [Design](design.md) - A compact dark developer control plane with clear workflow state.
 * [Plan](plan.md) - Restore reliable Knowledge actions, usable working state, and persistent Work plan drafting.
 * [Architecture](/architecture/) - How the system is structured.
 * [Decisions](/decisions/) - Durable product and implementation choices agents should preserve.

@@ -22,9 +22,13 @@ memory/
 ├── format.md         # this file — type: Reference — the metadata schema
 ├── plan.md           # type: Plan — the plan concept
 ├── design.md         # optional — type: Design — the project's design parameters
+├── settings.md       # optional — type: Settings — project settings (writer op `settings`)
+├── state.md          # optional — type: State — machine runtime flow state (op `state`)
+├── usage.md          # optional — type: Usage — per-plan token ledger (op `usage`)
 ├── log.md            # OKF §7 update log; skills append entries
 └── features/
     ├── index.md      # feature listing with status, for progressive disclosure
+    ├── archive/      # retired plans: <created>-<slug>/ with plan.md + features + usage.md
     └── <slug>.md     # type: Feature — one concept per feature
 ```
 
@@ -53,7 +57,7 @@ rewriting every `depends_on` reference to it.
 type: Feature                             # REQUIRED (OKF type)
 title: Auth middleware                  # display name
 description: JWT-based auth middleware for all protected routes.  # one line
-status: pending                         # draft | pending | done
+status: pending                         # draft | pending | implemented | done
 size: small                             # small | medium | large — how big the feature feels
 depends_on: [config-module]             # feature slugs; [] if none
 files: ["src/auth.ts", "src/middleware/*.ts"]   # paths/globs this feature owns
@@ -104,7 +108,7 @@ What breaks if this feature is wrong; which other features/files feel it.
 | `type` | yes | Always `Feature`. OKF consumers route on this. |
 | `title` | yes | Human display name. |
 | `description` | yes | One sentence; copied into `features/index.md` entries. |
-| `status` | yes | `draft`, `pending`, or `done`. `/iterator-feature` writes proposals as `draft`; accepting the feature set in the UI promotes every draft to `pending`. Drafts are never implementable/testable. Only `/iterator-implement` sets `done` (on Accept-and-commit). |
+| `status` | yes | `draft`, `pending`, `implemented`, or `done`. `/iterator-feature` writes proposals as `draft`; accepting the feature set in the UI promotes every draft to `pending`. Drafts are never implementable/testable. `implemented` = code complete, awaiting review — set by the implement flow (update-feature) when the implementation finishes; it enables Review and disables Implement. Only the accept flow sets `done` (on Accept-and-commit). With the `review_required` setting on (default), dependents wait for `done`; off lets `implemented` dependencies satisfy them. |
 | `size` | yes | `small` \| `medium` \| `large` — a judgment call on how big the **feature** feels, not a line count. A feature is one user-visible capability (a vertical slice incl. its tests); `large` means "probably two features" and gets a ⚠️ in the UIs — prefer splitting. Reviewability is enforced against the *actual* diff at review time. |
 | `depends_on` | yes (may be `[]`) | Feature slugs that must be `done` before this feature is implemented. Must be acyclic and reference existing files. This is the **canonical** dependency data; the `# Depends on` body section mirrors it with optional "why" prose. |
 | `files` | yes | Paths or simple globs the feature owns — **including its test files** (a feature's tests are reviewed together with its logic, never separately). `/iterator-review` maps diff hunks to a feature through these (first matching feature wins), with the feature's `tests` entries as an exact-match fallback. |
@@ -113,10 +117,14 @@ What breaks if this feature is wrong; which other features/files feel it.
 | `tests` | no | Test file paths owned by this feature. Written by `/iterator-test`; consumed by `/iterator-implement` as the implementation goal, and by `/iterator-review` to group the test diff with the feature's logic. |
 | `tests_status` | no | `none` \| `red` \| `green` (absent = `none`). `red` = tests exist and fail — the *expected* state before implementation (red/green flow). `/iterator-test` sets `red` or `green`; `/iterator-implement` flips `red → green` on Accept-and-commit. Independent of `status`: an implemented-but-red feature is `status: done`, `tests_status: red`. |
 | `commits` | no | List of `{ sha, kind, date }`, `kind: test \| implement`. Recorded shas are an **optimization** — they go stale when the branch is rebased or amended. The resilient lookup is the `Feature: <slug>` commit trailer: consumers must fall back to `git log --grep '^Feature: <slug>'`. A commit cannot contain its own sha, so each sha is recorded in the *next* bundle write after committing. |
+| `memories` | no | Writer-computed at feature time: the knowledge concept ids (`<area>/<slug>`) whose `files:` anchors match this feature's `files` — the implementer's reading list. Never hand-authored. |
+| `conflicts` | no | JSON scalar `[{"decision","note"}]` — decision concepts this feature contradicts, flagged by the slicing model; rendered as a red badge and mirrored readably in the `# Decision conflicts` body section. Escalates instead of implementing in auto mode. |
 
 Body sections `# Implementation notes`, `# Snippets`, `# Depends on`,
-`# Blast radius` are written at feature-creation time; `# Review` is appended by
-review passes. All are optional except `# Implementation notes`.
+`# Blast radius` are written at feature-creation time; `# Decision conflicts`
+mirrors the `conflicts` frontmatter; `# Review` is appended by review passes
+(agent reviews carry an `_(agent review: <model>)_` tag). All are optional
+except `# Implementation notes`.
 
 ---
 
@@ -128,7 +136,9 @@ type: Plan
 title: Add JWT authentication
 description: JWT-based auth for all protected API routes.
 status: draft                           # draft | approved
-branch: feature/auth
+branch: iterator/add-jwt-authentication # where the work happens (branch-per-plan)
+worktree: ../repo-iterator-add-jwt-authentication  # present only in worktree-per-plan mode
+plan_reviewed: 2026-07-04               # present only after the whole-plan review (record-plan-review)
 created: 2026-07-02
 timestamp: 2026-07-02T10:00:00Z
 ---
@@ -145,18 +155,28 @@ timestamp: 2026-07-02T10:00:00Z
 # Key decisions
 …
 
-# Product fit
-…
-
 # Features
 
 * [Config module](/features/config-module.md) - Centralize env/config access
 * [Auth middleware](/features/auth-middleware.md) - JWT middleware for protected routes
 ```
 
-`status: approved` is set when the user accepts the plan in the UI. The
-`# Features` section is (re)generated by `/iterator-feature` and links every feature
-so OKF graph consumers see plan → feature edges.
+`status: approved` is set when the user accepts the plan in the UI. On
+approval from `main`/`master` (settings `branch_per_plan: on`) the writer
+creates `iterator/<plan-slug>` — in a separate git **worktree** by default
+(`worktree_per_plan: on`; the frontmatter records both). When a worktree is
+recorded, **all iterator work happens inside it** — gathers and writes
+re-root themselves to the worktree, so implementation, review, and commits
+land there no matter where the session sits (this is what enables running
+plans in parallel later). `plan_reviewed` is set by the `record-plan-review`
+op after `/iterator-review-plan` checks the finished work against the plan;
+the review report is appended to the body as `# Plan review` sections. The
+`# Dependencies` section lists **only new external packages/libraries/
+services** the plan requires (`` `name` — why ``), never todos or work
+items. `# Architecture` and `# Key decisions` are written as markdown
+bullet lists (one statement per bullet) built on the bundle's architecture
+memories. The `# Features` section is (re)generated by `/iterator-feature` and
+links every feature so OKF graph consumers see plan → feature edges.
 
 ---
 
@@ -193,7 +213,14 @@ Palette (OKLCH/hex values), accent, neutral tint, dark-mode notes.
 
 # Spacing
 
-Base unit, scale steps, radii, section rhythm.
+Base unit, scale steps, radii, section rhythm, and named small/medium/large
+margin and padding constants (e.g. space-sm: 8px · space-md: 16px ·
+space-lg: 32px).
+
+# Elements
+
+Per-component styles — button, input, card, badge — each with concrete
+background, border, radius, padding, hover values.
 
 # Responsive
 
@@ -204,11 +231,40 @@ Breakpoints, fluid-type clamp() ranges, touch rules.
 (optional) The one distinctive recurring element.
 ```
 
-`# Direction`, `# Typography`, `# Color`, `# Spacing` are required;
-`# Responsive` and `# Signature` are optional. Sections hold **concrete
+`# Direction`, `# Typography`, `# Color`, `# Spacing`, `# Elements` are
+required; `# Responsive` and `# Signature` are optional. Sections hold **concrete
 values** (font stacks, color values, pixel scales) so a later session can
 reproduce the look from this file alone. When present, the root `index.md`
 links it as `* [Design](design.md) - <description>`.
+
+---
+
+## Runtime documents — `settings.md`, `state.md`, `usage.md` (optional)
+
+Three writer-owned root documents; **never hand-edited** (the guardrails
+warn) — they are written exclusively by the `settings` / `state` / `usage`
+ops and read by every gather:
+
+- **`settings.md`** (`type: Settings`) — project configuration as flat
+  frontmatter keys (auto mode, per-role models and thinking levels, testing
+  default, branch/worktree per plan, commit-leftover blocking, memorize
+  nudge, usage ledger). `write.mjs --schema settings` lists every key with
+  its enum/default; missing keys mean defaults. Edited via the settings UI
+  (gear icon / `/iterator-settings`).
+- **`state.md`** (`type: State`) — the machine's runtime flow state: `mode`
+  (`manual|auto`), `paused`, `phase`
+  (`idle|slicing|testing|implementing|reviewing|escalated|done`),
+  `active_feature`, `strikes` (a JSON scalar mapping feature slugs to their
+  needs-work review counts), and `escalation` (a JSON scalar
+  `{feature, reason, at}` or `null` — why auto mode stopped; rendered as the
+  dashboard's attention banner with its recovery actions). This is what makes
+  Pause/Continue and auto-mode resume possible across sessions.
+- **`usage.md`** (`type: Usage`) — the active plan's token ledger:
+  `totals` (JSON scalar; per-step × per-model input/output/cache-read/
+  cache-write/turns plus per-feature rollups) with a regenerated
+  human-readable table as the body. On plan retirement it moves into the
+  plan's `features/archive/<created>-<slug>/` directory and its grand total is
+  recorded in the retirement decision concept.
 
 ---
 

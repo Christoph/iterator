@@ -26,7 +26,7 @@
  *       prompt:"<typed plan goal>"|null }          // hero goal box, plan/iterator-init only
  *     plus the shared { type:"cancel" } / { type:"timeout" }.
  */
-import { renderPage } from '../ui.mjs';
+import { renderPage } from "../ui.mjs";
 
 const CSS = `
 .wrap{max-width:920px;margin:0 auto;padding:var(--sp-5)}
@@ -95,7 +95,22 @@ button.act.danger-armed{background:var(--bg-red);border-color:var(--del-fg);colo
 .st{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:0}
 .st.done{background:var(--dot-green)}
 .st.draft{background:var(--dot-yellow)}
+.st.implemented{background:var(--accent)}
 .st.pending{background:transparent;border:2px solid var(--border)}
+.escalation{background:var(--bg-red);border:1px solid var(--del-fg);border-radius:var(--radius-card);padding:14px var(--sp-4);display:grid;gap:var(--sp-2)}
+.escalation .et{font-weight:600;color:var(--del-fg)}
+.escalation .er{font-size:var(--fs-sm);white-space:pre-wrap}
+.escalation .em{font-size:var(--fs-xs);color:var(--text-muted)}
+.escalation textarea{width:100%;min-height:56px;resize:vertical;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;color:var(--text);font:inherit;font-size:var(--fs-sm)}
+.backlog{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);box-shadow:var(--shadow-card);padding:var(--sp-4);margin-top:var(--sp-5)}
+.backlog-head{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);flex-wrap:wrap;margin-bottom:var(--sp-3)}
+.backlog-head h2{font-size:var(--fs-md);font-weight:600}.backlog-head p{font-size:var(--fs-xs);color:var(--text-muted)}
+.backlog-form{display:grid;grid-template-columns:120px minmax(180px,1fr);gap:var(--sp-2);align-items:start}
+.backlog-form select,.backlog-form input,.backlog-form textarea{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;color:var(--text);font:inherit;font-size:var(--fs-sm)}
+.backlog-form textarea{min-height:64px;resize:vertical;grid-column:1/-1}.backlog-form .btns{grid-column:1/-1}.backlog-list{display:grid;gap:var(--sp-2);margin-top:var(--sp-4)}
+.backlog-item{border-top:1px solid var(--border);padding-top:var(--sp-3)}.backlog-item:first-child{border-top:0;padding-top:0}
+.backlog-item-main{display:flex;gap:var(--sp-2);align-items:flex-start}.backlog-item-main input{margin-top:4px}.backlog-item-title{font-size:var(--fs-sm);font-weight:600}.backlog-item-details{font-size:var(--fs-xs);color:var(--text-muted);margin-top:2px;white-space:pre-wrap}.backlog-empty{font-size:var(--fs-sm);color:var(--text-muted)}
+@media(max-width:640px){.backlog-form{grid-template-columns:1fr}.backlog-form textarea,.backlog-form .btns{grid-column:auto}}
 `;
 
 const BODY = `
@@ -106,10 +121,25 @@ const JS = `
 const CH = D.features || [];
 const byName = {}; CH.forEach(c => byName[c.name] = c);
 
-function action(act, feature, msg){
-  post({ type:'action', action: act, feature: feature || null }, msg || 'Sent to Claude');
+function action(act, feature, msg, prompt){
+  post({ type:'action', action: act, feature: feature || null, prompt: prompt || null }, msg || 'Sent to Claude');
 }
-function depsDone(c){ return (c.dependsOn||[]).every(d => byName[d] && byName[d].status==='done'); }
+function backlogAction(payload, button, message){
+  if(button){ button.disabled = true; button.dataset.label = button.textContent; button.textContent = 'Saving…'; }
+  post({ type:'backlog', ...payload }, message || 'Saved');
+}
+function selectedBacklogGoal(){
+  const selected = (D.backlog || []).filter(item => item.selected);
+  if(!selected.length) return null;
+  return 'Create a plan from these saved backlog candidates:\n\n' + selected.map(item =>
+    '[' + item.kind + '] ' + item.title + (item.details ? '\n' + item.details : '')).join('\n\n');
+}
+// A dependency satisfies its dependents when done — or merely implemented,
+// when the review_required setting is off.
+function depSatisfied(s){
+  return s==='done' || (s==='implemented' && D.settings && D.settings.review_required==='off');
+}
+function depsDone(c){ return (c.dependsOn||[]).every(d => byName[d] && depSatisfied(byName[d].status)); }
 function testBadge(c){
   if(!c.testsStatus || c.testsStatus==='none') return '';
   return c.testsStatus==='green' ? '<span class="chip cg"><i class="sdot"></i>tests green</span>'
@@ -246,8 +276,44 @@ function render(){
     btns.appendChild(b);
     hero.appendChild(btns);
     w.appendChild(hero);
+    renderBacklog(w);
     renderRetired(w);
     return;
+  }
+
+  // Escalation banner: auto mode stopped and needs a human decision — say
+  // which feature, why, and offer the two recovery paths right here.
+  if(D.state && D.state.phase==='escalated' && D.state.escalation){
+    const e = D.state.escalation;
+    const box = document.createElement('div');
+    box.className = 'escalation';
+    box.innerHTML = '<div class="et">\\u26a0 Needs your attention'+(e.feature?' \\u2014 '+esc(e.feature):'')+'</div>'+
+      '<div class="er">'+esc(e.reason||'Auto mode stopped.')+'</div>'+
+      (e.at?'<div class="em">escalated '+esc(e.at)+'</div>':'');
+    const btns = document.createElement('div'); btns.className='btns';
+    if(e.feature){
+      const restart = document.createElement('button');
+      restart.className = 'act danger';
+      restart.textContent = 'Discard changes & restart feature';
+      restart.title = 'Throw away the feature\\u2019s working-tree changes, reset it to pending, and continue';
+      confirmButton(restart, '\\u26a0 Discards its changes \\u2014 click again', () =>
+        action('escalation-restart', e.feature, 'Restarting feature'));
+      btns.appendChild(restart);
+    }
+    const ta = document.createElement('textarea');
+    ta.placeholder = 'Guide the agent: what should it do differently?';
+    const guide = document.createElement('button');
+    guide.className = 'act primary-act';
+    guide.textContent = 'Guide';
+    guide.title = 'Resume the flow with your instructions';
+    guide.addEventListener('click', () => {
+      if(!ta.value.trim()) { ta.focus(); return; }
+      action('escalation-guide', e.feature || null, 'Resuming with guidance', ta.value.trim());
+    });
+    btns.appendChild(guide);
+    box.appendChild(ta);
+    box.appendChild(btns);
+    w.appendChild(box);
   }
 
   // plan bar
@@ -285,13 +351,29 @@ function render(){
     dw.title = (D.dirty.files||[]).join('\\n');
     bar.insertBefore(dw, bar.querySelector('.pbar'));
   }
+  // Every feature implemented or done → the whole-plan review: check the
+  // changes and commits against the plan's goals before retiring.
+  const allLanded = total > 0 && CH.every(c => c.status==='implemented' || c.status==='done');
+  if(allLanded){
+    const rp = document.createElement('button');
+    rp.className = 'act primary-act';
+    rp.textContent = D.plan.planReviewed ? 'Re-review plan' : 'Review plan';
+    rp.title = D.plan.planReviewed
+      ? 'Plan reviewed '+D.plan.planReviewed+' \\u2014 run the whole-plan review again'
+      : 'Review all changes and commits against the plan\\u2019s goals and decisions';
+    rp.addEventListener('click', () => action('review-plan', null, 'Starting /iterator-review-plan'));
+    bar.insertBefore(rp, bar.querySelector('.pbar'));
+  }
   // Every feature done → the plan is finished work: offer condensing it into a
   // decisions/ concept and archiving the feature files (write.mjs retire-plan).
+  // The click (plus the armed confirm) IS the confirmation — the CLI side asks
+  // nothing further.
   if(total > 0 && done === total){
     const retire = document.createElement('button');
     retire.className='act primary-act'; retire.textContent='Retire plan';
     retire.title='Condense the finished plan into a decisions/ memory and archive its features';
-    retire.addEventListener('click', () => action('retire', null, 'Starting plan retirement'));
+    confirmButton(retire, 'Retires the plan \\u2014 click again', () =>
+      action('retire', null, 'Starting plan retirement'));
     bar.insertBefore(retire, bar.querySelector('.pbar'));
   }
   // Cancel: abandon the plan entirely — archives the bundle side and deletes
@@ -308,6 +390,7 @@ function render(){
     action('cancel-plan', null, 'Cancelling plan'));
   bar.insertBefore(cancelPlan, bar.querySelector('.pbar'));
   w.appendChild(bar);
+  renderBacklog(w);
 
   // graph
   const gt = document.createElement('div'); gt.className='sec-title'; gt.textContent='Dependency graph';
@@ -333,6 +416,52 @@ function render(){
 }
 
 // Retired plans: read-only history browser (view-archive opens the archive view).
+function renderBacklog(w){
+  const items = Array.isArray(D.backlog) ? D.backlog : [];
+  const section = document.createElement('section'); section.className = 'backlog';
+  section.innerHTML = '<div class="backlog-head"><div><h2>Idea backlog</h2><p>Saved ideas and bugs stay separate from active plan features.</p></div></div>';
+  const form = document.createElement('form'); form.className = 'backlog-form';
+  form.innerHTML = '<select aria-label="Candidate type"><option value="idea">Idea</option><option value="bug">Bug</option></select>'+
+    '<input required maxlength="160" placeholder="Short title" aria-label="Backlog title">'+
+    '<textarea maxlength="4000" placeholder="Why it matters, context, or a repro" aria-label="Backlog details"></textarea>'+
+    '<div class="btns"><button class="act primary-act" type="submit">Save candidate</button><button class="act" type="button" hidden>Cancel edit</button></div>';
+  const [kind, title, details] = form.querySelectorAll('select,input,textarea');
+  const [save, cancel] = form.querySelectorAll('button');
+  let editing = null;
+  const reset = () => { editing = null; form.reset(); save.textContent = 'Save candidate'; cancel.hidden = true; };
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    backlogAction({ action: editing ? 'edit' : 'create', ...(editing ? { id: editing } : {}), kind: kind.value, title: title.value, details: details.value }, save, editing ? 'Candidate updated' : 'Candidate saved');
+  });
+  cancel.addEventListener('click', reset);
+  section.appendChild(form);
+  const list = document.createElement('div'); list.className = 'backlog-list';
+  if(!items.length) list.innerHTML = '<p class="backlog-empty">No saved candidates yet.</p>';
+  for(const item of items){
+    const row = document.createElement('div'); row.className = 'backlog-item';
+    row.innerHTML = '<div class="backlog-item-main"><input type="checkbox" aria-label="Select '+esc(item.title)+'" '+(item.selected?'checked':'')+'><div><div class="backlog-item-title">'+esc(item.title)+' <span class="chip cmut">'+esc(item.kind)+'</span></div><div class="backlog-item-details">'+esc(item.details || '')+'</div></div></div>';
+    const toggle = row.querySelector('input');
+    toggle.addEventListener('change', () => backlogAction({ action:'select', id:item.id, selected:toggle.checked }, toggle, toggle.checked ? 'Candidate selected' : 'Candidate deselected'));
+    const buttons = document.createElement('div'); buttons.className = 'btns';
+    const edit = document.createElement('button'); edit.className = 'act'; edit.type = 'button'; edit.textContent = 'Edit';
+    edit.addEventListener('click', () => { editing = item.id; kind.value = item.kind; title.value = item.title; details.value = item.details || ''; save.textContent = 'Update candidate'; cancel.hidden = false; title.focus(); });
+    const remove = document.createElement('button'); remove.className = 'act danger'; remove.type = 'button'; remove.textContent = 'Delete';
+    confirmButton(remove, 'Really delete — click again', () => backlogAction({ action:'delete', id:item.id }, remove, 'Candidate deleted'));
+    buttons.append(edit, remove); row.appendChild(buttons); list.appendChild(row);
+  }
+  section.appendChild(list);
+  const goal = selectedBacklogGoal();
+  if(goal){
+    const handoff = document.createElement('button'); handoff.className = 'act primary-act'; handoff.type = 'button';
+    handoff.textContent = D.plan ? 'Selected candidates saved' : 'Plan selected candidates';
+    handoff.title = D.plan ? 'Retire or finish the active plan before starting a new one.' : 'Start a new plan with the selected candidates as its initial goal.';
+    handoff.disabled = Boolean(D.plan);
+    handoff.addEventListener('click', () => action('plan', null, 'Starting /iterator-plan from backlog', goal));
+    section.appendChild(handoff);
+  }
+  w.appendChild(section);
+}
+
 function renderRetired(w){
   const R = D.retired || [];
   if(!R.length) return;
@@ -359,11 +488,13 @@ function makeCard(c){
   card.className = 'card' + (c.status==='done'?' done':'');
   const ready = depsDone(c);
   const draft = c.status==='draft';
-  const icon = '<i class="st '+(c.status==='done'?'done':draft?'draft':'pending')+'"></i>';
+  const implemented = c.status==='implemented';
+  const icon = '<i class="st '+(c.status==='done'?'done':draft?'draft':implemented?'implemented':'pending')+'"></i>';
   card.innerHTML =
     '<div class="ch"><span class="cn">'+icon+esc(c.title||c.name)+'</span>'+
       '<span class="chip cmut">'+esc(c.name)+'</span>'+
-      (draft?'<span class="chip cy">draft</span>':'')+sizeChip(c)+testBadge(c)+
+      (draft?'<span class="chip cy">draft</span>':'')+
+      (implemented?'<span class="chip cy">implemented \\u2014 awaiting review</span>':'')+sizeChip(c)+testBadge(c)+
       (c.conflicts?'<span class="chip cr" title="This feature contradicts a project decision — check its Decision conflicts section">\\u26a0 '+c.conflicts+' decision conflict'+(c.conflicts!==1?'s':'')+'</span>':'')+'</div>'+
     '<div class="cdesc">'+esc(c.description||'')+'</div>'+
     ((c.dependsOn&&c.dependsOn.length)?'<div class="deps">depends on '+c.dependsOn.map(d=>'<code>'+esc(d)+'</code>').join(' ')+'</div>':'');
@@ -375,10 +506,11 @@ function makeCard(c){
   impl.className = 'act primary-act';
   impl.textContent = 'Implement';
   if(c.status==='done'){ impl.disabled = true; impl.title = 'Already done'; }
+  else if(implemented){ impl.disabled = true; impl.title = 'Implemented — review it'; }
   else if(draft){ impl.disabled = true; impl.title = 'Draft — accept the feature set first (Re-feature)'; }
   else if(!ready){
     impl.disabled = true;
-    impl.title = 'Waiting on: '+(c.dependsOn||[]).filter(d=>!byName[d]||byName[d].status!=='done').join(', ');
+    impl.title = 'Waiting on: '+(c.dependsOn||[]).filter(d=>!byName[d]||!depSatisfied(byName[d].status)).join(', ');
   }
   impl.addEventListener('click', () => action('implement', c.name, 'Starting /iterator-implement — you can close this tab'));
 
@@ -392,9 +524,13 @@ function makeCard(c){
   test.addEventListener('click', () => action('test', c.name, 'Starting /iterator-test'));
 
   const rev = document.createElement('button');
-  rev.className = 'act';
+  rev.className = implemented ? 'act primary-act' : 'act';
   rev.textContent = 'Review';
-  if(!c.hasDiff && !c.hasCommits){ rev.disabled = true; rev.title = 'Nothing to review — no working-tree changes or recorded commits'; }
+  // Review follows implementation: enabled once the feature is implemented
+  // (its working-tree diff awaits review) or done with commits (re-review).
+  if(implemented){ rev.title = 'Review the implementation, then accept to commit'; }
+  else if(c.status==='done' && c.hasCommits){ rev.title = 'Re-review the feature\\u2019s commits'; }
+  else { rev.disabled = true; rev.title = 'Implement first — review unlocks once the feature is implemented'; }
   rev.addEventListener('click', () => action('review', c.name, 'Starting /iterator-review'));
 
   const cancel = document.createElement('button');
@@ -457,10 +593,15 @@ function renderGraph(){
 `;
 
 export function render(data) {
-  return renderPage({
-    step: 'hub', subtitle: '/ dashboard', branch: data.branch,
-    title: data.plan && data.plan.title,
-    data, css: CSS, body: BODY, clientJs: JS,
-    primary: false, // the per-card action buttons are the primaries here
-  });
+	return renderPage({
+		step: "hub",
+		subtitle: "/ dashboard",
+		branch: data.branch,
+		title: data.plan && data.plan.title,
+		data,
+		css: CSS,
+		body: BODY,
+		clientJs: JS,
+		primary: false, // the per-card action buttons are the primaries here
+	});
 }

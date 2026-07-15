@@ -77,6 +77,13 @@ test('W4: a body-only rewrite is allowed (hand-editability)', () => {
   assert.equal(v, null);
 });
 
+test('W2b: a write flipping status to implemented is blocked', () => {
+  const v = checkWrite({ path: 'memory/features/auth.md', content: withFm('status: implemented') }, FEATURE_DOC);
+  assert.equal(v.block, true);
+  assert.match(v.reason, /status: implemented/);
+  assert.match(v.reason, /update-feature/);
+});
+
 test('W5: creating a feature file by hand warns', () => {
   const v = checkWrite({ path: 'memory/features/new-feature.md', content: FEATURE_DOC }, null);
   assert.equal(v.warn, true);
@@ -98,6 +105,15 @@ test('E2: an edit setting status: done is blocked', () => {
   );
   assert.equal(v.block, true);
   assert.match(v.reason, /update-feature/);
+});
+
+test('E2b: an edit setting status: implemented is blocked', () => {
+  const v = checkEdit(
+    { path: 'memory/features/auth.md', edits: [{ oldText: 'status: pending', newText: 'status: implemented' }] },
+    FEATURE_DOC,
+  );
+  assert.equal(v.block, true);
+  assert.match(v.reason, /implemented/);
 });
 
 test('E3: an edit touching owned frontmatter (not done) warns', () => {
@@ -140,6 +156,10 @@ test('featureInFlight: pending + red tests is in flight; drafts and done never a
   assert.equal(featureInFlight([feature('a', { status: 'done', tests_status: 'green' })]).inFlight, false);
   assert.equal(featureInFlight([feature('a', { status: 'pending' })]).inFlight, false);
   assert.equal(featureInFlight([feature('a', { status: 'pending', tests: ['test/a.mjs'] })]).inFlight, true);
+  assert.deepEqual(
+    featureInFlight([feature('a', { status: 'implemented' })]),
+    { inFlight: true, slug: 'a' },
+    'implemented = code complete, awaiting review — still in flight');
   assert.equal(featureInFlight([]).inFlight, false);
   assert.equal(featureInFlight(undefined).inFlight, false);
 });

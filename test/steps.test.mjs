@@ -172,21 +172,33 @@ test('gatherTest detects runner and red mode from the feature status', () => {
   }
 });
 
-test('gatherReview maps working-tree hunks to features via files globs', () => {
+test('gatherReview attributes every changed file to a feature (no floating uncategorized)', () => {
   const root = makeFixture();
   try {
     appendFileSync(join(root, 'src', 'auth', 'index.ts'), 'export const x = 1;\n');
     writeFileSync(join(root, 'stray.txt'), 'stray\n');
-    git(root, 'add', 'stray.txt');
+    git(root, 'add', 'stray.txt'); // pre-staged before the round → bootstrap
+    writeFileSync(join(root, 'notes.txt'), 'incidental\n'); // untracked → incidental
     const p = gatherReview(root);
     assert.equal(p.source, 'working-tree');
     assert.deepEqual(p.features.map(c => c.name), ['auth-middleware']);
     const auth = p.features[0];
-    assert.equal(auth.files[0].path, 'src/auth/index.ts');
-    assert.equal(auth.stats.added, 1);
+    const declared = auth.files.find(f => f.path === 'src/auth/index.ts');
+    assert.equal(declared.group, 'declared');
+    assert.ok(declared.hunks[0].lines.some(l => l.type === 'addition'));
     assert.equal(auth.stats.complexity, 'green');
-    assert.ok(auth.files[0].hunks[0].lines.some(l => l.type === 'addition'));
-    assert.deepEqual(p.uncategorized.map(f => f.path), ['stray.txt']);
+    // Pre-staged unmatched content defaults to its own bootstrap commit.
+    const stray = auth.files.find(f => f.path === 'stray.txt');
+    assert.equal(stray.group, 'bootstrap');
+    assert.equal(stray.defaulted, true);
+    assert.equal(stray.disposition, 'bootstrap');
+    // Fresh unmatched changes default into the active feature's commit.
+    const notes = auth.files.find(f => f.path === 'notes.txt');
+    assert.equal(notes.group, 'incidental');
+    assert.equal(notes.disposition, 'auth-middleware');
+    assert.deepEqual(p.uncategorized, [], 'nothing floats uncategorized');
+    assert.deepEqual([...p.defaulted].sort(), ['notes.txt', 'stray.txt']);
+    assert.equal(p.activeFeature, 'auth-middleware');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -346,7 +358,7 @@ test('gatherImplement carries a pre-composed advice string', () => {
   try {
     const p = gatherImplement(root);
     assert.match(p.advice, /auth-middleware/);
-    assert.match(p.advice, /wave/i);
+    assert.match(p.advice, /exactly ONE feature/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

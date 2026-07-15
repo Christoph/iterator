@@ -75,8 +75,47 @@ test("parseState normalizes state.md frontmatter with JSON strikes", () => {
 		phase: "idle",
 		active_feature: null,
 		strikes: {},
+		escalation: null,
 	});
 	assert.deepEqual(parseState({ strikes: "not json" }).strikes, {});
+});
+
+test("parseState round-trips the escalation detail and drops mangled ones", () => {
+	const s = parseState({
+		phase: "escalated",
+		escalation:
+			'{"feature":"auth-middleware","reason":"failed agent review 3 time(s)","at":"2026-07-15T10:00:00Z"}',
+	});
+	assert.deepEqual(s.escalation, {
+		feature: "auth-middleware",
+		reason: "failed agent review 3 time(s)",
+		at: "2026-07-15T10:00:00Z",
+	});
+	assert.equal(parseState({ escalation: "not json" }).escalation, null);
+	assert.equal(
+		parseState({ escalation: '{"feature":"x"}' }).escalation,
+		null,
+		"an escalation without a reason is dropped",
+	);
+});
+
+test("plan reviewer settings inherit from the feature reviewer unless set", () => {
+	const inherited = effectiveSettings({
+		reviewer_model: "anthropic/claude-opus-4-8",
+		reviewer_thinking: "xhigh",
+	});
+	assert.equal(inherited.plan_reviewer_model, "anthropic/claude-opus-4-8");
+	assert.equal(inherited.plan_reviewer_thinking, "xhigh");
+	const explicit = effectiveSettings({
+		reviewer_model: "anthropic/claude-opus-4-8",
+		plan_reviewer_model: "openai/gpt-5.5",
+	});
+	assert.equal(explicit.plan_reviewer_model, "openai/gpt-5.5");
+	assert.equal(
+		effectiveSettings({}).review_required,
+		"on",
+		"review_required ships on",
+	);
 });
 
 test("settings view renders a form over the defs (models free-text without a registry)", () => {

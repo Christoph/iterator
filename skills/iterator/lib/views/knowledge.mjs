@@ -25,7 +25,7 @@
  *       prompt: "<free text>" }
  *     plus the shared { type:"cancel" } / { type:"timeout" }.
  */
-import { renderPage, escHtml } from '../ui.mjs';
+import { renderPage, escHtml } from "../ui.mjs";
 
 const CSS = `
 .wrap{max-width:960px;margin:0 auto;padding:var(--sp-5)}
@@ -95,33 +95,39 @@ button.kbtn,.actions button,.card-actions button,.attention button{font-size:var
 `;
 
 function memoryStatus(data) {
-  const memory = data.memory || {};
-  const initialized = Boolean(memory.initialized);
-  const commit = memory.lastMemorizedCommit
-    ? String(memory.lastMemorizedCommit).slice(0, 12) : 'not set';
-  const stale = memory.staleCount ?? 0;
-  const pending = memory.unmemorizedCommitCount ?? 0;
-  const needsAttention = stale > 0 || (typeof pending === 'number' && pending > 0);
-  return `<section class="panel hero">
+	const memory = data.memory || {};
+	const initialized = Boolean(memory.initialized);
+	const commit = memory.lastMemorizedCommit
+		? String(memory.lastMemorizedCommit).slice(0, 12)
+		: "not set";
+	const stale = memory.staleCount ?? 0;
+	const pending = memory.unmemorizedCommitCount ?? 0;
+	const needsAttention =
+		stale > 0 || (typeof pending === "number" && pending > 0);
+	return `<section class="panel hero">
   <div>
     <h2>Memory status</h2>
-    <p>${initialized ? 'This project has an OKF memory bundle — what follows is what the project is based on.' : 'No OKF memory bundle detected yet.'}</p>
+    <p>${initialized ? "This project has an OKF memory bundle — what follows is what the project is based on." : "No OKF memory bundle detected yet."}</p>
   </div>
-  ${needsAttention ? `<div class="attention">⚠ ${stale ? `${escHtml(stale)} stale concept${stale === 1 ? '' : 's'} (anchors point at moved/deleted files)` : ''}${stale && pending ? ' · ' : ''}${pending ? `${escHtml(pending)} commit${pending === 1 ? '' : 's'} nobody memorized` : ''}
-    ${stale ? '<button data-action="iterator-consolidate">Consolidate now</button>' : ''}
-    ${pending ? '<button data-action="iterator-memorize">Memorize commits</button>' : ''}</div>` : ''}
+  ${
+		needsAttention
+			? `<div class="attention">⚠ ${stale ? `${escHtml(stale)} stale concept${stale === 1 ? "" : "s"} (anchors point at moved/deleted files)` : ""}${stale && pending ? " · " : ""}${pending ? `${escHtml(pending)} commit${pending === 1 ? "" : "s"} nobody memorized` : ""}
+    ${stale ? '<button data-action="iterator-consolidate">Consolidate now</button>' : ""}
+    ${pending ? '<button data-action="iterator-memorize">Memorize commits</button>' : ""}</div>`
+			: ""
+	}
   <div class="metrics">
-    <div><strong>${initialized ? 'Initialized' : 'Missing'}</strong><span>state</span></div>
+    <div><strong>${initialized ? "Initialized" : "Missing"}</strong><span>state</span></div>
     <div><strong>${escHtml(memory.conceptCount ?? 0)}</strong><span>concepts</span></div>
-    <div${stale ? ' class="warn"' : ''}><strong>${escHtml(stale)}</strong><span>stale</span></div>
-    <div><strong>${escHtml(memory.unmemorizedCommitCount ?? '?')}</strong><span>unmemorized commits</span></div>
+    <div${stale ? ' class="warn"' : ""}><strong>${escHtml(stale)}</strong><span>stale</span></div>
+    <div><strong>${escHtml(memory.unmemorizedCommitCount ?? "?")}</strong><span>unmemorized commits</span></div>
     <div><strong>${escHtml(commit)}</strong><span>last memorized</span></div>
   </div>
   <div class="actions">
-    ${initialized ? '' : '<button data-action="iterator-init">Initialize</button>'}
+    ${initialized ? "" : '<button data-action="iterator-init">Initialize</button>'}
     <button data-action="iterator-consolidate">Consolidate</button>
     <button data-action="iterator-memorize">Memorize commits</button>
-    ${data.formatStale ? '<button data-action="refresh-format" title="memory/format.md drifted from the current template">Refresh format.md</button>' : ''}
+    ${data.formatStale ? '<button data-action="refresh-format" title="memory/format.md drifted from the current template">Refresh format.md</button>' : ""}
   </div>
 </section>`;
 }
@@ -263,7 +269,6 @@ function renderBrowser(){
   wireActions(box);
 }
 function hasChanges() { return false; }
-function onPrimary() { post({ type: 'action', action: 'close', target: null, prompt: '' }, 'Closed'); }
 function sendAction(action, target, prompt) {
   post({ type: 'action', action: action, target: target || null, prompt: prompt || '' }, 'Action sent');
 }
@@ -289,7 +294,7 @@ function wireActions(scope) {
 `;
 
 export function render(data) {
-  const BODY = `<div class="wrap">
+	const BODY = `<div class="wrap">
 ${memoryStatus(data)}
 <section class="panel">
   <div class="section-head"><h2>Knowledge browser</h2><span class="muted">${escHtml((data.memories || []).length)} concept files</span></div>
@@ -321,16 +326,16 @@ ${memoryStatus(data)}
     </div>
   </div>
 </div>`;
-  return renderPage({
-    step: 'knowledge',
-    subtitle: '/ knowledge',
-    branch: data.branch,
-    title: 'knowledge',
-    data,
-    css: CSS,
-    body: BODY,
-    clientJs: JS,
-    primaryIdle: 'Close',
-    primaryChanged: 'Close',
-  });
+	return renderPage({
+		step: "knowledge",
+		subtitle: "/ knowledge",
+		branch: data.branch,
+		title: "knowledge",
+		data,
+		css: CSS,
+		body: BODY,
+		clientJs: JS,
+		primary: false,
+		cancel: false,
+	});
 }
