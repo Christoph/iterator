@@ -1,0 +1,7 @@
+{
+  "name": "iterator",
+  "version": "1.0.0",
+  "description": "Iterate on code with AI in small, reviewable, dependency-ordered features. Dashboard hub + guided flow: plan → feature → (red tests) → implement → review, with durable state in an OKF memory/ bundle.",
+  "author": "Christoph Maier",
+  "license": "MIT"
+}

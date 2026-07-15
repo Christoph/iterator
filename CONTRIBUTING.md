@@ -5,63 +5,165 @@
 ```bash
 git clone <repo>
 cd iterator
-# No npm install needed — server.mjs uses only Node built-ins
+# No npm install needed — the server uses only Node built-ins (Node ≥ 18).
 ```
 
 ## Testing the plugin locally
 
-Install it as a local plugin in Claude Code:
+Load it into a Claude Code session with `--plugin-dir`:
 
 ```bash
-claude plugins install .
+claude --plugin-dir .
 ```
 
-In any git repo with changes, run `/iterator-plan-features` or `/iterator-review` in Claude Code.
+Then, in any git repo, run `/iterator` for the dashboard, or `/iterator-plan`
+to start the flow (plan → feature → implement → review). (For a persistent
+install, use `/plugin marketplace add <path>` + `/plugin install iterator` —
+the repo ships a `.claude-plugin/marketplace.json`. pi installs the repo as a
+package: `pi -e .`, which also loads `extensions/iterator.js` for friendly
+`/iterator…` commands.)
 
-## Testing the servers directly
-
-You can test the server scripts independently by piping sample data:
+## Running the tests
 
 ```bash
-# Review server
-echo '{"branch":"test","hasPlanFile":true,"features":[{"name":"example","description":"Test feature","blastRadius":"Low risk","dependsOn":[],"stats":{"added":10,"removed":3,"files":1,"complexity":"green"},"files":[{"path":"src/foo.ts","hunks":[{"header":"@@ -1,3 +1,5 @@","oldStart":1,"newStart":1,"lines":[{"type":"addition","content":"const x = 1;"}]}]}]}],"uncategorized":[]}' \
-  | node skills/iterator-review/server.mjs
-
-# Plan-features server
-echo '{"branch":"test","totalChanged":50,"features":[{"name":"example","description":"Test feature","files":["src/foo.ts"],"blastRadius":"Low risk","dependsOn":[],"linesAdded":10,"linesRemoved":3,"size":"small"}]}' \
-  | node skills/iterator-plan-features/server.mjs
+npm test        # node:test — no dependencies
 ```
 
-Open <http://localhost:8888> to see the UI.
+The suite unit-tests `lib/ui.mjs` (`embed`, `escHtml`, `renderPage`) and
+boots the shared UI server on ephemeral ports to exercise the full
+round-trip: view dispatch per `step`, page serve, `/submit` → stdout, the
+Host-header rejection, the cancel grace period, the single-instance takeover,
+and signal handling. Tests set `ITERATOR_NO_OPEN=1` (no browser),
+`ITERATOR_CANCEL_GRACE_MS` (short grace), and a private `ITERATOR_REGISTRY`
+per spawn — all work outside tests too.
+
+## Previewing the UIs in a browser
+
+The shared server reads a JSON payload from stdin, picks the view from its
+`step` field, and opens the browser. Sample payloads are wired up as npm
+scripts:
+
+```bash
+npm run preview:hub            # /iterator          dashboard (control plane)
+npm run preview:plan           # /iterator-plan     plan-review view
+npm run preview:feature          # /iterator-feature    feature-plan view (graph, cards, split/merge)
+npm run preview:review         # /iterator-review   feature-grouped diff review
+npm run preview:test           # /iterator-test     test-plan view
+npm run preview:knowledge      # /iterator-knowledge               knowledge plane dashboard
+npm run preview:memory-review  # knowledge skills    memory card review
+```
+
+Each opens `http://127.0.0.1:7777/` (watch stderr for the real URL if a
+foreign process holds the port). A preview replaces any iterator server that
+is still running — that is the single-instance takeover working as designed.
+`/iterator-implement` has no view of its own — it drives the review view in
+`"mode": "commit"`.
+
+## Repository structure
+
+```
+iterator/
+├── .claude-plugin/plugin.json   # manifest (name: iterator; skills auto-discovered)
+├── extensions/iterator.js       # pi extension: /iterator… commands → /skill:iterator…
+├── lib/                         # SOURCE OF TRUTH — synced into skills/iterator/lib/ (npm run sync)
+│   ├── app.mjs                  # control plane: view dispatch, one-command gather, onSubmit hooks
+│   ├── server.mjs               # shared HTTP server: stdin→JSON, /submit + /cancel, takeover, timeout
+│   ├── gather.mjs               # deterministic state gathering (--step …)
+│   ├── write.mjs                # deterministic bundle writer (--schema lists op payload shapes)
+│   ├── git.mjs / bundle.mjs     # git helpers; frontmatter/index/log primitives + validation
+│   ├── ui.mjs                   # shared page shell + "ink & ember" design tokens
+│   └── views/                   # one view module per step: hub, plan, feature, test, review,
+│                                #   knowledge, memory-review
+├── skills/
+│   ├── iterator/                # hub skill — thin shims (server/gather/write) + bundled lib/ + PI.md
+│   ├── iterator-plan/           # SKILL.md (logic only) + templates/format.md
+│   ├── iterator-feature/          # SKILL.md (logic only)
+│   ├── iterator-implement/      # SKILL.md (logic only; uses the review view in commit mode)
+│   ├── iterator-design/         # SKILL.md (logic only; design params + UI quality rules)
+│   ├── iterator-review/         # SKILL.md (logic only)
+│   ├── iterator-test/           # SKILL.md (logic only)
+│   └── iterator-knowledge, iterator-init, …  # knowledge skills + shared PROTOCOL.md
+├── templates/format.md          # SOURCE OF TRUTH — bundle schema, copied into every memory/ bundle
+├── scripts/sync.mjs             # copies lib/ (+views) into the hub skill (npm run sync)
+├── docs/OKF_SPEC.md             # Open Knowledge Format v0.1 spec
+├── test/                        # node:test suite (npm test, no dependencies)
+├── .github/workflows/ci.yml     # runs the tests on push/PR
+├── ARCHITECTURE.md
+└── README.md
+```
+
+The **UI lives only in the hub skill**: `skills/iterator/` carries thin shims
+(`server.mjs`, `gather.mjs`, `write.mjs`) plus the bundled cores and views
+(`skills/iterator/lib/`); the step skills are logic-only and invoke the hub's
+scripts as `<skill-dir>/../iterator/<name>.mjs`, so the skill folders must be
+installed together. The repo-root `lib/` and `templates/` are the source of
+truth: edit those, then run `npm run sync` to refresh the bundled copies.
+`test/sync.test.mjs` fails if they drift.
+
+Run `npm run hooks:install` once after cloning — it points `core.hooksPath`
+at `scripts/githooks/`, whose pre-commit hook runs the sync and stages the
+refreshed copies, so drift can never be committed. The sync test remains the
+CI backstop for clones that skip the hook.
 
 ## File structure
 
-- **`SKILL.md`** — instructs Claude how to invoke the skill (steps, data format, how to handle server output)
-- **`server.mjs`** — self-contained Node.js script: HTTP server + full browser UI as a template literal
-- **`templates/*.md`** — detailed spec/reference for the HTML structure (used when extending or regenerating)
+- **`skills/<name>/SKILL.md`** — instructs Claude how to run the skill: the
+  steps, the payload to pipe into the shared server, and how to handle the
+  server's output (including how it reads/writes the `memory/` bundle).
+- **`lib/app.mjs`** — the control plane (invoked through the
+  `skills/iterator/server.mjs` shim): parses the stdin payload, gathers
+  in-process when it is the one-command form (`{"gather":true,"step":…}`),
+  picks the view module from `payload.step`, attaches per-step cancel/timeout
+  `report` strings, dispatches action results to their owning `skill`, and
+  calls `serve()`.
+- **`lib/views/<step>.mjs`** — a thin step-specific view: exports
+  `render(data)` supplying a body renderer + step-specific browser JS. All
+  shared chrome (header, theme, CSS variables, `esc`, `mdToHtml`, the `post()`
+  submit helper, the Accept ↔ Send review flip) comes from `lib/ui.mjs` via
+  `renderPage()`.
+- **`skills/iterator/lib/`** — the hub skill's private copy of the shell and
+  views, generated by `npm run sync`. Never edit it directly; edit the
+  repo-root `lib/` instead.
 
-## Changing the UI
+## Changing the shared UI
 
-The browser UI is embedded in `server.mjs` inside the `buildHtml()` function as a template literal. Edit there directly. The `templates/` directory is a reference spec, not runtime code.
+Header, theme toggle, CSS variables, the markdown renderer, and the
+submit/cancel/timeout/takeover behavior all live in the repo-root `lib/ui.mjs`
+and `lib/server.mjs` — edit them there, run `npm run sync`, and every view
+changes together. Step-specific markup, CSS, and JS live in that step's
+`lib/views/<step>.mjs`. The shared `embed()` escapes `<` so payload data
+containing `</script>` can't break the page.
 
 ## Changing the port
 
-Port defaults to `8888`. Change via `ITERATOR_PORT` environment variable or edit the default in both `server.mjs` files:
-
-```javascript
-const port = parseInt(process.env.ITERATOR_PORT || '8888', 10);
-```
+The port defaults to `7777`; override it with the `ITERATOR_PORT` environment
+variable (the default lives once in `lib/server.mjs`). The port is stable
+across runs: a lingering iterator server is shut down and replaced
+(single-instance takeover; `ITERATOR_NO_TAKEOVER=1` disables it). Only a
+foreign process on the port makes the server walk up — the real URL is always
+printed to stderr. Keep the fixed port in sync with any sandbox port forward
+(pi-docker-sandbox-setup publishes `7777:7777`).
 
 ## Skill invocation flow
 
-1. Claude runs the skill's steps (reads git diff, reads PLAN.md)
-2. Claude builds the JSON data object
-3. Claude pipes JSON to `node <skill-dir>/server.mjs` with a heredoc
-4. Server blocks until user submits
-5. Claude reads stdout JSON and processes the feedback
+1. Claude runs the skill's steps (bundle/git state comes from `gather.mjs` —
+   never read by hand).
+2. Claude pipes a payload to the hub's `server.mjs` — usually the one-command
+   form `{"gather":true,"step":"<step>","extra":{…}}` (the server gathers the
+   base payload itself and merges the agent-authored `extra`); nothing is
+   written to `/tmp`.
+3. The server replaces any lingering iterator server, serves the page, opens
+   the browser, and blocks until submit.
+4. Claude reads the stdout JSON and records results through `write.mjs`
+   (`--schema <op>` prints any op's payload shape), then re-runs for the next
+   round.
 
 ## Adding a new skill
 
-1. Create `skills/<name>/SKILL.md` with YAML frontmatter (`name`, `description`)
-2. Create `skills/<name>/server.mjs` following the same pattern
-3. Reinstall the plugin: `claude plugins install .`
+1. Create `skills/<name>/SKILL.md` with YAML frontmatter (`name`, `description`).
+2. If it needs a UI, add `lib/views/<step>.mjs` exporting `render(data)`,
+   register it in the `VIEWS` map of `lib/app.mjs` (and the COPIES list in
+   `scripts/sync.mjs`), and run `npm run sync`. The SKILL.md then pipes its
+   payload (with the new `step`) into `<skill-dir>/../iterator/server.mjs`.
+3. Restart the session with `claude --plugin-dir .` (or reinstall via the
+   marketplace) to pick up the new skill.
