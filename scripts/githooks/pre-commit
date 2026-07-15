@@ -1,0 +1,5 @@
+#!/bin/sh
+# Keep the droppable skill copies in sync with the repo-root sources.
+# Activate with: npm run hooks:install  (sets core.hooksPath to this dir)
+node scripts/sync.mjs || exit 1
+git add skills/iterator/lib skills/iterator-plan/templates

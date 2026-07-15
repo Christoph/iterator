@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-15
+* **Design**: Captured project design parameters.
 * **Implementation**: Committed feature(iterator-terminology-migration) on branch iterator/iterator-terminology-migration.
 * **Implementation**: Committed feature(iterator-terminology-migration) on branch iterator/iterator-terminology-migration.
 * **Update**: Applied 4 feature adjustment(s).

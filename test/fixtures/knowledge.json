@@ -1,0 +1,107 @@
+{
+  "step": "knowledge",
+  "branch": "main",
+  "project": "demo-app",
+  "bundlePath": "memory/",
+  "memory": {
+    "initialized": true,
+    "okfVersion": "0.1",
+    "lastMemorizedCommit": "abc1234def5678abc1234def5678abc1234def5",
+    "conceptCount": 3,
+    "staleCount": 1,
+    "unmemorizedCommitCount": 4
+  },
+  "areas": [
+    {
+      "id": "architecture",
+      "title": "Architecture",
+      "description": "How the system is structured.",
+      "count": 1
+    },
+    {
+      "id": "decisions",
+      "title": "Decisions",
+      "description": "Durable choices.",
+      "count": 0
+    },
+    {
+      "id": "patterns",
+      "title": "Patterns & Conventions",
+      "description": "House style.",
+      "count": 1
+    },
+    {
+      "id": "pitfalls",
+      "title": "Pitfalls",
+      "description": "Sharp edges.",
+      "count": 1
+    },
+    {
+      "id": "setup",
+      "title": "Setup",
+      "description": "Dev loop.",
+      "count": 0
+    }
+  ],
+  "memories": [
+    {
+      "id": "architecture/browser-server-contract",
+      "slug": "browser-server-contract",
+      "path": "architecture/browser-server-contract.md",
+      "area": "architecture",
+      "type": "Architecture",
+      "title": "Browser server contract",
+      "description": "One-shot stdin→HTML→stdout round trips.",
+      "status": "",
+      "files": [
+        "lib/server.mjs",
+        "lib/ui.mjs"
+      ],
+      "stale": false
+    },
+    {
+      "id": "patterns/safe-browser-rendering",
+      "slug": "safe-browser-rendering",
+      "path": "patterns/safe-browser-rendering.md",
+      "area": "patterns",
+      "type": "Pattern",
+      "title": "Safe browser rendering",
+      "description": "Escape < in embedded JSON (</script> stays data).",
+      "status": "",
+      "files": [
+        "lib/ui.mjs"
+      ],
+      "stale": false
+    },
+    {
+      "id": "pitfalls/gone-anchor",
+      "slug": "gone-anchor",
+      "path": "pitfalls/gone-anchor.md",
+      "area": "pitfalls",
+      "type": "Pitfall",
+      "title": "Gone anchor",
+      "description": "Anchored to a file that was deleted.",
+      "status": "",
+      "files": [
+        "src/deleted.ts"
+      ],
+      "stale": true
+    }
+  ],
+  "design": {
+    "title": "Design parameters",
+    "description": "Quiet editorial tool.",
+    "path": "design.md",
+    "register": "product",
+    "sections": {
+      "direction": "Editorial, calm; signature: hairline-ruled tables.",
+      "typography": "Display: Fraunces; body: Source Sans 3; scale 1.25.",
+      "color": "Accent oklch(0.55 0.15 250); surface #f7f5f2; ink #1c1a17.",
+      "spacing": "space-sm: 8px, space-md: 16px, space-lg: 32px; radii 4px.",
+      "elements": "Button: bg accent, radius 4px, padding 4px 12px.",
+      "responsive": "Breakpoints 640/1024; clamp() display type.",
+      "signature": ""
+    }
+  },
+  "formatStale": true
+}
