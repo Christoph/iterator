@@ -1,10 +1,10 @@
-# Contributing to local-review
+# Contributing to iterator
 
 ## Development setup
 
 ```bash
 git clone <repo>
-cd local-review
+cd iterator
 # No npm install needed — server.mjs uses only Node built-ins
 ```
 
@@ -16,7 +16,7 @@ Install it as a local plugin in Claude Code:
 claude plugins install .
 ```
 
-In any git repo with changes, run `/plan-features` or `/review` in Claude Code.
+In any git repo with changes, run `/iterator-plan-features` or `/iterator-review` in Claude Code.
 
 ## Testing the servers directly
 
@@ -25,14 +25,14 @@ You can test the server scripts independently by piping sample data:
 ```bash
 # Review server
 echo '{"branch":"test","hasPlanFile":true,"features":[{"name":"example","description":"Test feature","blastRadius":"Low risk","dependsOn":[],"stats":{"added":10,"removed":3,"files":1,"complexity":"green"},"files":[{"path":"src/foo.ts","hunks":[{"header":"@@ -1,3 +1,5 @@","oldStart":1,"newStart":1,"lines":[{"type":"addition","content":"const x = 1;"}]}]}]}],"uncategorized":[]}' \
-  | node skills/review/server.mjs
+  | node skills/iterator-review/server.mjs
 
 # Plan-features server
 echo '{"branch":"test","totalChanged":50,"features":[{"name":"example","description":"Test feature","files":["src/foo.ts"],"blastRadius":"Low risk","dependsOn":[],"linesAdded":10,"linesRemoved":3,"size":"small"}]}' \
-  | node skills/plan-features/server.mjs
+  | node skills/iterator-plan-features/server.mjs
 ```
 
-Open http://localhost:8888 to see the UI.
+Open <http://localhost:8888> to see the UI.
 
 ## File structure
 
@@ -46,20 +46,19 @@ The browser UI is embedded in `server.mjs` inside the `buildHtml()` function as 
 
 ## Changing the port
 
-Port defaults to `8888`. Change via `LOCAL_REVIEW_PORT` environment variable or edit the default in both `server.mjs` files:
+Port defaults to `8888`. Change via `ITERATOR_PORT` environment variable or edit the default in both `server.mjs` files:
 
 ```javascript
-const port = parseInt(process.env.LOCAL_REVIEW_PORT || '8888', 10);
+const port = parseInt(process.env.ITERATOR_PORT || '8888', 10);
 ```
 
 ## Skill invocation flow
 
 1. Claude runs the skill's steps (reads git diff, reads PLAN.md)
 2. Claude builds the JSON data object
-3. Claude writes JSON to `/tmp/local-review-data.json`
-4. Claude runs `node <skill-dir>/server.mjs < /tmp/local-review-data.json`
-5. Server blocks until user submits
-6. Claude reads stdout JSON and processes the feedback
+3. Claude pipes JSON to `node <skill-dir>/server.mjs` with a heredoc
+4. Server blocks until user submits
+5. Claude reads stdout JSON and processes the feedback
 
 ## Adding a new skill
 

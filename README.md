@@ -1,6 +1,6 @@
-# local-review
+# iterator
 
-A Claude Code plugin for feature-grouped local code review. Instead of reviewing changes file-by-file, local-review groups your git changes by **feature** so you see related changes across multiple files together — with blast radius context and a direct feedback loop back to Claude.
+A Claude Code plugin for feature-grouped local code review. Instead of reviewing changes file-by-file, iterator groups your git changes by **feature** so you see related changes across multiple files together — with blast radius context and a direct feedback loop back to Claude.
 
 Inspired by [Plannotator](https://github.com/backnotprop/plannotator).
 
@@ -8,13 +8,13 @@ Inspired by [Plannotator](https://github.com/backnotprop/plannotator).
 
 Classical diff tools (`git diff`, GitHub PRs) group changes by file. But a feature often touches 3–10 files simultaneously, and forcing reviewers to mentally reconstruct feature boundaries from file-by-file diffs causes cognitive overload and missed connections.
 
-local-review inverts the default: **features are the primary grouping, files are secondary.**
+iterator inverts the default: **features are the primary grouping, files are secondary.**
 
 Human reviewers can only process ~1 feature per sitting. This plugin enforces that discipline — features larger than 200 lines get flagged and should be split before review.
 
 ## Skills
 
-### `/plan-features`
+### `/iterator-plan-features`
 
 Analyzes your current git changes, groups them into small cohesive features, and writes a `## Review Features` section to `PLAN.md`. Opens an interactive browser UI where you can:
 
@@ -25,9 +25,9 @@ Analyzes your current git changes, groups them into small cohesive features, and
 - Merge small related features
 - Click "Apply adjustments to PLAN.md" — feedback goes directly to Claude, no copy-paste
 
-**Run this first**, before `/review`.
+**Run this first**, before `/iterator-review`.
 
-### `/review`
+### `/iterator-review`
 
 Opens a feature-grouped diff viewer in the browser. For each feature, you see all its changed hunks across files together, with blast radius context. Supports:
 
@@ -40,7 +40,7 @@ Opens a feature-grouped diff viewer in the browser. For each feature, you see al
 Both skills run a local Node.js HTTP server on **port 8888**. The browser UI POSTs structured feedback directly to the server, which prints it to stdout for Claude to read — no clipboard, no copy-paste.
 
 ```
-/plan-features
+/iterator-plan-features
   └─ Claude analyzes git diff
   └─ Claude writes ## Review Features to PLAN.md
   └─ node server.mjs ← JSON data piped in
@@ -50,7 +50,7 @@ Both skills run a local Node.js HTTP server on **port 8888**. The browser UI POS
        └─ Prints adjustment JSON to stdout → Claude reads it
        └─ Claude updates PLAN.md, loops back
 
-/review
+/iterator-review
   └─ Claude reads PLAN.md features + git diff
   └─ Maps hunks to features
   └─ node server.mjs ← JSON data piped in
@@ -64,7 +64,7 @@ Both skills run a local Node.js HTTP server on **port 8888**. The browser UI POS
 ## Installation
 
 ```bash
-claude plugins install /path/to/local-review
+claude plugins install /path/to/iterator
 ```
 
 Or from this repo after cloning:
@@ -81,10 +81,10 @@ claude plugins install .
 
 ## Configuration
 
-Port defaults to **8888**. Override with the `LOCAL_REVIEW_PORT` environment variable:
+Port defaults to **8888**. Override with the `ITERATOR_PORT` environment variable:
 
 ```bash
-LOCAL_REVIEW_PORT=9000 # set in your shell or .env
+ITERATOR_PORT=9000 # set in your shell or .env
 ```
 
 ## Two-file design
@@ -136,12 +136,12 @@ Add JWT authentication and REST API routes.
 - **size**: small (50 lines)
 ```
 
-`/plan-features` creates and maintains both files. `/review` reads PLAN.md for the index, then loads only the relevant feature lines from FEATURES.md — keeping context efficient.
+`/iterator-plan-features` creates and maintains both files. `/iterator-review` reads PLAN.md for the index, then loads only the relevant feature lines from FEATURES.md — keeping context efficient.
 
 ### Sizing guideline
 
 | Lines changed | Label | Color | Review time |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | ≤ 100 | small | 🟢 green | ~10 min |
 | 101–200 | medium | 🟡 yellow | ~30 min |
 | > 200 | large | 🔴 red | needs splitting |
@@ -149,17 +149,17 @@ Add JWT authentication and REST API routes.
 ## Repository structure
 
 ```
-local-review/
+iterator/
 ├── .claude-plugin/
 │   └── plugin.json          # Plugin manifest
 ├── skills/
-│   ├── review/
-│   │   ├── SKILL.md         # /review skill definition
+│   ├── iterator-review/
+│   │   ├── SKILL.md         # /iterator-review skill definition
 │   │   ├── server.mjs       # Local HTTP server + browser UI
 │   │   └── templates/
 │   │       └── feature-review.md  # HTML/UI reference spec
-│   └── plan-features/
-│       ├── SKILL.md         # /plan-features skill definition
+│   └── iterator-plan-features/
+│       ├── SKILL.md         # /iterator-plan-features skill definition
 │       ├── server.mjs       # Local HTTP server + browser UI
 │       └── templates/
 │           └── feature-planner.md # HTML/UI reference spec
@@ -172,11 +172,11 @@ local-review/
 
 ```
 1. Make some code changes
-2. Run /plan-features
+2. Run /iterator-plan-features
    → Browser opens with feature cards
    → Adjust groupings, rename, split large features
    → Click "Apply adjustments to PLAN.md"
-3. Run /review
+3. Run /iterator-review
    → Browser opens with feature-grouped diff
    → Review each feature's changes together
    → Add notes, mark status, ask questions

@@ -1,6 +1,6 @@
-# Chunks
+# Features
 
-> **Plan:** Improve /plan-features UX & Extract Testing Skill (from PLAN.md)
+> **Plan:** Improve /iterator-plan-features UX & Extract Testing Skill (from PLAN.md)
 > **Branch:** main
 > **Created:** 2026-07-01
 > **Progress:** 0/5 done
@@ -22,25 +22,25 @@
 - **size**: medium (155 lines changed)
 
 ## [ ] plan-features-skill-a
-- **description**: Rewritten /plan-features SKILL.md — defines the new step flow: FEATURES.md creation, PLAN.md index, browser server invocation, and feedback loop
-- **files**: `skills/plan-features/SKILL.md`
-- **blast-radius**: Defines the step-by-step instructions Claude follows when /plan-features is invoked. Any mismatch with the server.mjs stdin/stdout contract breaks the entire plan-creation flow. Also defines the FEATURES.md format that /review depends on.
+- **description**: Rewritten /iterator-plan-features SKILL.md — defines the new step flow: FEATURES.md creation, PLAN.md index, browser server invocation, and feedback loop
+- **files**: `skills/iterator-plan-features/SKILL.md`
+- **blast-radius**: Defines the step-by-step instructions Claude follows when /iterator-plan-features is invoked. Any mismatch with the server.mjs stdin/stdout contract breaks the entire plan-creation flow. Also defines the FEATURES.md format that /iterator-review depends on.
 - **depends-on**: architecture-docs
 - **size**: large (259 lines changed)
 - **⚠️ oversized**: 259 lines — single file, cannot split further
 
 ## [ ] plan-features-skill-b
 - **description**: New plan-features server.mjs — Node.js server that powers the interactive browser UI for plan creation, adjustment, and approval
-- **files**: `skills/plan-features/server.mjs`
+- **files**: `skills/iterator-plan-features/server.mjs`
 - **blast-radius**: Implements the stdin JSON → browser UI → stdout JSON contract. If its input schema or output schema change, the SKILL.md steps that feed it (and read from it) break silently.
 - **depends-on**: plan-features-skill-a
 - **size**: large (612 lines added)
 - **⚠️ oversized**: 612 lines — single file, cannot split further
 
 ## [ ] review-skill
-- **description**: Full rewrite of /review — reads FEATURES.md for scope, maps diff hunks to features, runs the interactive diff viewer server, and writes review outcomes back to FEATURES.md
-- **files**: `skills/review/SKILL.md`, `skills/review/server.mjs`
-- **blast-radius**: The entire /review flow. Upstream: expects FEATURES.md in exact format produced by /plan-features. Downstream: feedback JSON written back to FEATURES.md must be parseable by future /review invocations.
+- **description**: Full rewrite of /iterator-review — reads FEATURES.md for scope, maps diff hunks to features, runs the interactive diff viewer server, and writes review outcomes back to FEATURES.md
+- **files**: `skills/iterator-review/SKILL.md`, `skills/iterator-review/server.mjs`
+- **blast-radius**: The entire /iterator-review flow. Upstream: expects FEATURES.md in exact format produced by /iterator-plan-features. Downstream: feedback JSON written back to FEATURES.md must be parseable by future /iterator-review invocations.
 - **depends-on**: plan-features-skill-a
 - **size**: large (686 lines — 221 changed in SKILL.md + 465 new in server.mjs)
 - **⚠️ oversized**: 686 lines — SKILL.md and server.mjs must be reviewed together to verify the feedback loop contract

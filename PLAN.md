@@ -1,15 +1,15 @@
-# Plan: Improve /plan-features UX & Extract Testing Skill
+# Plan: Improve /iterator-plan-features UX & Extract Testing Skill
 
 ## Goal
-Improve `/plan-features` to use Claude Code's `AskUserQuestion` tool for interactive prompts instead of plain text questions. Remove the upfront 5-question clarification step — auto-read `ARCHITECTURE.md` if it exists (fall back to best practices) and only ask follow-ups when the goal implies a deviation or new dependency. Extract testing into a new `/test-features` skill that generates tests at the feature level.
+Improve `/iterator-plan-features` to use Claude Code's `AskUserQuestion` tool for interactive prompts instead of plain text questions. Remove the upfront 5-question clarification step — auto-read `ARCHITECTURE.md` if it exists (fall back to best practices) and only ask follow-ups when the goal implies a deviation or new dependency. Extract testing into a new `/iterator-test-features` skill that generates tests at the feature level.
 
 ## Architecture
-Follows the existing plugin structure: `SKILL.md` files contain step-by-step instructions Claude executes, with `server.mjs` for browser UI. Changes: `skills/plan-features/SKILL.md` (rewrite), new `skills/test-features/SKILL.md`, register in `.claude-plugin/plugin.json`.
+Follows the existing plugin structure: `SKILL.md` files contain step-by-step instructions Claude executes, with `server.mjs` for browser UI. Changes: `skills/iterator-plan-features/SKILL.md` (rewrite), new `skills/iterator-test-features/SKILL.md`, register in `.claude-plugin/plugin.json`.
 
 The plan-review browser UI (`server.mjs`) is substantially upgraded:
 - **Markdown rendering**: each section renders as formatted markdown (not raw text) — headers, bold, code blocks
 - **Click-to-edit**: clicking any section switches it to an editable textarea, saves on blur or Cmd+Enter
-- **Inline comments**: each section has a comment icon; clicking opens a side-panel comment thread (same UX as `/review` line comments), aggregated at the bottom for Claude to act on
+- **Inline comments**: each section has a comment icon; clicking opens a side-panel comment thread (same UX as `/iterator-review` line comments), aggregated at the bottom for Claude to act on
 - **Dependencies panel**: Claude pre-populates inferred new deps as editable chips; developer confirms/removes/adds before approving
 - Server invocation via piped heredoc — no /tmp file; tab opens immediately
 
@@ -30,15 +30,15 @@ None. `AskUserQuestion` is a built-in Claude Code tool — no installs needed.
 
 **No /tmp data file**: Data piped directly to `server.mjs` via heredoc — one step, tab opens immediately.
 
-**Testing as `/test-features` skill**: New skill reads `FEATURES.md`, picks a feature, generates tests. Users opt in per-feature rather than upfront.
+**Testing as `/iterator-test-features` skill**: New skill reads `FEATURES.md`, picks a feature, generates tests. Users opt in per-feature rather than upfront.
 
 ## Product Fit
-Improves `skills/plan-features/SKILL.md` (rewrite) and `skills/plan-features/server.mjs` (UI upgrade). Adds `skills/test-features/SKILL.md` + `plugin.json` entry. No changes to `/review`.
+Improves `skills/iterator-plan-features/SKILL.md` (rewrite) and `skills/iterator-plan-features/server.mjs` (UI upgrade). Adds `skills/iterator-test-features/SKILL.md` + `plugin.json` entry. No changes to `/iterator-review`.
 
-## Chunks Index
+## Features Index
 
 <!-- Line references into FEATURES.md for efficient loading -->
-| Chunk | Line | Status | Size |
+| Feature | Line | Status | Size |
 |---|---|---|---|
 | project-scaffolding | 10 | [ ] pending | medium |
 | architecture-docs | 19 | [ ] pending | medium |
