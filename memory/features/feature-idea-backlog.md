@@ -6,9 +6,13 @@ status: done
 size: large
 depends_on: [scoped-dashboard-actions]
 files: ["lib/bundle.mjs", "lib/gather.mjs", "lib/write.mjs", "lib/session-server.mjs", "lib/views/hub.mjs", "extensions/iterator.js", "memory/backlog/index.md", "test/bundle.test.mjs", "test/gather.test.mjs", "test/write.test.mjs", "test/session-server.test.mjs", "test/ui.test.mjs"]
-timestamp: "2026-07-15T12:12:26.270Z"
+timestamp: "2026-07-15T12:12:26.309Z"
 tags: []
 done: 2026-07-15
+commits:
+  - sha: 7195411615e3c8e5f9007559e5e980db1ed3a5c0
+    kind: implement
+    date: 2026-07-15
 ---
 
 # Implementation notes
