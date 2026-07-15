@@ -78,11 +78,11 @@ button.act.danger-armed{background:var(--bg-red);border-color:var(--del-fg);colo
 .hero svg{display:block;margin:0 auto var(--sp-4);opacity:.85}
 .hero h2{color:var(--text);font-family:var(--font-display);font-size:var(--fs-xl);margin-bottom:var(--sp-2)}
 .hero p{font-size:var(--fs-sm);margin-bottom:var(--sp-5);line-height:1.6}
-.hero textarea.goal{display:block;width:100%;max-width:560px;margin:0 auto var(--sp-4);padding:10px 12px;
+.hero textarea.goal{display:block;width:100%;max-width:640px;margin:0 auto var(--sp-4);padding:12px 14px;
   background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);color:var(--text);
-  font-size:var(--fs-sm);font-family:inherit;resize:vertical;min-height:72px;outline:none;line-height:1.5;text-align:left}
+  font-size:var(--fs-sm);font-family:inherit;resize:vertical;min-height:132px;outline:none;line-height:1.5;text-align:left}
 .hero textarea.goal:focus{border-color:var(--accent)}
-.goal-wrap{position:relative;width:100%;max-width:560px;margin:0 auto var(--sp-4)}
+.goal-wrap{position:relative;width:100%;max-width:640px;margin:0 auto var(--sp-4)}
 .goal-wrap textarea.goal{max-width:none;margin:0}
 .at-menu{position:absolute;top:100%;left:0;right:0;margin-top:2px;background:var(--surface);border:1px solid var(--border);
   border-radius:var(--radius-sm);box-shadow:var(--shadow-card);z-index:20;max-height:220px;overflow:auto;text-align:left;display:none}
@@ -204,6 +204,17 @@ function render(){
     const goal = document.createElement('textarea');
     goal.className = 'goal';
     goal.placeholder = 'What are you building and why? (1\\u20133 sentences \\u2014 optional, saves a question round; @ mentions repo files)';
+    // The Work iframe is recreated on every tab switch/refresh — keep the
+    // unsent goal in browser storage, cleared only once a plan actually starts.
+    const DRAFT_KEY = 'iterator:plan-goal-draft:' + (D.branch || '');
+    try { goal.value = localStorage.getItem(DRAFT_KEY) || ''; } catch(e){}
+    const saveDraft = () => { try {
+      if(goal.value) localStorage.setItem(DRAFT_KEY, goal.value);
+      else localStorage.removeItem(DRAFT_KEY);
+    } catch(e){} };
+    goal.addEventListener('input', saveDraft);
+    goal.addEventListener('blur', saveDraft);
+    const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY); } catch(e){} };
     const goalWrap = document.createElement('div');
     goalWrap.className = 'goal-wrap';
     goalWrap.appendChild(goal);
@@ -223,13 +234,15 @@ function render(){
       const init = document.createElement('button');
       init.className = 'act primary-act'; init.textContent = 'Initialize memory';
       init.addEventListener('click', () =>
-        post({ type:'action', action:'iterator-init', feature:null, prompt: goal.value.trim() || null }, 'Starting /iterator-init'));
+        post({ type:'action', action:'iterator-init', feature:null, prompt: goal.value.trim() || null }, 'Starting /iterator-init')
+          .then(() => { if(__submitted) clearDraft(); }));
       btns.appendChild(init);
     }
     const b = document.createElement('button');
     b.className = 'act' + (D.knowledgeInitialized ? ' primary-act' : ''); b.textContent = 'Create plan';
     b.addEventListener('click', () =>
-      post({ type:'action', action:'plan', feature:null, prompt: goal.value.trim() || null }, 'Starting /iterator-plan'));
+      post({ type:'action', action:'plan', feature:null, prompt: goal.value.trim() || null }, 'Starting /iterator-plan')
+        .then(() => { if(__submitted) clearDraft(); }));
     btns.appendChild(b);
     hero.appendChild(btns);
     w.appendChild(hero);

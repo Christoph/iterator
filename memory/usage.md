@@ -2,34 +2,36 @@
 type: Usage
 title: Token usage
 description: Per-step model/token ledger for the active plan — written only by the usage op.
-totals: "{\"steps\":{\"other\":{\"openai-codex/gpt-5.5\":{\"input\":21881,\"output\":423,\"cacheRead\":108544,\"cacheWrite\":0,\"turns\":7}},\"plan\":{\"openai-codex/gpt-5.6-terra\":{\"input\":79908,\"output\":2740,\"cacheRead\":437248,\"cacheWrite\":0,\"turns\":21}},\"implement\":{\"openai-codex/gpt-5.6-terra\":{\"input\":104564,\"output\":4036,\"cacheRead\":1203200,\"cacheWrite\":0,\"turns\":25}}},\"chunks\":{\"settings-return-to-work\":{\"input\":104564,\"output\":4036,\"cacheRead\":1203200,\"cacheWrite\":0,\"turns\":25}}}"
-timestamp: 2026-07-14T11:01:06.743Z
+totals: "{\"steps\":{\"hub\":{\"openai-codex/gpt-5.6-terra\":{\"input\":62823,\"output\":825,\"cacheRead\":466432,\"cacheWrite\":0,\"turns\":8}},\"plan\":{\"openai-codex/gpt-5.6-terra\":{\"input\":66034,\"output\":4504,\"cacheRead\":1607680,\"cacheWrite\":0,\"turns\":19}},\"test\":{\"openai-codex/gpt-5.6-terra\":{\"input\":201308,\"output\":7012,\"cacheRead\":13754880,\"cacheWrite\":0,\"turns\":92}}},\"features\":{\"retire-plan\":{\"input\":62823,\"output\":825,\"cacheRead\":466432,\"cacheWrite\":0,\"turns\":8},\"knowledge-controls\":{\"input\":139257,\"output\":3784,\"cacheRead\":2186240,\"cacheWrite\":0,\"turns\":20},\"nonblocking-working-overlay\":{\"input\":62051,\"output\":3228,\"cacheRead\":11568640,\"cacheWrite\":0,\"turns\":72}}}"
+timestamp: 2026-07-14T11:37:28.853Z
 ---
 
 # Usage
 
-## other
+## hub
 
 | model | input | output | cache read | cache write | turns |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| openai-codex/gpt-5.5 | 21881 | 423 | 108544 | 0 | 7 |
+| openai-codex/gpt-5.6-terra | 62823 | 825 | 466432 | 0 | 8 |
 
 ## plan
 
 | model | input | output | cache read | cache write | turns |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| openai-codex/gpt-5.6-terra | 79908 | 2740 | 437248 | 0 | 21 |
+| openai-codex/gpt-5.6-terra | 66034 | 4504 | 1607680 | 0 | 19 |
 
-## implement
+## test
 
 | model | input | output | cache read | cache write | turns |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| openai-codex/gpt-5.6-terra | 104564 | 4036 | 1203200 | 0 | 25 |
+| openai-codex/gpt-5.6-terra | 201308 | 7012 | 13754880 | 0 | 92 |
 
-## Per chunk
+## Per feature
 
-| chunk | input | output | cache read | cache write | turns |
+| feature | input | output | cache read | cache write | turns |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| settings-return-to-work | 104564 | 4036 | 1203200 | 0 | 25 |
+| retire-plan | 62823 | 825 | 466432 | 0 | 8 |
+| knowledge-controls | 139257 | 3784 | 2186240 | 0 | 20 |
+| nonblocking-working-overlay | 62051 | 3228 | 11568640 | 0 | 72 |
 
-Total: 206353 in / 7199 out / 1748992 cache-read / 0 cache-write over 53 turns.
+Total: 330165 in / 12341 out / 15828992 cache-read / 0 cache-write over 119 turns.

@@ -13,7 +13,7 @@ test("settingsDefaults covers every defined key", () => {
 	const d = settingsDefaults();
 	assert.deepEqual(Object.keys(d).sort(), [...SETTINGS_KEYS].sort());
 	assert.equal(d.auto_mode, "off");
-	assert.equal(d.testing_default, "on");
+	assert.equal(d.testing_default, "off");
 	assert.equal(d.branch_per_plan, "on");
 	assert.equal(d.max_review_iterations, 3);
 	assert.equal(d.reviewer_model, "active");
@@ -51,7 +51,7 @@ test("effectiveSettings overlays valid stored values and ignores mangled ones", 
 	});
 	assert.equal(eff.auto_mode, "on");
 	assert.equal(eff.max_review_iterations, 3, "mangled int falls back to default");
-	assert.equal(eff.testing_default, "on");
+	assert.equal(eff.testing_default, "off", "tests-by-default ships off");
 });
 
 test("parseState normalizes state.md frontmatter with JSON strikes", () => {

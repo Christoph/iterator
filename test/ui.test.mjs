@@ -177,3 +177,18 @@ test('semantic fg/bg pairs meet AA contrast (4.5:1) in both themes', () => {
     assert.ok(btn >= 4.5, `${theme} --accent-fg on --accent: ${btn.toFixed(2)}:1`);
   }
 });
+
+test('hub hero goal box persists an unsent draft and clears it on plan start', async () => {
+  const { render: hub } = await import('../lib/views/hub.mjs');
+  const html = hub({ step: 'hub', branch: 'main', plan: null, progress: { done: 0, total: 0 },
+    knowledgeInitialized: true, dirty: { count: 0, files: [] }, features: [], retired: [] });
+  // Draft restore + save wiring lives in the view (the Work iframe is
+  // recreated on every tab switch, so the value must survive in storage).
+  assert.match(html, /iterator:plan-goal-draft/);
+  assert.match(html, /localStorage\.getItem\(DRAFT_KEY\)/);
+  assert.match(html, /goal\.addEventListener\('input', saveDraft\)/);
+  // Clearing happens only once the plan/init action was actually accepted.
+  assert.match(html, /if\(__submitted\) clearDraft\(\)/);
+  // The larger input within the saved design parameters.
+  assert.match(html, /textarea\.goal\{[^}]*min-height:132px/);
+});
