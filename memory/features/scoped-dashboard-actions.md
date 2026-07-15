@@ -6,9 +6,13 @@ status: done
 size: medium
 depends_on: []
 files: ["lib/session-server.mjs", "lib/ui.mjs", "lib/views/hub.mjs", "lib/views/knowledge.mjs", "lib/views/plan.mjs", "lib/views/feature.mjs", "lib/views/review.mjs", "lib/views/settings.mjs", "test/session-server.test.mjs", "test/ui.test.mjs", "test/knowledge-controls.test.mjs"]
-timestamp: "2026-07-15T11:46:52.081Z"
+timestamp: "2026-07-15T11:46:52.110Z"
 tags: []
 done: 2026-07-15
+commits:
+  - sha: 2533e675a71ff4da885f54986926438b7e78ab3a
+    kind: implement
+    date: 2026-07-15
 ---
 
 # Implementation notes
