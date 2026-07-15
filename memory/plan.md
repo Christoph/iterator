@@ -36,6 +36,5 @@ Make Iterator’s dashboard reliably communicate state and progress, streamline 
 # Features
 
 * [Iterator terminology migration](/features/iterator-terminology-migration.md) - Rename the plugin’s lr/chunk surface to iterator/features and migrate persisted plan files without legacy ambiguity.
-* [Visible dashboard operation state](/features/dashboard-operation-state.md) - Make dashboard tabs and controls accurately show active work, initialization output, and cancellable operations.
 * [Scoped dashboard action protocol](/features/scoped-dashboard-actions.md) - Submit only the data each dashboard action needs and keep Knowledge navigation free of a redundant close control.
 * [Feature idea backlog](/features/feature-idea-backlog.md) - Let users save ideas and bugs directly from Work, select them later, and create a plan from the selected candidates.

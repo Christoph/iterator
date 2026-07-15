@@ -2,12 +2,13 @@
 type: Feature
 title: Scoped dashboard action protocol
 description: Submit only the data each dashboard action needs and keep Knowledge navigation free of a redundant close control.
-status: pending
+status: done
 size: medium
-depends_on: [dashboard-operation-state]
+depends_on: []
 files: ["lib/session-server.mjs", "lib/ui.mjs", "lib/views/hub.mjs", "lib/views/knowledge.mjs", "lib/views/plan.mjs", "lib/views/feature.mjs", "lib/views/review.mjs", "lib/views/settings.mjs", "test/session-server.test.mjs", "test/ui.test.mjs", "test/knowledge-controls.test.mjs"]
-timestamp: "2026-07-15T09:15:49.033Z"
+timestamp: "2026-07-15T11:46:52.081Z"
 tags: []
+done: 2026-07-15
 ---
 
 # Implementation notes
