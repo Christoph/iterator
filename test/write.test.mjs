@@ -207,7 +207,10 @@ test("update-feature flips status, appends commits and review notes", () => {
 			raw,
 			/commits:\n {2}- sha: abc1234\n {4}kind: implement\n {4}date: 2026-07-06/,
 		);
-		assert.match(read(root, "features", "index.md"), /✅ done · 🟢 tests green/);
+		assert.match(
+			read(root, "features", "index.md"),
+			/✅ done · 🟢 tests green/,
+		);
 		assert.match(read(root, "log.md"), /Committed feature\(config-module\)/);
 
 		applyOp(
@@ -225,7 +228,11 @@ test("update-feature flips status, appends commits and review notes", () => {
 		assert.throws(
 			() =>
 				applyOp(
-					{ op: "update-feature", feature: "config-module", set: { files: [] } },
+					{
+						op: "update-feature",
+						feature: "config-module",
+						set: { files: [] },
+					},
 					root,
 				),
 			/cannot set/,
@@ -249,7 +256,11 @@ test("features op never rewrites or deletes a done feature", () => {
 		applyOp(PLAN_OP, root);
 		applyOp(FEATURES_OP, root);
 		applyOp(
-			{ op: "update-feature", feature: "config-module", set: { status: "done" } },
+			{
+				op: "update-feature",
+				feature: "config-module",
+				set: { status: "done" },
+			},
 			root,
 		);
 
@@ -316,7 +327,9 @@ test("adjustments op applies moves, renames (with rewiring), and descUpdates", (
 		assert.equal(res.applied.length, 3);
 
 		assert.ok(existsSync(join(root, "memory", "features", "app-config.md")));
-		assert.ok(!existsSync(join(root, "memory", "features", "config-module.md")));
+		assert.ok(
+			!existsSync(join(root, "memory", "features", "config-module.md")),
+		);
 		const auth = frontmatter(read(root, "features", "auth-middleware.md"));
 		assert.deepEqual(auth.depends_on, ["app-config"], "depends_on rewired");
 		assert.deepEqual(
@@ -386,7 +399,10 @@ test("features op writes drafts, badges them, and validates size", () => {
 		assert.match(read(root, "features", "index.md"), /📝 draft/);
 		assert.throws(
 			() =>
-				applyOp({ op: "features", features: [{ name: "x", size: "huge" }] }, root),
+				applyOp(
+					{ op: "features", features: [{ name: "x", size: "huge" }] },
+					root,
+				),
 			/invalid feature size 'huge'/,
 		);
 	} finally {
@@ -469,7 +485,11 @@ test("update-feature accepts draft and pending status values", () => {
 		applyOp(PLAN_OP, root);
 		applyOp(FEATURES_OP, root);
 		applyOp(
-			{ op: "update-feature", feature: "config-module", set: { status: "draft" } },
+			{
+				op: "update-feature",
+				feature: "config-module",
+				set: { status: "draft" },
+			},
 			root,
 		);
 		assert.equal(
@@ -514,8 +534,10 @@ const DESIGN_OP = {
 		direction: "Editorial, calm; signature: hairline-ruled tables.",
 		typography: "Display: Fraunces; body: Source Sans 3; scale 1.25.",
 		color: "Accent oklch(0.55 0.15 250); neutrals tinted toward it.",
-		spacing: "4pt scale: 4/8/12/16/24/32/48. space-sm: 8px, space-md: 16px, space-lg: 32px.",
-		elements: "Button: bg accent, radius 4px, padding 4px 12px. Input: 1px border, radius 4px.",
+		spacing:
+			"4pt scale: 4/8/12/16/24/32/48. space-sm: 8px, space-md: 16px, space-lg: 32px.",
+		elements:
+			"Button: bg accent, radius 4px, padding 4px 12px. Input: 1px border, radius 4px.",
 		responsive: "Breakpoints 640/1024; clamp() display type.",
 	},
 };
@@ -836,10 +858,7 @@ test("memorize op validates areas, slugs, actions, and the pointer", () => {
 		// Fixable slugs are auto-normalized (reported), unrepairable ones fail.
 		const norm = applyOp(create({ slug: "Bad Slug" }), root);
 		assert.deepEqual(norm.normalized, [{ from: "Bad Slug", to: "bad-slug" }]);
-		assert.throws(
-			() => applyOp(create({ slug: "!!!" }), root),
-			/invalid slug/,
-		);
+		assert.throws(() => applyOp(create({ slug: "!!!" }), root), /invalid slug/);
 		assert.throws(
 			() => applyOp(create({ action: "upsert" }), root),
 			/invalid action/,
@@ -942,7 +961,11 @@ test("accept-commit lands the wave: branch safety, per-feature commits, done fli
 				op: "accept-commit",
 				features: [
 					"feature-a",
-					{ slug: "feature-b", testsStatus: "green", summary: "custom summary" },
+					{
+						slug: "feature-b",
+						testsStatus: "green",
+						summary: "custom summary",
+					},
 				],
 				memory: {
 					proposals: [
@@ -1092,7 +1115,9 @@ test("record-review consumes the review-feedback payload verbatim", () => {
 					},
 					{ name: "uncategorized", status: "question", note: "ignored" },
 				],
-				lineComments: [{ feature: "feature-a", file: "src/a.ts", comment: "why?" }],
+				lineComments: [
+					{ feature: "feature-a", file: "src/a.ts", comment: "why?" },
+				],
 			},
 			root,
 		);
@@ -1386,7 +1411,11 @@ test("retire-plan condenses a finished plan into a decision and archives the wor
 		applyOp(FEATURES_OP, root);
 		applyOp({ op: "adjustments", accept: true }, root);
 		applyOp(
-			{ op: "update-feature", feature: "config-module", set: { status: "done" } },
+			{
+				op: "update-feature",
+				feature: "config-module",
+				set: { status: "done" },
+			},
 			root,
 		);
 
@@ -1409,7 +1438,11 @@ test("retire-plan condenses a finished plan into a decision and archives the wor
 		);
 
 		applyOp(
-			{ op: "update-feature", feature: "auth-middleware", set: { status: "done" } },
+			{
+				op: "update-feature",
+				feature: "auth-middleware",
+				set: { status: "done" },
+			},
 			root,
 		);
 		const res = applyOp(
@@ -1573,7 +1606,10 @@ test("accept-commit refuses to stage the whole tree when a feature matches nothi
 		// and removing its file.
 		git(root, "reset");
 		rmSync(join(root, "src", "a.ts"));
-		writeFileSync(join(root, "src", "innocent.txt"), "must never be committed\n");
+		writeFileSync(
+			join(root, "src", "innocent.txt"),
+			"must never be committed\n",
+		);
 		process.env.ITERATOR_MEMORY_DIR = memAbs;
 		// Rebuild an absolute-dir bundle so the op can load features from it.
 		applyOp(PLAN_OP, root);
@@ -1637,7 +1673,10 @@ test("memorize resolves advanceTo HEAD and advance:true to the real sha", () => 
 		const head = git(root, "rev-parse", "HEAD");
 		const res = applyOp({ op: "memorize", advanceTo: "HEAD" }, root);
 		assert.equal(res.advancedTo, head);
-		assert.match(read(root, "index.md"), new RegExp(`last_memorized_commit: ${head}`));
+		assert.match(
+			read(root, "index.md"),
+			new RegExp(`last_memorized_commit: ${head}`),
+		);
 		const res2 = applyOp({ op: "memorize", advance: true }, root);
 		assert.equal(res2.advancedTo, head);
 	} finally {
@@ -1699,7 +1738,10 @@ test("commit-tests commits test files with trailer, records status and sha", () 
 			read(root, "features", "feature-a.md"),
 			new RegExp(`sha: ${res.sha}[\\s\\S]*kind: test`),
 		);
-		assert.match(git(root, "log", "--format=%s"), /chore\(iterator\): record test commit/);
+		assert.match(
+			git(root, "log", "--format=%s"),
+			/chore\(iterator\): record test commit/,
+		);
 		assert.equal(res.validation.ok, true, "every op result carries validation");
 	} finally {
 		rmSync(root, { recursive: true, force: true });
@@ -1719,7 +1761,10 @@ test("extensions op writes the contract file and links it from the root index", 
 		assert.match(doc, /type: Reference/);
 		assert.match(doc, /This project is a Node CLI\./);
 		assert.match(doc, /progressive disclosure/);
-		assert.match(read(root, "index.md"), /\[Extension contract\]\(EXTENSIONS\.md\)/);
+		assert.match(
+			read(root, "index.md"),
+			/\[Extension contract\]\(EXTENSIONS\.md\)/,
+		);
 		// Idempotent: a second run must not duplicate the index link.
 		applyOp({ op: "extensions" }, root);
 		const links = read(root, "index.md").match(/EXTENSIONS\.md/g);
@@ -1736,7 +1781,11 @@ test("features op warns about globs that match nothing in the repo", () => {
 			{
 				op: "features",
 				features: [
-					{ name: "typo-feature", description: "d", files: ["src/doesnotexist/**"] },
+					{
+						name: "typo-feature",
+						description: "d",
+						files: ["src/doesnotexist/**"],
+					},
 				],
 			},
 			root,
@@ -1786,14 +1835,23 @@ test("settings op writes, merges partially, and validates", () => {
 			root,
 		);
 		assert.equal(res.op, "settings");
-		assert.deepEqual(res.changed, { auto_mode: "on", max_review_iterations: 5 });
+		assert.deepEqual(res.changed, {
+			auto_mode: "on",
+			max_review_iterations: 5,
+		});
 		let fm = frontmatter(read(root, "settings.md"));
 		assert.equal(fm.type, "Settings");
 		assert.equal(fm.auto_mode, "on");
 		assert.equal(fm.max_review_iterations, "5");
 
 		// Partial merge: a later save keeps earlier keys.
-		applyOp({ op: "settings", values: { reviewer_model: "anthropic/claude-opus-4-8" } }, root);
+		applyOp(
+			{
+				op: "settings",
+				values: { reviewer_model: "anthropic/claude-opus-4-8" },
+			},
+			root,
+		);
 		fm = frontmatter(read(root, "settings.md"));
 		assert.equal(fm.auto_mode, "on", "earlier key survived the merge");
 		assert.equal(fm.reviewer_model, "anthropic/claude-opus-4-8");
@@ -1801,9 +1859,19 @@ test("settings op writes, merges partially, and validates", () => {
 		// The root index lists settings.md.
 		assert.match(read(root, "index.md"), /\[Settings\]\(settings\.md\)/);
 
-		assert.throws(() => applyOp({ op: "settings", values: { nope: 1 } }, root), /unknown setting/);
-		assert.throws(() => applyOp({ op: "settings", values: { auto_mode: "sometimes" } }, root), /not one of/);
-		assert.throws(() => applyOp({ op: "settings", values: {} }, root), /needs values/);
+		assert.throws(
+			() => applyOp({ op: "settings", values: { nope: 1 } }, root),
+			/unknown setting/,
+		);
+		assert.throws(
+			() =>
+				applyOp({ op: "settings", values: { auto_mode: "sometimes" } }, root),
+			/not one of/,
+		);
+		assert.throws(
+			() => applyOp({ op: "settings", values: {} }, root),
+			/needs values/,
+		);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
@@ -1813,7 +1881,10 @@ test("state op tracks mode/phase/pause and strike bookkeeping", () => {
 	const root = makeRepo();
 	try {
 		let res = applyOp(
-			{ op: "state", set: { mode: "auto", phase: "implementing", active_feature: "auth" } },
+			{
+				op: "state",
+				set: { mode: "auto", phase: "implementing", active_feature: "auth" },
+			},
 			root,
 		);
 		assert.equal(res.op, "state");
@@ -1826,7 +1897,10 @@ test("state op tracks mode/phase/pause and strike bookkeeping", () => {
 		res = applyOp({ op: "state", strike: "auth" }, root);
 		assert.deepEqual(res.state.strikes, { auth: 2 });
 
-		res = applyOp({ op: "state", set: { paused: true }, clearStrike: "auth" }, root);
+		res = applyOp(
+			{ op: "state", set: { paused: true }, clearStrike: "auth" },
+			root,
+		);
 		assert.equal(res.state.paused, true);
 		assert.deepEqual(res.state.strikes, {});
 
@@ -1834,9 +1908,18 @@ test("state op tracks mode/phase/pause and strike bookkeeping", () => {
 		assert.equal(fm.type, "State");
 		assert.equal(fm.paused, "true");
 
-		assert.throws(() => applyOp({ op: "state", set: { phase: "flying" } }, root), /invalid phase/);
-		assert.throws(() => applyOp({ op: "state", set: { mode: "yolo" } }, root), /invalid mode/);
-		assert.throws(() => applyOp({ op: "state", set: { paused: "yes" } }, root), /boolean/);
+		assert.throws(
+			() => applyOp({ op: "state", set: { phase: "flying" } }, root),
+			/invalid phase/,
+		);
+		assert.throws(
+			() => applyOp({ op: "state", set: { mode: "yolo" } }, root),
+			/invalid mode/,
+		);
+		assert.throws(
+			() => applyOp({ op: "state", set: { paused: "yes" } }, root),
+			/boolean/,
+		);
 		assert.throws(() => applyOp({ op: "state" }, root), /needs set/);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
@@ -1864,7 +1947,9 @@ test("accept-commit enforces uncategorized dispositions (block, skip, assign)", 
 					{
 						op: "accept-commit",
 						features: ["feature-a"],
-						uncategorized: [{ path: "src/stray.txt", feature: "no-such-feature" }],
+						uncategorized: [
+							{ path: "src/stray.txt", feature: "no-such-feature" },
+						],
 					},
 					root,
 				),
@@ -1881,13 +1966,25 @@ test("accept-commit enforces uncategorized dispositions (block, skip, assign)", 
 			},
 			root,
 		);
-		const shown = git(root, "show", "--name-only", "--format=", res.committed[0].sha)
+		const shown = git(
+			root,
+			"show",
+			"--name-only",
+			"--format=",
+			res.committed[0].sha,
+		)
 			.split("\n")
 			.filter(Boolean);
-		assert.ok(shown.includes("src/stray.txt"), "assigned stray committed with the feature");
+		assert.ok(
+			shown.includes("src/stray.txt"),
+			"assigned stray committed with the feature",
+		);
 		assert.deepEqual(res.uncommitted, []);
 		// b.ts is still staged for the other (unaccepted) feature → a leftover.
-		assert.ok(res.leftovers.includes("src/b.ts"), "leftovers reports remaining dirt");
+		assert.ok(
+			res.leftovers.includes("src/b.ts"),
+			"leftovers reports remaining dirt",
+		);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
@@ -1896,7 +1993,10 @@ test("accept-commit enforces uncategorized dispositions (block, skip, assign)", 
 test("accept-commit with block off returns undisposed files instead of failing", () => {
 	const root = makeWaveRepo();
 	try {
-		applyOp({ op: "settings", values: { block_commit_on_leftovers: "off" } }, root);
+		applyOp(
+			{ op: "settings", values: { block_commit_on_leftovers: "off" } },
+			root,
+		);
 		writeFileSync(join(root, "src", "stray.txt"), "stray\n");
 		const res = applyOp({ op: "accept-commit", features: ["feature-a"] }, root);
 		assert.ok(res.uncommitted.includes("src/stray.txt"));
@@ -1925,7 +2025,10 @@ test("features op stores writer-computed memories and model-flagged conflicts", 
 						description: "JWT middleware",
 						files: ["src/auth/*.ts"],
 						conflicts: [
-							{ decision: "decisions/no-external-auth", note: "uses jsonwebtoken" },
+							{
+								decision: "decisions/no-external-auth",
+								note: "uses jsonwebtoken",
+							},
 						],
 					},
 				],
@@ -1935,7 +2038,11 @@ test("features op stores writer-computed memories and model-flagged conflicts", 
 		assert.equal(res.op, "features");
 		const raw = read(root, "features", "auth-middleware.md");
 		const fm = frontmatter(raw);
-		assert.deepEqual(fm.memories, ["patterns/middleware"], "anchor match stored");
+		assert.deepEqual(
+			fm.memories,
+			["patterns/middleware"],
+			"anchor match stored",
+		);
 		assert.match(String(fm.conflicts), /no-external-auth/);
 		assert.match(raw, /# Decision conflicts/);
 		assert.match(raw, /uses jsonwebtoken/);
@@ -1945,7 +2052,9 @@ test("features op stores writer-computed memories and model-flagged conflicts", 
 				applyOp(
 					{
 						op: "features",
-						features: [{ name: "x", description: "d", files: [], conflicts: [{}] }],
+						features: [
+							{ name: "x", description: "d", files: [], conflicts: [{}] },
+						],
 					},
 					root,
 				),
@@ -1963,8 +2072,23 @@ test("usage op merges increment rows into per-step × model aggregates", () => {
 			{
 				op: "usage",
 				rows: [
-					{ step: "implement", feature: "auth", provider: "openai", model: "gpt-5.5", input: 100, output: 50, cacheRead: 20, cacheWrite: 5 },
-					{ step: "implement", provider: "openai", model: "gpt-5.5", input: 10, output: 5 },
+					{
+						step: "implement",
+						feature: "auth",
+						provider: "openai",
+						model: "gpt-5.5",
+						input: 100,
+						output: 50,
+						cacheRead: 20,
+						cacheWrite: 5,
+					},
+					{
+						step: "implement",
+						provider: "openai",
+						model: "gpt-5.5",
+						input: 10,
+						output: 5,
+					},
 				],
 			},
 			root,
@@ -1973,12 +2097,25 @@ test("usage op merges increment rows into per-step × model aggregates", () => {
 			{
 				op: "usage",
 				rows: [
-					{ step: "review", feature: "auth", provider: "anthropic", model: "claude-opus-4-8", input: 7, output: 3 },
+					{
+						step: "review",
+						feature: "auth",
+						provider: "anthropic",
+						model: "claude-opus-4-8",
+						input: 7,
+						output: 3,
+					},
 				],
 			},
 			root,
 		);
-		assert.deepEqual(res.grand, { input: 117, output: 58, cacheRead: 20, cacheWrite: 5, turns: 3 });
+		assert.deepEqual(res.grand, {
+			input: 117,
+			output: 58,
+			cacheRead: 20,
+			cacheWrite: 5,
+			turns: 3,
+		});
 
 		const raw = read(root, "usage.md");
 		const fm = frontmatter(raw);
@@ -1990,7 +2127,10 @@ test("usage op merges increment rows into per-step × model aggregates", () => {
 		assert.equal(totals.features.auth.input, 107, "feature rollup spans steps");
 		assert.match(raw, /\| openai\/gpt-5\.5 \| 110 \| 55 \| 20 \| 5 \| 2 \|/);
 
-		assert.throws(() => applyOp({ op: "usage", rows: [] }, root), /non-empty rows/);
+		assert.throws(
+			() => applyOp({ op: "usage", rows: [] }, root),
+			/non-empty rows/,
+		);
 		assert.throws(
 			() => applyOp({ op: "usage", rows: [{ step: "x", input: -1 }] }, root),
 			/non-negative/,
@@ -2005,21 +2145,57 @@ test("retire-plan archives the usage ledger and keeps totals in the decision", (
 	try {
 		applyOp(PLAN_OP, root);
 		applyOp(FEATURES_OP, root);
-		applyOp({ op: "update-feature", feature: "config-module", set: { status: "done" } }, root);
-		applyOp({ op: "update-feature", feature: "auth-middleware", set: { status: "done" } }, root);
 		applyOp(
-			{ op: "usage", rows: [{ step: "implement", provider: "openai", model: "gpt-5.5", input: 500, output: 200 }] },
+			{
+				op: "update-feature",
+				feature: "config-module",
+				set: { status: "done" },
+			},
+			root,
+		);
+		applyOp(
+			{
+				op: "update-feature",
+				feature: "auth-middleware",
+				set: { status: "done" },
+			},
+			root,
+		);
+		applyOp(
+			{
+				op: "usage",
+				rows: [
+					{
+						step: "implement",
+						provider: "openai",
+						model: "gpt-5.5",
+						input: 500,
+						output: 200,
+					},
+				],
+			},
 			root,
 		);
 		const res = applyOp(
 			{
 				op: "retire-plan",
-				concept: { slug: "jwt-auth", title: "JWT auth", description: "d", body: "b" },
+				concept: {
+					slug: "jwt-auth",
+					title: "JWT auth",
+					description: "d",
+					body: "b",
+				},
 			},
 			root,
 		);
-		assert.ok(res.archivedFiles.includes("usage.md"), "ledger rides into the archive");
-		assert.ok(!existsSync(join(root, "memory", "usage.md")), "fresh ledger for the next plan");
+		assert.ok(
+			res.archivedFiles.includes("usage.md"),
+			"ledger rides into the archive",
+		);
+		assert.ok(
+			!existsSync(join(root, "memory", "usage.md")),
+			"fresh ledger for the next plan",
+		);
 		const archived = readFileSync(
 			join(root, "memory", res.archived, "usage.md"),
 			"utf8",
@@ -2045,16 +2221,33 @@ test("record-review tags agent reviews with reviewer and model", () => {
 				op: "record-review",
 				by: "agent",
 				model: "anthropic/claude-opus-4-8",
-				features: [{ name: "config-module", status: "changes", note: "missing env validation" }],
+				features: [
+					{
+						name: "config-module",
+						status: "changes",
+						note: "missing env validation",
+					},
+				],
 			},
 			root,
 		);
 		const raw = read(root, "features", "config-module.md");
-		assert.match(raw, /\*\*Needs changes\*\* _\(agent review: anthropic\/claude-opus-4-8\)_ — missing env validation/);
+		assert.match(
+			raw,
+			/\*\*Needs changes\*\* _\(agent review: anthropic\/claude-opus-4-8\)_ — missing env validation/,
+		);
 		assert.match(read(root, "log.md"), /changes \(agent\)/);
 
 		assert.throws(
-			() => applyOp({ op: "record-review", by: "robot", features: [{ name: "config-module", status: "approved" }] }, root),
+			() =>
+				applyOp(
+					{
+						op: "record-review",
+						by: "robot",
+						features: [{ name: "config-module", status: "approved" }],
+					},
+					root,
+				),
 			/invalid by/,
 		);
 	} finally {
@@ -2078,7 +2271,10 @@ test("plan approval on main creates the plan branch (worktree by default, in pla
 		assert.equal(res.branch, "iterator/add-jwt-auth");
 		assert.ok(res.worktree, "worktree path reported");
 		assert.equal(git(root, "rev-parse", "--abbrev-ref", "HEAD"), "main");
-		assert.ok(existsSync(join(res.worktree, "memory", "plan.md")), "bundle copied into the worktree");
+		assert.ok(
+			existsSync(join(res.worktree, "memory", "plan.md")),
+			"bundle copied into the worktree",
+		);
 		assert.match(read(root, "plan.md"), /branch: iterator\/add-jwt-auth/);
 		assert.match(read(root, "plan.md"), /worktree: /);
 		git(root, "worktree", "remove", "--force", res.worktree);
@@ -2092,7 +2288,10 @@ test("plan approval on main creates the plan branch (worktree by default, in pla
 		const res2 = applyOp(PLAN_OP, root);
 		assert.equal(res2.branch, "iterator/add-jwt-auth");
 		assert.equal(res2.worktree, undefined);
-		assert.equal(git(root, "rev-parse", "--abbrev-ref", "HEAD"), "iterator/add-jwt-auth");
+		assert.equal(
+			git(root, "rev-parse", "--abbrev-ref", "HEAD"),
+			"iterator/add-jwt-auth",
+		);
 
 		// branch_per_plan off → nothing moves.
 		git(root, "checkout", "-q", "main");
@@ -2112,7 +2311,13 @@ test("backlog writer saves, validates, selects, edits, and deletes candidates", 
 	const root = makeRepo();
 	try {
 		const created = applyOp(
-			{ op: "backlog", action: "create", kind: "bug", title: "Fix stale view", details: "Hub does not refresh." },
+			{
+				op: "backlog",
+				action: "create",
+				kind: "bug",
+				title: "Fix stale view",
+				details: "Hub does not refresh.",
+			},
 			root,
 		);
 		assert.equal(created.item.id, "fix-stale-view");
@@ -2124,22 +2329,55 @@ test("backlog writer saves, validates, selects, edits, and deletes candidates", 
 			{ op: "backlog", action: "select", id: created.item.id, selected: true },
 			root,
 		);
-		assert.equal(selected.items[0].selected, true, "selection persists in the index");
+		assert.equal(
+			selected.items[0].selected,
+			true,
+			"selection persists in the index",
+		);
 		const edited = applyOp(
-			{ op: "backlog", action: "edit", id: created.item.id, kind: "idea", title: "Refresh stale view", details: "Keep state current." },
+			{
+				op: "backlog",
+				action: "edit",
+				id: created.item.id,
+				kind: "idea",
+				title: "Refresh stale view",
+				details: "Keep state current.",
+			},
 			root,
 		);
 		assert.equal(edited.item.kind, "idea");
 		assert.equal(edited.item.selected, true, "editing preserves selection");
 		assert.throws(
-			() => applyOp({ op: "backlog", action: "create", kind: "task", title: "x", details: "" }, root),
+			() =>
+				applyOp(
+					{
+						op: "backlog",
+						action: "create",
+						kind: "task",
+						title: "x",
+						details: "",
+					},
+					root,
+				),
 			/backlog kind must be one of/,
 		);
 		assert.throws(
-			() => applyOp({ op: "backlog", action: "select", id: created.item.id, selected: "yes" }, root),
+			() =>
+				applyOp(
+					{
+						op: "backlog",
+						action: "select",
+						id: created.item.id,
+						selected: "yes",
+					},
+					root,
+				),
 			/backlog selected must be a boolean/,
 		);
-		const deleted = applyOp({ op: "backlog", action: "delete", id: created.item.id }, root);
+		const deleted = applyOp(
+			{ op: "backlog", action: "delete", id: created.item.id },
+			root,
+		);
 		assert.equal(deleted.items.length, 0);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
@@ -2155,9 +2393,15 @@ test("cancel-feature archives the file, scrubs dependents, and regenerates index
 		applyOp(PLAN_OP, root);
 		applyOp(FEATURES_OP, root);
 
-		const res = applyOp({ op: "cancel-feature", feature: "config-module" }, root);
+		const res = applyOp(
+			{ op: "cancel-feature", feature: "config-module" },
+			root,
+		);
 		assert.equal(res.op, "cancel-feature");
-		assert.match(res.archived, /^features\/archive\/cancelled-.*-config-module$/);
+		assert.match(
+			res.archived,
+			/^features\/archive\/cancelled-.*-config-module$/,
+		);
 		assert.deepEqual(res.dependentsScrubbed, ["auth-middleware"]);
 
 		assert.ok(
@@ -2198,7 +2442,10 @@ test("cancel-plan archives everything, resets state, and tears down branch+workt
 		const planRes = applyOp(PLAN_OP, root); // worktree_per_plan default: on
 		assert.ok(planRes.worktree, "fixture must create a worktree");
 		applyOp(FEATURES_OP, root);
-		applyOp({ op: "state", set: { mode: "auto", phase: "implementing" } }, root);
+		applyOp(
+			{ op: "state", set: { mode: "auto", phase: "implementing" } },
+			root,
+		);
 		// Uncommitted work inside the worktree — cancel must report and discard it.
 		writeFileSync(join(planRes.worktree, "leftover.txt"), "x");
 

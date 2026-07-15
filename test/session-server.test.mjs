@@ -442,11 +442,21 @@ test("an idle submit from a stale-run view still dispatches as unsolicited", asy
 
 test("an idle backlog submission is forwarded without unrelated dashboard state", async () => {
 	let unsolicited = null;
-	const { session, origin } = await startSession({ onUnsolicited: (r) => (unsolicited = r) });
+	const { session, origin } = await startSession({
+		onUnsolicited: (r) => (unsolicited = r),
+	});
 	try {
 		session.showView({ step: "hub", render: () => viewHtml("HUB") });
-		const payload = { type: "backlog", action: "select", id: "fix-shell", selected: true };
-		const res = await fetch(`${origin}/submit`, { method: "POST", body: JSON.stringify(payload) });
+		const payload = {
+			type: "backlog",
+			action: "select",
+			id: "fix-shell",
+			selected: true,
+		};
+		const res = await fetch(`${origin}/submit`, {
+			method: "POST",
+			body: JSON.stringify(payload),
+		});
 		assert.equal(res.status, 200);
 		await sleep(20);
 		assert.deepEqual(unsolicited, payload);

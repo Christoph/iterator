@@ -113,9 +113,15 @@ test("gather exposes the indexed backlog separately from plan features", () => {
 			`---\ntype: Backlog\ntitle: Iterator backlog\nitems: '[{"id":"fix-shell","title":"Fix shell","details":"Session error","kind":"bug","selected":true}]'\n---\n\n# Backlog\n`,
 		);
 		const p = gather(root);
-		assert.deepEqual(p.backlog, [{
-			id: "fix-shell", title: "Fix shell", details: "Session error", kind: "bug", selected: true,
-		}]);
+		assert.deepEqual(p.backlog, [
+			{
+				id: "fix-shell",
+				title: "Fix shell",
+				details: "Session error",
+				kind: "bug",
+				selected: true,
+			},
+		]);
 		assert.ok(!p.features.some((feature) => feature.name === "fix-shell"));
 	} finally {
 		rmSync(root, { recursive: true, force: true });
@@ -249,7 +255,10 @@ test("focused review favors its feature over an earlier overlapping file owner",
 			`---\ntype: Feature\ntitle: Config module\nstatus: done\nfiles: ["src/auth/*.ts"]\n---\n`,
 		);
 		const p = gatherReview(root, { feature: "auth-middleware" });
-		assert.deepEqual(p.features[0].files.map((file) => file.path), ["src/auth/index.ts"]);
+		assert.deepEqual(
+			p.features[0].files.map((file) => file.path),
+			["src/auth/index.ts"],
+		);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
@@ -971,13 +980,34 @@ test("gatherUsage and gatherArchive read the ledger and retired plans", async ()
 		applyOp(
 			{
 				op: "features",
-				features: [{ name: "only-feature", description: "d", files: ["src/x.ts"] }],
+				features: [
+					{ name: "only-feature", description: "d", files: ["src/x.ts"] },
+				],
 			},
 			root,
 		);
-		applyOp({ op: "update-feature", feature: "only-feature", set: { status: "done" } }, root);
 		applyOp(
-			{ op: "usage", rows: [{ step: "implement", feature: "only-feature", provider: "p", model: "m", input: 42, output: 7 }] },
+			{
+				op: "update-feature",
+				feature: "only-feature",
+				set: { status: "done" },
+			},
+			root,
+		);
+		applyOp(
+			{
+				op: "usage",
+				rows: [
+					{
+						step: "implement",
+						feature: "only-feature",
+						provider: "p",
+						model: "m",
+						input: 42,
+						output: 7,
+					},
+				],
+			},
 			root,
 		);
 
