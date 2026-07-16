@@ -1,6 +1,6 @@
 ---
 name: iterator-review
-description: Review one implemented feature from the memory/ bundle — opens the feature-scoped review UI in the browser (or reviews non-interactively with --agent in auto mode), records the verdict in the feature's Review section, and on approval runs the deterministic accept-commit (feature(<slug>) commit with a Feature trailer, status flip to done). Use when the user types /iterator-review, clicks Review on the dashboard, or wants to review a specific feature.
+description: Review one implemented feature from the memory/ bundle — the diff is rebuilt from the feature's feature(<slug>) commits (working tree only as fallback for uncommitted rounds), shown in the review UI in the browser (or reviewed non-interactively with --agent in auto mode); the verdict lands in the feature's Review section, and approval runs the deterministic accept-commit (status flip to done). Use when the user types /iterator-review, clicks Review on the dashboard, or wants to review a specific feature.
 ---
 
 # iterator-review
@@ -28,16 +28,21 @@ feature; if none exists, say there is nothing to review and stop.
 node <skill-dir>/../iterator/gather.mjs --step review --feature <slug>
 ```
 
-Do **not** diff by hand. The payload maps every changed file to the feature,
-split into groups: `declared` (the feature's files), `tests`, `incidental`
-(changes outside the declared surface, pre-assigned to this feature with a
-reassignable default), and `bootstrap` (content that was already staged before
-the round — defaults to its own `chore(bootstrap)` commit). For a `done`
-feature with a clean tree the diff is rebuilt from its commits (re-review).
+Do **not** diff by hand. An `implemented` or `done` feature with commits is
+reviewed **from those commits** (`source: "commits"`): the diff is exactly
+what `commit-feature` landed, so unrelated working-tree churn can never
+pollute or block the review. `uncommittedOverlap` lists reviewed files that
+also carry uncommitted tree changes — mention it as a hint; it is **never**
+grounds to withhold approval. The working tree is the diff source only for a
+feature with no commits yet (legacy round); there the payload maps every
+changed file to the feature, split into groups: `declared` (the feature's
+files), `tests`, `incidental` (pre-assigned to this feature with a
+reassignable default), and `bootstrap` (content already staged before the
+round — defaults to its own `chore(bootstrap)` commit).
 If `hasChanges` is false, report that there is nothing to review and stop.
 On an oversized round `diffTruncated` is true and `diffOmittedFiles` lists
-files whose hunks were stripped from the payload — read those with `git diff`
-(scoped per path) before judging them.
+files whose hunks were stripped from the payload — read those with `git show`
+(commit mode) or `git diff` (scoped per path) before judging them.
 
 ### 2a. Human review (default): open the review UI
 
@@ -47,8 +52,10 @@ recorded `tests_status` when it has tests) and pipe it into
 result exactly like `/iterator-implement` step 5:
 
 - `accept-commit` → pipe into `write.mjs` (`op: accept-commit`, the single
-  feature, dispositions verbatim) — it commits, flips `status: done`, and
-  records the shas. Report what was committed, plus `defaulted` /
+  feature, dispositions verbatim). For an already-committed feature it just
+  flips `status: done` and records the verdict (`accepted` in the result);
+  a commit-less feature still gets the full staging + `feature(<slug>)`
+  commit path. Report `accepted` / `committed`, plus `defaulted` /
   `uncommitted` / `leftovers` / `bootstrapCommit` from the result.
 - `review-feedback` → record it:
 
@@ -70,7 +77,11 @@ way a demanding human reviewer would: does the change do what the feature's
 description and implementation notes promise, are the tests honest (no
 weakened assertions), does it respect the anchored pitfalls and the blast
 radius, is anything obviously broken or left half-done? Incidental files are
-part of this feature's round — review them too.
+part of this feature's round — review them too. Judge **only the payload's
+diff** (the feature's commits): uncommitted working-tree changes outside it —
+formatting churn, other features in flight — are not part of this review and
+never a reason to block approval (at most relay `uncommittedOverlap` as a
+note).
 
 - **Approve** → run accept-commit yourself (the write shown in 2a's first
   bullet, dispositions defaulted — pass `"uncategorized": []`), then record

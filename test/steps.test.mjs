@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, appendFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, appendFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -212,6 +212,64 @@ test('gatherReview rebuilds a done feature diff from its trailer commits', () =>
     const config = p.features.find(c => c.name === 'config-module');
     assert.ok(config.files.some(f => f.path === 'src/config.ts'));
     assert.ok(!config.files.some(f => f.path.startsWith('memory/')), 'bundle bookkeeping excluded');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+/** Flip a fixture feature's status by rewriting its frontmatter line. */
+function setStatus(root, slug, from, to) {
+  const p = join(root, 'memory', 'features', `${slug}.md`);
+  writeFileSync(p, readFileSync(p, 'utf8').replace(`status: ${from}`, `status: ${to}`));
+}
+
+test('gatherReview reviews an implemented feature from its commits despite unrelated churn', () => {
+  const root = makeFixture();
+  try {
+    // The commit-feature flow: work committed with the trailer, status implemented.
+    appendFileSync(join(root, 'src', 'auth', 'index.ts'), 'export const impl = 1;\n');
+    git(root, 'add', 'src/auth/index.ts');
+    git(root, 'commit', '-q', '-m', 'feature(auth-middleware): impl\n\nFeature: auth-middleware');
+    setStatus(root, 'auth-middleware', 'pending', 'implemented');
+    // Unrelated churn plus drift on the reviewed file — the original bug's shape.
+    writeFileSync(join(root, 'notes.txt'), 'churn\n');
+    appendFileSync(join(root, 'src', 'auth', 'index.ts'), 'export const drift = 2;\n');
+    const rv = gatherReview(root, { feature: 'auth-middleware' });
+    assert.equal(rv.source, 'commits', 'a dirty tree must not defeat the commit rebuild');
+    const feat = rv.features.find(c => c.name === 'auth-middleware');
+    assert.ok(feat.files.some(f => f.path === 'src/auth/index.ts'));
+    assert.ok(!feat.files.some(f => f.path === 'notes.txt'), 'churn stays out of the review');
+    const hunkText = JSON.stringify(feat.files);
+    assert.ok(hunkText.includes('impl'), 'the committed content is reviewed');
+    assert.ok(!hunkText.includes('drift'), 'uncommitted drift is not part of the diff');
+    assert.deepEqual(rv.uncommittedOverlap, ['src/auth/index.ts'], 'drift on reviewed files surfaces as a hint');
+    assert.deepEqual(rv.defaulted, [], 'commit mode never dispositions files');
+    assert.equal(rv.hasChanges, true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('gatherReview concatenates non-contiguous feature commits instead of range-diffing', () => {
+  const root = makeFixture();
+  try {
+    appendFileSync(join(root, 'src', 'auth', 'index.ts'), 'export const part1 = 1;\n');
+    git(root, 'add', '-A');
+    git(root, 'commit', '-q', '-m', 'feature(auth-middleware): part1\n\nFeature: auth-middleware');
+    writeFileSync(join(root, 'other.txt'), 'foreign work between the feature commits\n');
+    git(root, 'add', '-A');
+    git(root, 'commit', '-q', '-m', 'chore: unrelated');
+    writeFileSync(join(root, 'src', 'auth', 'extra.ts'), 'export const part2 = 2;\n');
+    git(root, 'add', '-A');
+    git(root, 'commit', '-q', '-m', 'feature(auth-middleware): part2\n\nFeature: auth-middleware');
+    setStatus(root, 'auth-middleware', 'pending', 'implemented');
+    const rv = gatherReview(root, { feature: 'auth-middleware' });
+    assert.equal(rv.source, 'commits');
+    const feat = rv.features.find(c => c.name === 'auth-middleware');
+    assert.ok(feat.files.some(f => f.path === 'src/auth/index.ts'));
+    assert.ok(feat.files.some(f => f.path === 'src/auth/extra.ts'));
+    const hunkText = JSON.stringify(rv.features) + JSON.stringify(rv.uncategorized);
+    assert.ok(!hunkText.includes('foreign work'), 'the interleaved commit never leaks into the diff');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

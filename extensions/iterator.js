@@ -1035,9 +1035,14 @@ export default function iteratorExtension(pi) {
 			"{op:'adjustments', ...uiResult}; accept:true or type:'plan-approved' promotes drafts to pending), " +
 			"memorize (okf-memory shared bundle: create/update/delete knowledge concepts in " +
 			"architecture/decisions/patterns/pitfalls/setup and/or advance last_memorized_commit), " +
-			"accept-commit (process the review UI's accept result end to end: branch safety, " +
-			"per-feature commits with trailers, done flips, sha recording, memory verdicts, pointer " +
-			"advance — pass the UI result plus per-feature testsStatus/summary and advance:true|false), " +
+			"commit-feature (the implement step's commit: stages the listed files plus the feature's " +
+			"files:/tests: matches, commits feature(<slug>) with the Feature: trailer, flips status to " +
+			"implemented, records the sha — review then reads the commit diff), " +
+			"commit-tests (the test step's twin: test(<slug>) commit + tests/tests_status recording), " +
+			"accept-commit (process the review UI's accept result end to end: features already " +
+			"committed via commit-feature just flip to done; commit-less ones get branch safety, " +
+			"per-feature commits with trailers, done flips, sha recording — plus memory verdicts and " +
+			"pointer advance; pass the UI result plus per-feature testsStatus/summary and advance:true|false), " +
 			"record-review (pipe a review-feedback UI result verbatim to record statuses/notes), " +
 			"record-plan-review (record the whole-plan review's report in plan.md + set plan_reviewed), " +
 			"restart-feature (escalation recovery: discard a feature's working-tree changes and reset it to pending), " +
@@ -1063,6 +1068,8 @@ export default function iteratorExtension(pi) {
 						"refresh-format",
 						"retire-plan",
 						"accept-commit",
+						"commit-feature",
+						"commit-tests",
 						"record-review",
 						"record-plan-review",
 						"restart-feature",
