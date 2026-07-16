@@ -15,7 +15,9 @@ process.env.ITERATOR_CANCEL_GRACE_MS = "250";
 const CANCEL_GRACE_MS = 250;
 
 const srvMod = await import("../lib/server.mjs"); // namespace: live RUN_ID binding
-const { createSessionServer, tabFor } = await import("../lib/session-server.mjs");
+const { createSessionServer, tabFor } = await import(
+	"../lib/session-server.mjs"
+);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -70,7 +72,10 @@ test("GET / serves the persistent shell (iframe + EventSource); status says sess
 		const shell = await (await fetch(origin + "/")).text();
 		assert.ok(shell.includes("new EventSource('/events')"));
 		assert.ok(shell.includes('<iframe id="v">'));
-		assert.ok(shell.includes('data-tab="planning"'), "shell has a Planning tab");
+		assert.ok(
+			shell.includes('data-tab="planning"'),
+			"shell has a Planning tab",
+		);
 		assert.ok(shell.includes('data-tab="work"'), "shell has a Work tab");
 		assert.ok(
 			shell.includes('data-tab="knowledge"'),
@@ -546,6 +551,15 @@ test("setStatus broadcasts a status SSE event and replays it to new connections"
 		assert.equal(status.data.phase, "implementing");
 
 		const shell = await (await fetch(origin + "/")).text();
+		assert.ok(
+			shell.includes('id="identity"'),
+			"shell carries the centered project identity",
+		);
+		assert.ok(
+			shell.includes('id="project"'),
+			"identity receives the working-directory name",
+		);
+		assert.ok(shell.includes("'./' + tab"), "identity follows the active tab");
 		assert.ok(
 			shell.includes('id="ctl-pause"'),
 			"shell carries the control strip",

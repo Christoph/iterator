@@ -55,7 +55,7 @@ test("every SKILL.md references the shared pi-mode doc exactly once", () => {
 test("write.mjs ops named in the skill docs exist in the writer's schema table", () => {
 	const schemas = readFileSync(join(root, "lib", "write.mjs"), "utf8");
 	const ops = ["plan", "features", "update-feature", "apply-review", "retire-plan",
-		"accept-commit", "commit-tests", "refresh-format", "extensions"];
+		"accept-commit", "commit-feature", "commit-tests", "refresh-format", "extensions"];
 	for (const op of ops) {
 		assert.ok(schemas.includes(`"${op}"`) || schemas.includes(`'${op}'`),
 			`op ${op} referenced by the skills is missing from lib/write.mjs`);

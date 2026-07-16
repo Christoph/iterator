@@ -1856,6 +1856,188 @@ test("commit-tests commits test files with trailer, records status and sha", () 
 	}
 });
 
+test("commit-feature commits only the feature's files, flips implemented, records the sha", () => {
+	const root = makeWaveRepo();
+	try {
+		git(root, "reset");
+		// Unrelated churn that must never ride into the feature commit.
+		writeFileSync(join(root, "notes.txt"), "churn\n");
+		const res = applyOp(
+			{
+				op: "commit-feature",
+				feature: "feature-a",
+				files: ["src/a.ts"],
+				summary: "implement a",
+			},
+			root,
+		);
+		assert.match(res.branch, /^iterator\/feature-a$/, "moved off main");
+		assert.deepEqual(res.staged, ["src/a.ts"]);
+		assert.ok(res.leftovers.includes("notes.txt"), "churn reported as leftover");
+		assert.ok(res.leftovers.includes("src/b.ts"), "the other feature's file stays uncommitted");
+		const body = git(root, "log", "--format=%B", "-1", res.sha);
+		assert.match(body, /feature\(feature-a\): implement a/);
+		assert.match(body, /Feature: feature-a/);
+		assert.doesNotMatch(
+			git(root, "show", "--name-only", "--format=", res.sha),
+			/notes\.txt|src\/b\.ts/,
+			"commit contains exactly the feature's paths (plus the bundle)",
+		);
+		const fm = frontmatter(read(root, "features", "feature-a.md"));
+		assert.equal(fm.status, "implemented");
+		assert.match(
+			read(root, "features", "feature-a.md"),
+			new RegExp(`sha: ${res.sha}[\\s\\S]*kind: implement`),
+		);
+		assert.match(
+			git(root, "log", "--format=%s"),
+			/chore\(iterator\): record feature commit/,
+		);
+
+		// Rework round: a second commit under the same trailer, still implemented.
+		writeFileSync(join(root, "src", "a.ts"), "export const a = 2;\n");
+		const res2 = applyOp(
+			{ op: "commit-feature", feature: "feature-a", files: ["src/a.ts"] },
+			root,
+		);
+		assert.notEqual(res2.sha, res.sha);
+		assert.equal(
+			frontmatter(read(root, "features", "feature-a.md")).status,
+			"implemented",
+		);
+		assert.match(
+			read(root, "features", "feature-a.md"),
+			new RegExp(`sha: ${res.sha}[\\s\\S]*sha: ${res2.sha}`),
+			"both implement commits recorded",
+		);
+		assert.equal(res.validation.ok, true);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("commit-feature validates status, dependencies, and refuses an empty stage", () => {
+	const root = makeWaveRepo();
+	try {
+		git(root, "reset");
+		assert.throws(
+			() => applyOp({ op: "commit-feature", feature: "nope" }, root),
+			/no feature 'nope'/,
+		);
+		// Clean tree: nothing dirty matches → refuse rather than stage the tree.
+		git(root, "add", ".");
+		git(root, "commit", "-qm", "baseline");
+		assert.throws(
+			() =>
+				applyOp(
+					{ op: "commit-feature", feature: "feature-a", files: ["src/a.ts"] },
+					root,
+				),
+			/nothing to stage/,
+		);
+		// A done feature can no longer take implement commits through this op.
+		writeFileSync(join(root, "src", "a.ts"), "export const a = 3;\n");
+		applyOp(
+			{ op: "commit-feature", feature: "feature-a", files: ["src/a.ts"] },
+			root,
+		);
+		applyOp({ op: "accept-commit", features: ["feature-a"] }, root);
+		writeFileSync(join(root, "src", "a.ts"), "export const a = 4;\n");
+		assert.throws(
+			() =>
+				applyOp(
+					{ op: "commit-feature", feature: "feature-a", files: ["src/a.ts"] },
+					root,
+				),
+			/is done, not pending\/implemented/,
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("commit-feature enforces the dependency gate like accept-commit", () => {
+	const root = makeRepo();
+	try {
+		git(root, "config", "user.email", "t@t");
+		git(root, "config", "user.name", "t");
+		applyOp(PLAN_OP, root);
+		applyOp(FEATURES_OP, root); // auth-middleware depends on config-module
+		git(root, "add", ".");
+		git(root, "commit", "-qm", "init");
+		mkdirSync(join(root, "src", "auth"), { recursive: true });
+		writeFileSync(join(root, "src", "auth", "index.ts"), "export {};\n");
+		assert.throws(
+			() =>
+				applyOp(
+					{
+						op: "commit-feature",
+						feature: "auth-middleware",
+						files: ["src/auth/index.ts"],
+					},
+					root,
+				),
+			/waiting on: config-module/,
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("accept-commit slim path: already-committed features flip done with no new feature commit", () => {
+	const root = makeWaveRepo();
+	try {
+		git(root, "reset");
+		applyOp(
+			{ op: "commit-feature", feature: "feature-a", files: ["src/a.ts"] },
+			root,
+		);
+		const implementSha = git(root, "rev-parse", "HEAD~1"); // feature commit sits under the bookkeeping commit
+		// The original bug's shape: unrelated churn dirty at accept time.
+		writeFileSync(join(root, "notes.txt"), "churn\n");
+		const before = git(root, "rev-list", "--count", "HEAD");
+		const res = applyOp(
+			{
+				op: "accept-commit",
+				features: [{ slug: "feature-a", testsStatus: "green" }],
+				advance: true,
+			},
+			root,
+		);
+		assert.deepEqual(
+			res.accepted.map((a) => a.feature),
+			["feature-a"],
+		);
+		assert.deepEqual(res.committed, [], "no new feature commit on the slim path");
+		const after = git(root, "rev-list", "--count", "HEAD");
+		assert.equal(
+			Number(after) - Number(before),
+			1,
+			"only the bookkeeping commit landed",
+		);
+		assert.equal(
+			git(root, "log", "--format=%s").match(/feature\(feature-a\)/g).length,
+			1,
+			"still exactly one feature(feature-a) commit",
+		);
+		const fm = frontmatter(read(root, "features", "feature-a.md"));
+		assert.equal(fm.status, "done");
+		assert.equal(fm.tests_status, "green");
+		assert.match(
+			read(root, "index.md"),
+			new RegExp(`last_memorized_commit: ${implementSha}`),
+			"pointer advances to the recorded implement commit",
+		);
+		assert.ok(res.leftovers.includes("notes.txt"), "churn stays uncommitted");
+		// Untouched: feature-b keeps the full staging path on a later accept.
+		const res2 = applyOp({ op: "accept-commit", features: ["feature-b"] }, root);
+		assert.equal(res2.committed.length, 1);
+		assert.deepEqual(res2.accepted, []);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("extensions op writes the contract file and links it from the root index", () => {
 	const root = makeRepo();
 	try {

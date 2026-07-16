@@ -37,7 +37,9 @@
       "Bash(mv memory/features_old_tmp/* \"memory/chunks/archive/cancelled-2026-07-05-hub-ui-red-green-testing-and-commit-tracking/\")",
       "Bash(mv memory/chunks/archive/* memory/features/archive/)",
       "WebFetch(domain:registry.npmjs.org)",
-      "WebFetch(domain:pi.dev)"
+      "WebFetch(domain:pi.dev)",
+      "Bash(git -C /Volumes/Extern/Projects/iterator show --stat --format='%h %s' a5d59c5)",
+      "Bash(git -C /Volumes/Extern/Projects/iterator show --stat --format='%h %s' c0c5bf8)"
     ]
   }
 }

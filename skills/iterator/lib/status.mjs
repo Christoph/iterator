@@ -6,8 +6,10 @@
  * Feature lifecycle: draft → pending → implemented → done.
  *  - draft:       an unaccepted feature proposal (feature-set review promotes it)
  *  - pending:     accepted, waiting to be implemented
- *  - implemented: code-complete, awaiting review
- *  - done:        reviewed & committed — owned exclusively by accept-commit,
+ *  - implemented: committed (feature(<slug>) commits with the Feature:
+ *                 trailer, via commit-feature), awaiting review; legacy
+ *                 working-tree rounds reach it uncommitted via update-feature
+ *  - done:        reviewed & accepted — owned exclusively by accept-commit,
  *                 terminal (restart-feature is an op precondition, not a
  *                 status transition: it discards work, so drafts are excluded)
  *
@@ -34,7 +36,8 @@ export function canTransition(from, to) {
 
 /**
  * A dependency satisfies its dependents when it is done (reviewed &
- * committed) — or merely implemented, when review_required is off.
+ * accepted) — or merely implemented (committed, unreviewed), when
+ * review_required is off.
  */
 export function depSatisfied(status, settings) {
 	return (
