@@ -1,6 +1,22 @@
 # iterator update log
 
 ## 2026-07-16
+* **Implementation**: Committed feature(clarify-dashboard-identity) on branch iterator/clarify-dashboard-identity.
+* **Update**: Applied 4 feature adjustment(s).
+* **Creation**: 4 feature(s) written.
+* **Creation**: Plan "Polish dashboard and multi-agent workflows" approved on branch main.
+* **Backlog**: select idea-backlog-layout (selected).
+* **Backlog**: create idea-backlog-layout.
+* **Backlog**: select improve-overall-styling (selected).
+* **Backlog**: select show-in-settings-for-models-only-the-scoped-models (selected).
+* **Backlog**: select improve-the-interaction-with-claude-code (selected).
+* **Backlog**: create improve-the-interaction-with-claude-code.
+* **Backlog**: create show-in-settings-for-models-only-the-scoped-models.
+* **Backlog**: create improve-overall-styling.
+* **Memorize**: Set last_memorized_commit to 84d97d1270c7.
+* **Creation**: Memorized [Centralized workflow state rules](/architecture/workflow-state-ownership.md).
+* **Update**: Memorized [Unify Iterator dashboard and feature workflow](/decisions/iterator-dashboard-feature-workflow.md).
+* **Cancellation**: Plan "Simplify iterator: clear states, lean agent context, Planning tab" cancelled — archived under /features/archive/cancelled-2026-07-16-simplify-iterator-clear-states-lean-agent-context-planning-tab/.
 * stale-docs-cleanup implemented: NUL note removed (byte verified gone), server-derived-state + tab structure documented in CLAUDE.md
 * planning-tab implemented: planning view + widgets module, hub slimmed to Work, four-tab shell, extension pushes both; 311/311 green + manual render check
 * server-module-split implemented: env/run-id/takeover/listen modules, facade re-exports, session-server shares listenWithTakeover; takeover + force-port manually verified

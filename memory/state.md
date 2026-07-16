@@ -8,7 +8,7 @@ phase: idle
 active_feature: null
 strikes: "{}"
 escalation: null
-timestamp: 2026-07-16T09:37:56.590Z
+timestamp: 2026-07-16T11:26:26.735Z
 ---
 
 Runtime flow state; read via gather, written only by the state op.

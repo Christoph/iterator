@@ -546,6 +546,9 @@ test("setStatus broadcasts a status SSE event and replays it to new connections"
 		assert.equal(status.data.phase, "implementing");
 
 		const shell = await (await fetch(origin + "/")).text();
+		assert.ok(shell.includes('id="identity"'), "shell carries the centered project identity");
+		assert.ok(shell.includes('id="project"'), "identity receives the working-directory name");
+		assert.ok(shell.includes("'./' + tab"), "identity follows the active tab");
 		assert.ok(
 			shell.includes('id="ctl-pause"'),
 			"shell carries the control strip",
