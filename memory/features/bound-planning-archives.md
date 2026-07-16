@@ -2,18 +2,19 @@
 type: Feature
 title: Bound planning archives
 description: Give Idea Backlog and retired-plan lists clear spacing and bounded vertical scrolling.
-status: implemented
+status: done
 size: small
 depends_on: [clarify-dashboard-identity]
 files: ["lib/views/planning.mjs", "lib/ui.mjs", "test/ui.test.mjs", "test/client-js-parse.test.mjs"]
 memories: [pitfalls/client-js-template-literal-escaping, architecture/browser-server-contract, architecture/workflow-state-ownership, patterns/safe-browser-rendering, decisions/iterator-dashboard-feature-workflow, decisions/synced-droppable-skill-libs]
-timestamp: "2026-07-16T19:58:08.289Z"
+timestamp: "2026-07-16T19:59:53.062Z"
 tags: []
 tests_status: green
 commits:
   - sha: 7092d9354c26c607940a595f21511ce86266b469
     kind: implement
     date: 2026-07-16
+done: 2026-07-16
 ---
 
 # Implementation notes
