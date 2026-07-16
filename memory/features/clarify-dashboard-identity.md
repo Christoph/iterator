@@ -7,9 +7,13 @@ size: small
 depends_on: []
 files: ["lib/ui.mjs", "lib/session-server.mjs", "lib/views/planning.mjs", "lib/views/hub.mjs", "test/ui.test.mjs", "test/session-server.test.mjs"]
 memories: [pitfalls/cancel-now-after-grace-timer, pitfalls/client-js-template-literal-escaping, architecture/browser-server-contract, architecture/workflow-state-ownership, patterns/safe-browser-rendering, decisions/iterator-dashboard-feature-workflow, decisions/settings-close-returns-to-work, decisions/synced-droppable-skill-libs]
-timestamp: "2026-07-16T15:03:36.744Z"
+timestamp: "2026-07-16T15:03:36.822Z"
 tags: []
 done: 2026-07-16
+commits:
+  - sha: a5d59c50453e568ec486a3c9c017c2506898700e
+    kind: implement
+    date: 2026-07-16
 ---
 
 # Implementation notes
