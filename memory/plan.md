@@ -1,24 +1,25 @@
 ---
 type: Plan
-title: Repair dashboard actions and drafting
-description: Restore reliable Knowledge actions, usable working state, and persistent Work plan drafting.
+title: "Simplify iterator: clear states, lean agent context, Planning tab"
+description: Consolidate state rules into one server-owned module, cut LLM token waste by loading files server-side, split server.mjs, add a Planning tab, and fix dependency-graph label truncation.
 status: approved
-branch: iterator/settings-return-to-work
-created: 2026-07-14
-timestamp: 2026-07-14T11:17:50.789Z
+branch: iterator/simplify-iterator-clear-states-lean-agent-context-planning-tab
+worktree: /Volumes/Extern/Projects/iterator-iterator-simplify-iterator-clear-states-lean-agent-context-planning-tab
+created: 2026-07-16
+timestamp: 2026-07-16T09:38:26.703Z
 ---
 
 # Goal
 
-Fix dashboard reliability issues: make memory modals close reliably, ensure every Knowledge-tab control works, keep Knowledge interactive while AI work runs, and provide a larger Work-tab plan input that retains its draft while users switch tabs.
+Make the codebase robust and maintainable: plans and features get clear states computed by deterministic server code and merely rendered by the UI; the AI agent receives only relevant context, sending file paths/ids instead of echoing full text; the dashboard splits into Planning (ideas/bugs backlog, plan and feature management) and Work (implement/test/review) tabs alongside Knowledge and Usage; the dependency graph shows full node labels.
 
 # Architecture
 
-- Audit every emitted Knowledge-view action in `lib/views/knowledge.mjs` against `lib/pi-tools.mjs` and the extension dispatcher; repair any broken route to its existing skill or deterministic handler while preserving the knowledge lifecycle (architecture/knowledge-lifecycle).
-- Repair Knowledge modal event handling and its synced packaged copy so X, backdrop, and Escape dismiss the local modal without ending the browser-server round (architecture/browser-server-contract).
-- Correct the persistent shell’s working overlay in `lib/session-server.mjs` so it says “AI is working”, blocks only the Work surface, and leaves Knowledge actions and concept browsing accessible; constrain and center its content at wide viewports.
-- Extend the Work hub in `lib/views/hub.mjs` with client-side draft persistence across iframe/tab refreshes; preserve the existing one-action result protocol and use the established dashboard navigation model (decisions/settings-close-returns-to-work).
-- Split the work into user-visible features, each with its own focused regression coverage; update canonical root views and run the required skill-library sync (decisions/synced-droppable-skill-libs).
+- New lib/status.mjs holds the single feature-status transition table, dependency-readiness rule, and derived planStage; write.mjs guards and gather.mjs/hub.mjs duplicates all delegate to it, and hub payloads ship ready/waitingOn/stage so views only render (architecture/deterministic-writer).
+- gather.mjs hydrates memory-card existingBody from disk by concept id, gains a narrow retire step, and caps the review diff at a file boundary like plan-review; app.mjs/extensions spawn the writer on plan approval via a shared runWriter so sections never round-trip through the model twice (architecture/browser-server-contract).
+- lib/server.mjs splits into lib/server/{env,run-id,takeover,listen}.mjs with server.mjs as a re-exporting facade; the duplicated EADDRINUSE walk-up in session-server.mjs moves into listenWithTakeover; takeover logic moves verbatim.
+- New lib/views/planning.mjs renders the planning surface (hero, backlog, retired plans, dependency graph, plan-lifecycle buttons, read-only feature cards) from the same hub gather payload; hub.mjs slims to the Work surface; session shell gains the Planning tab (decisions/synced-droppable-skill-libs for sync updates).
+- New lib/views/graph.mjs shares auto-width dependency-graph rendering between hub, feature, and planning views; labels are never clipped, wide graphs scroll horizontally per memory/design.md.
 
 # Dependencies
 
@@ -26,14 +27,13 @@ Fix dashboard reliability issues: make memory modals close reliably, ensure ever
 
 # Key decisions
 
-- Keep modal dismissal entirely client-side; it must not emit a workflow cancel or interfere with pending server rounds.
-- Reuse the existing knowledge skill commands and deterministic handlers rather than adding a second action protocol.
-- Persist only the unsent plan-goal draft in browser storage, restoring it when the Work view is recreated and clearing it only after the user starts a plan.
-- Treat the larger plan input and centered working state as focused usability improvements within the saved dark dashboard design parameters, not a visual redesign.
+- Feature statuses stay draft|pending|implemented|done and plan status stays draft|approved; everything else (readiness, stage) is derived in gather, never stored, so there is one source of truth.
+- The transition table tightens update-feature: draft cannot jump to done; accept-commit remains the only owner of done.
+- The two request handlers (one-shot vs session) stay separate programs; only genuinely shared logic (env, run-id, takeover, listen walk-up) is extracted.
+- write.mjs is not split into files; the status module removes the real duplication and a mechanical split adds churn without behavior wins.
+- existingBody leaves the LLM card schema entirely; the server fills it from disk only when absent so explicitly passed bodies still win.
+- Graph nodes are single-line auto-width (7.25px/char estimate + padding), preferring horizontal overflow to clipping or wrapping.
 
 # Features
 
-* [Nonblocking AI working state](/features/nonblocking-working-overlay.md) - Keep Knowledge usable and center the working indicator while AI work is in progress.
-* [Persistent Work plan draft](/features/persistent-plan-draft.md) - Provide a larger plan-goal input that preserves unsent text when users switch dashboard tabs.
-* [Record tests for feature contracts](/features/feature-test-recording.md) - Make the deterministic test writer record and commit tests for feature-based plans.
-* [Reliable Knowledge controls](/features/knowledge-controls.md) - Make memory modals dismiss reliably and route every Knowledge-tab action to its working skill or handler.
+<!-- regenerated by /iterator-feature; empty until features exist -->

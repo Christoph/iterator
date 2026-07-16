@@ -1,6 +1,8 @@
 # iterator update log
 
 ## 2026-07-16
+* Registered simplification plan approved in Claude Code plan mode
+* Superseded: dashboard-repair work already committed on main; archiving to start the simplification plan
 * **Creation**: Memorized [Client JS in view template literals needs double-backslash escapes](/pitfalls/client-js-template-literal-escaping.md).
 
 ## 2026-07-15
