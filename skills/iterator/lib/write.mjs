@@ -70,6 +70,14 @@ import {
 } from "./gather.mjs";
 import { git as gitSoft, gitOrFail as gitW, hasStaged } from "./git.mjs";
 import {
+	canTransition,
+	CREATABLE_STATUSES,
+	FEATURE_STATUSES,
+	RESTARTABLE_STATUSES,
+	satisfiedSet,
+	unfinished,
+} from "./status.mjs";
+import {
 	parseState,
 	SETTINGS_DEFS,
 	SETTINGS_KEYS,
@@ -649,7 +657,7 @@ function writeFeatures(payload, root) {
 	for (const c of incoming) {
 		if (!c.name || !/^[a-z0-9][a-z0-9-]*$/.test(c.name))
 			fail(`invalid feature slug '${c.name || ""}' (kebab-case required)`);
-		if (c.status && !["draft", "pending"].includes(c.status)) {
+		if (c.status && !CREATABLE_STATUSES.includes(c.status)) {
 			fail(
 				`invalid feature status '${c.status}' (features op writes draft|pending; done is owned by update-feature)`,
 			);
@@ -1221,20 +1229,21 @@ function updateFeature(payload, root, { regen = true } = {}) {
 		fail(
 			`update-feature cannot set: ${bad.join(", ")} (allowed: ${allowed.join(", ")})`,
 		);
-	if (
-		set.status &&
-		!["draft", "pending", "implemented", "done"].includes(set.status)
-	)
+	if (set.status && !FEATURE_STATUSES.includes(set.status))
 		fail(`invalid status '${set.status}'`);
-	// `implemented` marks code-complete-awaiting-review: it only makes sense
-	// coming from `pending` (or as an idempotent re-flip during rework).
-	if (
-		set.status === "implemented" &&
-		!["pending", "implemented"].includes(c.fm.status || "pending")
-	)
+	// The transition table (status.mjs) is the single rule: `implemented`
+	// marks code-complete-awaiting-review and is only reachable from pending
+	// (or as an idempotent re-flip during rework); done never reopens, and a
+	// draft can never jump straight to done — accept-commit owns done.
+	if (set.status && !canTransition(c.fm.status || "pending", set.status)) {
+		if (set.status === "implemented")
+			fail(
+				`feature '${c.slug}' is ${c.fm.status} — implemented is only reachable from pending`,
+			);
 		fail(
-			`feature '${c.slug}' is ${c.fm.status} — implemented is only reachable from pending`,
+			`feature '${c.slug}' cannot move ${c.fm.status || "pending"} → ${set.status}`,
 		);
+	}
 	if (set.status === "done" && !set.done) set.done = today();
 
 	fm = setFmKeys(fm, { ...set, timestamp: nowIso() });
@@ -1427,22 +1436,11 @@ function acceptCommit(payload, root) {
 	if (!entries.length) fail("accept-commit needs a non-empty features list");
 
 	const bySlug = new Map(b.features.map((c) => [c.slug, c]));
-	// A dependency satisfies its dependents when done — or merely implemented,
-	// when review_required is off.
-	const satisfied = new Set(
-		b.features
-			.filter(
-				(c) =>
-					c.fm.status === "done" ||
-					(c.fm.status === "implemented" &&
-						b.settings.review_required === "off"),
-			)
-			.map((c) => c.slug),
-	);
+	const satisfied = satisfiedSet(b.features, b.settings);
 	for (const e of entries) {
 		const c = bySlug.get(e.slug) || fail(`no feature '${e.slug || ""}'`);
 		if (c.fm.status === "done") continue; // already landed — resumable rerun
-		if (!["pending", "implemented"].includes(c.fm.status || "pending"))
+		if (!canTransition(c.fm.status || "pending", "done"))
 			fail(`feature '${e.slug}' is ${c.fm.status}, not pending/implemented`);
 		const waiting = listy(c.fm.depends_on).filter((d) => !satisfied.has(d));
 		if (waiting.length)
@@ -2233,7 +2231,7 @@ function restartFeature(payload, root) {
 	const c =
 		b.features.find((x) => x.slug === payload.feature) ||
 		fail(`no feature '${payload.feature || ""}'`);
-	if (!["pending", "implemented"].includes(c.fm.status || "pending"))
+	if (!RESTARTABLE_STATUSES.includes(c.fm.status || "pending"))
 		fail(
 			`feature '${c.slug}' is ${c.fm.status} — only pending/implemented features can be restarted`,
 		);
@@ -2391,12 +2389,10 @@ function retirePlan(payload, root) {
 			"retire-plan: concept needs title, description, body (what was built, why, key trade-offs)",
 		);
 	}
-	const unfinished = b.features
-		.filter((ch) => (ch.fm.status || "pending") !== "done")
-		.map((ch) => ch.slug);
-	if (unfinished.length && !payload.force) {
+	const notDone = unfinished(b.features);
+	if (notDone.length && !payload.force) {
 		fail(
-			`retire-plan: features not done: ${unfinished.join(", ")} (pass force:true to retire anyway)`,
+			`retire-plan: features not done: ${notDone.join(", ")} (pass force:true to retire anyway)`,
 		);
 	}
 

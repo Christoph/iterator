@@ -479,16 +479,37 @@ test("accepting the feature set promotes drafts to pending (accept flag and plan
 	}
 });
 
-test("update-feature accepts draft and pending status values", () => {
+test("update-feature promotes draft to pending but never demotes to draft", () => {
 	const root = makeRepo();
 	try {
 		applyOp(PLAN_OP, root);
 		applyOp(FEATURES_OP, root);
+		// Demotion is not an update-feature transition — only re-featuring
+		// (the features op) turns accepted work back into a proposal.
+		assert.throws(
+			() =>
+				applyOp(
+					{
+						op: "update-feature",
+						feature: "config-module",
+						set: { status: "draft" },
+					},
+					root,
+				),
+			/cannot move pending → draft/,
+		);
 		applyOp(
 			{
-				op: "update-feature",
-				feature: "config-module",
-				set: { status: "draft" },
+				op: "features",
+				features: [
+					{
+						name: "config-module",
+						title: "Config module",
+						description: "Centralize env access",
+						files: ["src/config.ts"],
+						status: "draft",
+					},
+				],
 			},
 			root,
 		);
@@ -551,12 +572,34 @@ test("update-feature allows implemented only from pending (idempotent re-flip ok
 			},
 			root,
 		);
-		// But a draft can never jump straight to implemented.
+		// Demoting to draft is not an update-feature transition — re-featuring
+		// (the features op) is the only path back to a proposal.
+		assert.throws(
+			() =>
+				applyOp(
+					{
+						op: "update-feature",
+						feature: "config-module",
+						set: { status: "draft" },
+					},
+					root,
+				),
+			/cannot move implemented → draft/,
+		);
+		// But a draft (re-featured via the features op) can never jump straight
+		// to implemented …
 		applyOp(
 			{
-				op: "update-feature",
-				feature: "config-module",
-				set: { status: "draft" },
+				op: "features",
+				features: [
+					{
+						name: "config-module",
+						title: "Config module",
+						description: "Centralize env access",
+						files: ["src/config.ts"],
+						status: "draft",
+					},
+				],
 			},
 			root,
 		);
@@ -571,6 +614,19 @@ test("update-feature allows implemented only from pending (idempotent re-flip ok
 					root,
 				),
 			/only reachable from pending/,
+		);
+		// … nor straight to done: accept-commit owns done.
+		assert.throws(
+			() =>
+				applyOp(
+					{
+						op: "update-feature",
+						feature: "config-module",
+						set: { status: "done" },
+					},
+					root,
+				),
+			/cannot move draft → done/,
 		);
 	} finally {
 		rmSync(root, { recursive: true, force: true });

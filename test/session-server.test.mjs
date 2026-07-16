@@ -15,7 +15,7 @@ process.env.ITERATOR_CANCEL_GRACE_MS = "250";
 const CANCEL_GRACE_MS = 250;
 
 const srvMod = await import("../lib/server.mjs"); // namespace: live RUN_ID binding
-const { createSessionServer } = await import("../lib/session-server.mjs");
+const { createSessionServer, tabFor } = await import("../lib/session-server.mjs");
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -70,6 +70,7 @@ test("GET / serves the persistent shell (iframe + EventSource); status says sess
 		const shell = await (await fetch(origin + "/")).text();
 		assert.ok(shell.includes("new EventSource('/events')"));
 		assert.ok(shell.includes('<iframe id="v">'));
+		assert.ok(shell.includes('data-tab="planning"'), "shell has a Planning tab");
 		assert.ok(shell.includes('data-tab="work"'), "shell has a Work tab");
 		assert.ok(
 			shell.includes('data-tab="knowledge"'),
@@ -553,4 +554,19 @@ test("setStatus broadcasts a status SSE event and replays it to new connections"
 	} finally {
 		await session.stop();
 	}
+});
+
+test("tabFor maps steps to their shell tabs", () => {
+	assert.equal(tabFor("planning"), "planning");
+	assert.equal(tabFor("plan"), "planning");
+	assert.equal(tabFor("feature"), "planning");
+	assert.equal(tabFor("archive"), "planning");
+	assert.equal(tabFor("hub"), "work");
+	assert.equal(tabFor("test"), "work");
+	assert.equal(tabFor("review"), "work");
+	assert.equal(tabFor("settings"), "work");
+	assert.equal(tabFor("question"), "work");
+	assert.equal(tabFor("knowledge"), "knowledge");
+	assert.equal(tabFor("memory-review"), "knowledge");
+	assert.equal(tabFor("usage"), "usage");
 });

@@ -152,14 +152,19 @@ test("gather builds the hub payload from bundle + git state", () => {
 			["config-module", "auth-middleware"],
 		);
 
+		// Derived state is computed server-side and shipped in the payload.
+		assert.equal(p.stage, "implementing");
 		const [config, auth] = p.features;
 		assert.equal(config.status, "done");
 		assert.equal(config.testsStatus, "green");
 		assert.equal(config.hasCommits, true, "trailer commit must be found");
 		assert.equal(config.hasDiff, false);
+		assert.equal(config.ready, true);
 
 		assert.equal(auth.status, "pending");
 		assert.deepEqual(auth.dependsOn, ["config-module"]);
+		assert.equal(auth.ready, true, "done dependency satisfies");
+		assert.deepEqual(auth.waitingOn, []);
 		assert.equal(
 			auth.hasDiff,
 			true,
@@ -180,6 +185,7 @@ test("gather without a bundle returns the create-plan shape", () => {
 		git(root, "add", ".");
 		const p = gather(root);
 		assert.equal(p.plan, null);
+		assert.equal(p.stage, "no-plan");
 		assert.deepEqual(p.progress, { done: 0, total: 0 });
 		assert.deepEqual(p.features, []);
 		// Tracked files ride along for the goal box's @-mention suggestions.

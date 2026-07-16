@@ -1,6 +1,18 @@
 # iterator update log
 
 ## 2026-07-16
+* stale-docs-cleanup implemented: NUL note removed (byte verified gone), server-derived-state + tab structure documented in CLAUDE.md
+* planning-tab implemented: planning view + widgets module, hub slimmed to Work, four-tab shell, extension pushes both; 311/311 green + manual render check
+* server-module-split implemented: env/run-id/takeover/listen modules, facade re-exports, session-server shares listenWithTakeover; takeover + force-port manually verified
+* review-state-hints implemented; suite green
+* review-diff-cap implemented; suite green
+* plan-apply-on-approve implemented; suite green
+* retire-gather-step implemented; suite green
+* memory-card-hydration implemented; suite green
+* User hit a state mismatch: Implement ran, Review said working tree clean
+* graph-full-labels implemented: shared lib/views/graph.mjs, auto-width nodes, clip() removed; 303/303 green
+* status-module implemented: transition table + server-computed readiness/stage; 302/302 green
+* Feature the simplification plan
 * **Creation**: Memorized [Client JS in view template literals needs double-backslash escapes](/pitfalls/client-js-template-literal-escaping.md).
 
 ## 2026-07-15

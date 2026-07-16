@@ -111,29 +111,38 @@ needs nothing new.
 
 ```sh
 node <skill-dir>/../iterator/server.mjs << 'PLAN_DATA'
-{ "gather": true, "step": "plan",
+{ "gather": true, "step": "plan", "apply": true,
   "extra": {
     "title": "<plan title>",
+    "description": "<one-line summary>",
     "plan": { "goal": "...", "architecture": "- ...\n- ...", "keyDecisions": "- ...\n- ..." },
     "dependencies": ["<new-external-pkg-or-service> — <why>"] } }
 PLAN_DATA
 ```
 
+`"apply": true` makes the server write the approved plan itself (the
+deterministic `op: plan` writer) before the result reaches you — the approved
+sections never round-trip through you a second time.
+
 ### 4. Process the server output (one JSON line)
 
-- `{ "type": "plan-approved", "sections": {...}, "dependencies": [...] }` →
-  write the bundle (step 5), then **auto-continue into `/iterator-feature`** in
-  this session using the approved plan.
+- `{ "type": "plan-approved", ..., "applied": {...} }` → the bundle is
+  **already written**; react to `applied` (step 5), then **auto-continue into
+  `/iterator-feature`** in this session using the approved plan.
+- `{ "type": "plan-approved", ... }` *without* `applied` (older server copy) →
+  write the bundle yourself with the writer fallback at the end of step 5.
 - `{ "type": "plan-feedback", ... }` → revise using the edited
   sections/dependencies as the new base, apply each `comments[]` entry and
   the global `comment`, and re-run step 3.
 - `cancel` / `timeout` → relay the result's `report` and stop. Write nothing.
 
-### 5. Write the memory/ bundle
+### 5. React to the writer outcome (`applied`)
 
-Pipe the approved content into the shared writer — it owns everything
-mechanical (`format.md` copy, frontmatter, timestamps, `index.md`, `log.md`,
-OKF conformance; a re-plan preserves the existing `# Features` section):
+If `applied.ok` is false, fix the draft and re-run step 3 — never write
+bundle files by hand. Otherwise relay any `applied.warnings` to the user
+(todo-shaped dependencies, uninitialized knowledge memory).
+
+Writer fallback (only when the result carried no `applied`):
 
 ```sh
 node <skill-dir>/../iterator/write.mjs << 'PLAN_WRITE'
@@ -143,23 +152,18 @@ node <skill-dir>/../iterator/write.mjs << 'PLAN_WRITE'
 PLAN_WRITE
 ```
 
-On `{ "ok": false, "error": ..., "hint": ... }` fix the payload and re-pipe
-(`--schema plan` prints the shape) — never write bundle files by hand. Relay
-any `warnings` in the result to the user (todo-shaped dependencies,
-uninitialized knowledge memory).
-
 The writer also handles **branch-per-plan** (settings): approving on
 main/master creates `iterator/<plan-slug>` — by default in a **separate git
-worktree** (`result.worktree`; the current checkout stays put, the bundle is
+worktree** (`applied.worktree`; the current checkout stays put, the bundle is
 copied over). Before branching, the writer prefetches origin and
 fast-forwards the local base branch, so the worktree always starts from the
 **latest** main/master (offline/remote-less repos fall back to the local tip
 with a warning). **All iterator work happens inside that worktree from now on**
 — gather/write re-root themselves to it automatically, and every file edit in
 later steps must target paths under it (this is what enables running plans in
-parallel later). Relay `result.note` verbatim when present: the user must
+parallel later). Relay `applied.note` verbatim when present: the user must
 know where the work now lives. With `worktree_per_plan: off` the branch is
-checked out in place (`result.branch`).
+checked out in place (`applied.branch`).
 
 ### 6. Continue
 

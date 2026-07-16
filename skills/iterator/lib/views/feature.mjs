@@ -19,6 +19,7 @@
  *     plus the shared { type:"cancel" } / { type:"timeout" }.
  */
 import { renderPage } from '../ui.mjs';
+import { GRAPH_CSS, GRAPH_JS } from './graph.mjs';
 
 const FEATURE_CSS = `
 .sumbar{padding:14px 20px;display:flex;align-items:center;gap:24px;border-bottom:1px solid var(--border);
@@ -28,14 +29,6 @@ const FEATURE_CSS = `
 .ssv{font-family:var(--font-display);font-size:var(--fs-xl);font-weight:600}
 .wrap{max-width:920px;margin:0 auto;padding:var(--sp-5)}
 .sec-title{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin:18px 0 12px}
-.cyclewarn{background:var(--bg-red);border:1px solid var(--dot-red);border-radius:var(--radius-sm);padding:10px 14px;
-  font-size:var(--fs-sm);color:var(--dot-red);margin-bottom:12px}
-.graph{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);box-shadow:var(--shadow-card);padding:var(--sp-3);overflow-x:auto}
-.graph svg{display:block}
-.gnode rect{fill:var(--bg);stroke:var(--border);rx:6}
-.gnode.done rect{stroke:var(--dot-green)}
-.gnode text{fill:var(--text);font-size:12px;font-family:var(--font-mono)}
-.gedge{stroke:var(--text-muted);stroke-width:1.5;fill:none;opacity:.6}
 .fc{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);box-shadow:var(--shadow-card);
   margin-bottom:var(--sp-4);overflow:hidden;transition:border-color .15s,background .15s,box-shadow .15s}
 .fc:hover{box-shadow:var(--shadow-raise)}
@@ -101,7 +94,6 @@ renderAll();
 function renderAll(){ updateSummary(); renderGraph(); renderCards(); refresh(); }
 function sizeLabel(c){ return c.size || 'small'; }
 function sizeClass(c){ const s=sizeLabel(c); return s==='large'?'cr':s==='medium'?'cy':'cg'; }
-function clip(s,n){ s=String(s||''); return s.length>n?s.slice(0,n-1)+'…':s; }
 
 function updateSummary(){
   const cs = S.features;
@@ -109,49 +101,10 @@ function updateSummary(){
   document.getElementById('s-over').textContent = cs.filter(c=>sizeLabel(c)==='large').length;
   document.getElementById('s-done').textContent = cs.filter(c=>c.status==='done').length;
 }
-function computeLevels(){
-  const by = {}; S.features.forEach(c=>by[c.name]=c);
-  const level = {}, state = {}; let cycle = false;
-  function lv(name){
-    if(level[name]!=null) return level[name];
-    if(state[name]==='visiting'){ cycle=true; return 0; }
-    state[name]='visiting';
-    let m = 0;
-    ((by[name]&&by[name].dependsOn)||[]).forEach(d=>{ if(by[d]) m=Math.max(m, lv(d)+1); });
-    state[name]='done';
-    return level[name]=m;
-  }
-  S.features.forEach(c=>lv(c.name));
-  return { level, cycle };
-}
+// dependency graph — the shared layered renderer (./graph.mjs)
 function renderGraph(){
-  const g = document.getElementById('graph');
-  const cw = document.getElementById('cyclewarn');
-  if(!S.features.length){ g.innerHTML='<span style="color:var(--text-muted);font-size:13px">No features yet.</span>'; cw.innerHTML=''; return; }
-  const { level, cycle } = computeLevels();
-  cw.innerHTML = cycle ? '<div class="cyclewarn">⚠️ Dependency cycle detected — the implementer cannot order these. Fix depends-on before accepting.</div>' : '';
-  const byLevel = {};
-  S.features.forEach(c=>{ const l=level[c.name]||0; (byLevel[l]=byLevel[l]||[]).push(c); });
-  const levels = Object.keys(byLevel).map(Number).sort((a,b)=>a-b);
-  const NW=150, NH=34, GAPX=70, GAPY=18;
-  const pos = {}; let maxRows = 0;
-  levels.forEach((l,ci)=>{ byLevel[l].forEach((c,ri)=>{ pos[c.name]={x:ci*(NW+GAPX)+10, y:ri*(NH+GAPY)+10}; }); maxRows=Math.max(maxRows, byLevel[l].length); });
-  const W = levels.length*(NW+GAPX)+10;
-  const H = maxRows*(NH+GAPY)+10;
-  let edges='';
-  S.features.forEach(c=>{ ((c.dependsOn)||[]).forEach(d=>{ if(pos[d]&&pos[c.name]){
-    const x1=pos[d].x+NW, y1=pos[d].y+NH/2, x2=pos[c.name].x, y2=pos[c.name].y+NH/2;
-    const mx=(x1+x2)/2;
-    edges+='<path class="gedge" marker-end="url(#arrow)" d="M'+x1+' '+y1+' C'+mx+' '+y1+' '+mx+' '+y2+' '+x2+' '+y2+'"/>';
-  }}); });
-  let nodes='';
-  S.features.forEach(c=>{ const p=pos[c.name]; const done=c.status==='done';
-    nodes+='<g class="gnode'+(done?' done':'')+'"><rect x="'+p.x+'" y="'+p.y+'" width="'+NW+'" height="'+NH+'" rx="6"/>'+
-      '<text x="'+(p.x+10)+'" y="'+(p.y+NH/2+4)+'">'+(done?'✓ ':'')+esc(clip(c.name,20))+'</text></g>';
-  });
-  g.innerHTML = '<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'">'+
-    '<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">'+
-    '<path d="M0 0 L8 4 L0 8 z" fill="var(--text-muted)"/></marker></defs>'+edges+nodes+'</svg>';
+  renderGraphInto(document.getElementById('graph'), document.getElementById('cyclewarn'), S.features,
+    'the implementer cannot order these. Fix depends-on before accepting.');
 }
 function renderCards(){ const c=document.getElementById('cards'); c.innerHTML=''; S.features.forEach(ch => c.appendChild(makeCard(ch))); }
 function makeCard(c){
@@ -254,7 +207,7 @@ function onPrimary(){
 export function render(data) {
   return renderPage({
     step: 'feature', subtitle: '/ features', branch: data.branch, title: data.plan,
-    data, css: FEATURE_CSS, body: FEATURE_BODY, clientJs: FEATURE_JS,
+    data, css: FEATURE_CSS + GRAPH_CSS, body: FEATURE_BODY, clientJs: GRAPH_JS + FEATURE_JS,
     primaryIdle: 'Accept', primaryChanged: 'Send review',
   });
 }

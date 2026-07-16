@@ -39,6 +39,7 @@ import { relative, resolve } from "node:path";
 import { Type } from "typebox";
 
 import { matchConcepts, OKF_AREA_NAMES } from "../lib/bundle.mjs";
+import { hydrateMemoryCards } from "../lib/gather.mjs";
 import {
 	checkBashCommit,
 	checkEdit,
@@ -68,6 +69,7 @@ import {
 import { createSessionServer } from "../lib/session-server.mjs";
 import { render as featureView } from "../lib/views/feature.mjs";
 import { render as hubView } from "../lib/views/hub.mjs";
+import { render as planningView } from "../lib/views/planning.mjs";
 import { render as knowledgeView } from "../lib/views/knowledge.mjs";
 import { render as memoryReviewView } from "../lib/views/memory-review.mjs";
 import { render as archiveView } from "../lib/views/archive.mjs";
@@ -80,6 +82,7 @@ import { render as usageView } from "../lib/views/usage.mjs";
 
 const VIEWS = {
 	hub: hubView,
+	planning: planningView,
 	plan: planView,
 	feature: featureView,
 	test: testView,
@@ -311,6 +314,12 @@ export default function iteratorExtension(pi) {
 			const usage = await gatherPayload(cwd, "usage");
 			session.showView({ step: "usage", render: () => VIEWS.usage(usage) });
 			const { hub } = await gatherSession(cwd);
+			// Planning renders from the same snapshot as the hub — the two
+			// surfaces can never disagree about state.
+			session.showView({
+				step: "planning",
+				render: () => VIEWS.planning({ ...hub, step: "planning" }),
+			});
 			session.showView({ step: "hub", render: () => VIEWS.hub(hub) });
 			await pushStatus(cwd);
 		} catch {
@@ -832,9 +841,11 @@ export default function iteratorExtension(pi) {
 					}
 					// Knowledge's page-level Close mirrors Settings: back to Work
 					// (decisions/settings-close-returns-to-work) — never a model turn.
+					// "planning" is pure navigation too: refresh both dashboard tabs
+					// (the shell's Planning tab already holds the view).
 					if (
 						result?.type === "action" &&
-						["hub", "close"].includes(result.action)
+						["hub", "close", "planning"].includes(result.action)
 					) {
 						void refreshHub(ctxCwd());
 						return;
@@ -1245,7 +1256,7 @@ export default function iteratorExtension(pi) {
 					return asText({
 						type: "no-changes",
 						report:
-							"Nothing to review — the chosen scope has no diff and no recorded commits. Relay the progress summary instead of opening a review.",
+							"Nothing to review — the chosen scope has no diff and no recorded commits. Relay the progress summary instead of opening a review. If work DID happen, the usual causes are: it was committed outside the accept flow (check `git log` for the feature’s files — a commit without a `Feature:` trailer is invisible here), or it landed in a different checkout (plan worktree vs main).",
 						progress: gathered.progress || null,
 					});
 				}
@@ -1256,11 +1267,42 @@ export default function iteratorExtension(pi) {
 					if (models) gathered.models = models;
 				}
 				const payload = mergePayload(gathered, params.extra);
+				// Memory cards arrive body-less — read current concept bodies from
+				// disk for display, so the agent never echoes them.
+				hydrateMemoryCards(payload, ctx.cwd);
 				const result = await session.showStep({
 					step: params.step,
 					render: () => VIEWS[params.step](payload),
 					signal,
 				});
+				// Apply-on-approve (mirrors lib/app.mjs): an approved plan is
+				// written by the deterministic writer right here, so the agent
+				// never echoes the sections back through a second write call.
+				if (
+					params.step === "plan" &&
+					params.extra?.apply === true &&
+					result?.type === "plan-approved"
+				) {
+					let applied;
+					try {
+						applied = await runJson(scriptPath("write"), [], {
+							cwd: ctx.cwd,
+							stdin: JSON.stringify({
+								op: "plan",
+								title: payload.title,
+								...(payload.description
+									? { description: payload.description }
+									: {}),
+								sections: result.sections,
+								dependencies: result.dependencies || [],
+							}),
+						});
+					} catch (e) {
+						applied = { ok: false, error: e.message };
+					}
+					invalidateSession();
+					return asText({ ...result, applied });
+				}
 				return asText(result);
 			} catch (e) {
 				return asError(e.message);

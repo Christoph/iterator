@@ -35,6 +35,9 @@ reassignable default), and `bootstrap` (content that was already staged before
 the round — defaults to its own `chore(bootstrap)` commit). For a `done`
 feature with a clean tree the diff is rebuilt from its commits (re-review).
 If `hasChanges` is false, report that there is nothing to review and stop.
+On an oversized round `diffTruncated` is true and `diffOmittedFiles` lists
+files whose hunks were stripped from the payload — read those with `git diff`
+(scoped per path) before judging them.
 
 ### 2a. Human review (default): open the review UI
 

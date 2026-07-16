@@ -33,9 +33,10 @@ import { execFile } from 'node:child_process';
 import { readPayload, serve } from './server.mjs';
 import {
   gather, gatherArchive, gatherFeature, gatherKnowledge, gatherPlan,
-  gatherReview, gatherSettings, gatherTest, gatherUsage,
+  gatherReview, gatherSettings, gatherTest, gatherUsage, hydrateMemoryCards,
 } from './gather.mjs';
 import { render as hub } from './views/hub.mjs';
+import { render as planning } from './views/planning.mjs';
 import { render as plan } from './views/plan.mjs';
 import { render as feature } from './views/feature.mjs';
 import { render as test } from './views/test.mjs';
@@ -47,7 +48,7 @@ import { render as question } from './views/question.mjs';
 import { render as usage } from './views/usage.mjs';
 import { render as archive } from './views/archive.mjs';
 
-const VIEWS = { hub, plan, feature, test, review, knowledge, 'memory-review': memoryReview, settings, question, usage, archive };
+const VIEWS = { hub, planning, plan, feature, test, review, knowledge, 'memory-review': memoryReview, settings, question, usage, archive };
 
 // One-command request form: `{ "gather": true, step, feature?, project?, extra? }`
 // makes the server gather the step payload itself (in-process — the cores
@@ -55,6 +56,9 @@ const VIEWS = { hub, plan, feature, test, review, knowledge, 'memory-review': me
 // the bash path needs no gather|server pipe composition. Mirrors iterator_ui.
 const GATHERS = {
   hub: (o) => gather(o.project),
+  // The planning surface renders from the same hub payload — one gather, two
+  // views, no chance of disagreeing state.
+  planning: (o) => ({ ...gather(o.project), step: 'planning' }),
   plan: (o) => gatherPlan(o.project),
   feature: (o) => gatherFeature(o.project),
   test: (o) => gatherTest(o.project, o.feature),
@@ -79,6 +83,7 @@ const GATHERS = {
 // as `report`; the skill's only job is to relay the string and stop.
 const CANCEL_REPORTS = {
   hub: 'User closed the dashboard without choosing an action. Stop.',
+  planning: 'User closed the planning view without choosing an action. Stop.',
   plan: 'User cancelled the plan review. Write nothing and stop this flow.',
   feature: 'User cancelled the feature review. Draft features stay on disk as drafts (visible on the hub, not implementable). Write nothing else and stop.',
   test: 'User cancelled the test plan review. Write nothing and stop this flow.',
@@ -98,7 +103,7 @@ function actionSkill(result) {
   if (STEPS.includes(result.action)) return `iterator-${result.action}`;
   if (result.action === 'retire') return 'iterator';
   // Hub navigation targets owned by the /iterator hub skill.
-  if (result.action === 'view-archive' || result.action === 'hub') return 'iterator';
+  if (['view-archive', 'hub', 'planning'].includes(result.action)) return 'iterator';
   // Auto mode needs the pi driver; the bash path degrades to plain implement.
   if (result.action === 'auto-implement') return 'iterator-implement';
   if (['iterator-init', 'iterator-consolidate', 'iterator-memorize'].includes(result.action)) {
@@ -113,17 +118,43 @@ function actionSkill(result) {
 function appliedSummary(applied) {
   if (!applied) return null;
   if (applied.ok === false) return `apply failed: ${applied.error}`;
-  const parts = [
-    applied.written?.length ? `${applied.written.length} written` : null,
-    applied.deleted?.length ? `${applied.deleted.length} deleted` : null,
-    applied.kept ? `${applied.kept} kept` : null,
-    applied.rejected ? `${applied.rejected} rejected` : null,
-    applied.advancedTo ? `pointer → ${String(applied.advancedTo).slice(0, 7)}` : null,
-  ].filter(Boolean);
-  const base = parts.length ? parts.join(', ') : 'no changes';
+  const parts = applied.op === 'plan'
+    ? [
+        applied.written?.length ? `${applied.written.join(', ')} written` : null,
+        applied.branch ? `branch ${applied.branch}` : null,
+        applied.worktree ? `worktree ${applied.worktree}` : null,
+      ]
+    : [
+        applied.written?.length ? `${applied.written.length} written` : null,
+        applied.deleted?.length ? `${applied.deleted.length} deleted` : null,
+        applied.kept ? `${applied.kept} kept` : null,
+        applied.rejected ? `${applied.rejected} rejected` : null,
+        applied.advancedTo ? `pointer → ${String(applied.advancedTo).slice(0, 7)}` : null,
+      ];
+  const base = parts.filter(Boolean).join(', ') || 'no changes';
   return applied.validation && applied.validation.ok === false
     ? `${base}; VALIDATION FAILED: ${applied.validation.errors.join('; ')}`
     : base;
+}
+
+/** Spawn the deterministic writer with one op payload; parse its JSON line. */
+function runWriter(writeScript, project, payload) {
+  return new Promise((resolve) => {
+    const child = execFile(
+      process.execPath,
+      [writeScript, ...(project ? [project] : [])],
+      { encoding: 'utf8' },
+      (err, stdout, stderr) => {
+        let applied = null;
+        try { applied = JSON.parse(stdout.trim().split('\n').pop()); } catch {}
+        resolve(applied || {
+          ok: false,
+          error: String(stderr || 'writer produced no result').trim(),
+        });
+      },
+    );
+    child.stdin.end(JSON.stringify(payload));
+  });
 }
 
 /**
@@ -140,10 +171,14 @@ export async function main({ writeScript }) {
       ...gathered,
       ...(data.extra && typeof data.extra === 'object' ? data.extra : {}),
       ...(data.project ? { project: data.project } : {}),
+      ...(data.apply === true ? { apply: true } : {}),
     };
   }
   // Older review payloads carry mode:"commit" instead of a step field.
   const step = VIEWS[data.step] ? data.step : (data.mode === 'commit' ? 'review' : 'hub');
+  // Memory cards arrive body-less — the server reads current concept bodies
+  // from disk for display, so the agent never echoes them.
+  hydrateMemoryCards(data, data.project);
 
   // Deterministic zero-change guard: a review with nothing to show never
   // opens the browser — print the structured refusal and exit (issue: a
@@ -151,7 +186,7 @@ export async function main({ writeScript }) {
   if (step === 'review' && data.hasChanges === false) {
     process.stdout.write(`${JSON.stringify({
       type: 'no-changes',
-      report: 'Nothing to review — the chosen scope has no diff and no recorded commits. Relay the progress summary instead of opening a review.',
+      report: 'Nothing to review — the chosen scope has no diff and no recorded commits. Relay the progress summary instead of opening a review. If work DID happen, the usual causes are: it was committed outside the accept flow (check `git log` for the feature’s files — a commit without a `Feature:` trailer is invisible here), or it landed in a different checkout (plan worktree vs main).',
       progress: data.progress || null,
     })}\n`);
     return;
@@ -162,30 +197,31 @@ export async function main({ writeScript }) {
     // chosen flow, so SKILL.mds don't carry the action→skill table.
     const skill = actionSkill(result);
     if (skill) return { ...result, skill };
-    if (data.apply !== true || result?.type !== 'review-approved') return result;
-    const payload = {
-      op: 'apply-review',
-      mode: data.mode,
-      bundlePath: data.bundlePath || undefined,
-      headCommit: data.headCommit || null,
-      memories: Array.isArray(data.memories) ? data.memories : [],
-      decisions: result.decisions,
-    };
-    const out = await new Promise((resolve) => {
-      const child = execFile(
-        process.execPath,
-        [writeScript, ...(data.project ? [data.project] : [])],
-        { encoding: 'utf8' },
-        (err, stdout, stderr) => resolve({ err, stdout, stderr }),
-      );
-      child.stdin.end(JSON.stringify(payload));
-    });
-    let applied = null;
-    try { applied = JSON.parse(out.stdout.trim().split('\n').pop()); } catch {}
-    applied = applied || {
-      ok: false,
-      error: String(out.stderr || 'writer produced no result').trim(),
-    };
+    if (data.apply !== true) return result;
+    // Apply-on-approve: the server holds the approved content at submit time
+    // and spawns the deterministic writer itself, so the agent never echoes
+    // it back through a second write round-trip.
+    let payload = null;
+    if (result?.type === 'review-approved') {
+      payload = {
+        op: 'apply-review',
+        mode: data.mode,
+        bundlePath: data.bundlePath || undefined,
+        headCommit: data.headCommit || null,
+        memories: Array.isArray(data.memories) ? data.memories : [],
+        decisions: result.decisions,
+      };
+    } else if (result?.type === 'plan-approved' && step === 'plan') {
+      payload = {
+        op: 'plan',
+        title: data.title,
+        ...(data.description ? { description: data.description } : {}),
+        sections: result.sections,
+        dependencies: result.dependencies || [],
+      };
+    }
+    if (!payload) return result;
+    const applied = await runWriter(writeScript, data.project, payload);
     const summary = appliedSummary(applied);
     return {
       ...result,

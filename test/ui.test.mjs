@@ -1,6 +1,41 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import vm from "node:vm";
 import { embed, escHtml, renderPage, BASE_CSS, DIFF_CSS } from "../lib/ui.mjs";
+
+test("dependency graph renders full labels — no ellipsis, auto-width nodes", async () => {
+	const { GRAPH_JS } = await import("../lib/views/graph.mjs");
+	const ctx = vm.createContext({ esc: (s) => String(s) });
+	vm.runInContext(GRAPH_JS, ctx);
+	ctx.g = { innerHTML: "" };
+	ctx.cw = { innerHTML: "" };
+	// The exact truncation case from the bug report: long kebab slugs.
+	ctx.features = [
+		{ name: "score-breakdown-tooltip-rework", status: "done", dependsOn: [] },
+		{
+			name: "dependent-risk-signal-badges",
+			status: "pending",
+			dependsOn: ["score-breakdown-tooltip-rework"],
+		},
+	];
+	vm.runInContext("renderGraphInto(g, cw, features, 'fix depends-on.')", ctx);
+	assert.match(ctx.g.innerHTML, /score-breakdown-tooltip-rework/);
+	assert.match(ctx.g.innerHTML, /dependent-risk-signal-badges/);
+	assert.doesNotMatch(ctx.g.innerHTML, /…/, "labels must never be clipped");
+	assert.match(ctx.g.innerHTML, /✓ score-breakdown-tooltip-rework/, "done marker rides the full label");
+	// Nodes size to their label — the two different slugs get different widths.
+	const widths = [...ctx.g.innerHTML.matchAll(/rect [^>]*width="(\d+)"/g)].map((m) => Number(m[1]));
+	assert.equal(widths.length, 2);
+	assert.ok(widths[0] > 150 && widths[1] > 150, "long labels outgrow the old fixed 150px node");
+	assert.equal(ctx.cw.innerHTML, "", "no cycle warning for an acyclic graph");
+	// And a cycle still warns.
+	ctx.features = [
+		{ name: "a", status: "pending", dependsOn: ["b"] },
+		{ name: "b", status: "pending", dependsOn: ["a"] },
+	];
+	vm.runInContext("renderGraphInto(g, cw, features, 'fix depends-on.')", ctx);
+	assert.match(ctx.cw.innerHTML, /Dependency cycle detected/);
+});
 
 test("embed escapes </script> so payload data cannot break the page", () => {
 	const out = embed({ diff: "x</script><script>alert(1)</script>" });
@@ -243,10 +278,10 @@ test("semantic fg/bg pairs meet AA contrast (4.5:1) in both themes", () => {
 	}
 });
 
-test("hub backlog submits scoped CRUD actions and hands selected candidates to planning", async () => {
-	const { render: hub } = await import("../lib/views/hub.mjs");
-	const html = hub({
-		step: "hub",
+test("planning backlog submits scoped CRUD actions and hands selected candidates to planning", async () => {
+	const { render: planning } = await import("../lib/views/planning.mjs");
+	const html = planning({
+		step: "planning",
 		branch: "main",
 		plan: null,
 		progress: { done: 0, total: 0 },
@@ -285,6 +320,7 @@ test("hub gates Implement/Review on status and renders escalation + review-plan 
 		step: "hub",
 		branch: "iterator/p",
 		plan: { title: "P", status: "approved", planReviewed: null, worktree: null },
+		stage: "awaiting-plan-review",
 		progress: { done: 0, total: 1 },
 		features: [
 			{
@@ -294,6 +330,8 @@ test("hub gates Implement/Review on status and renders escalation + review-plan 
 				size: "small",
 				testsStatus: "none",
 				dependsOn: [],
+				ready: true,
+				waitingOn: [],
 				hasDiff: true,
 				hasCommits: false,
 				conflicts: 0,
@@ -314,16 +352,54 @@ test("hub gates Implement/Review on status and renders escalation + review-plan 
 	// Implement disabled once implemented; Review unlocks exactly then.
 	assert.match(html, /Implemented — review it/);
 	assert.match(html, /review unlocks once the feature is implemented/);
-	// Dependency gating honors review_required via depSatisfied.
-	assert.match(html, /review_required==='off'/);
+	// Dependency gating renders the server-computed readiness — the client
+	// must not re-derive it from statuses/settings.
+	assert.match(html, /c\.ready !== false/);
+	assert.match(html, /c\.waitingOn/);
+	assert.doesNotMatch(html, /review_required==='off'/);
 	// Escalation banner with both recovery actions.
 	assert.match(html, /Needs your attention/);
 	assert.match(html, /escalation-restart/);
 	assert.match(html, /escalation-guide/);
 	assert.match(html, /Guide the agent/);
-	// Whole-plan review button (all features implemented|done) + armed retire.
+	// Plan-lifecycle controls live on the Planning surface, not Work.
+	assert.doesNotMatch(html, /action\('review-plan'/);
+	assert.doesNotMatch(html, /Retires the plan/);
+});
+
+test("planning drives plan-lifecycle controls from the server-derived stage", async () => {
+	const { render: planning } = await import("../lib/views/planning.mjs");
+	const html = planning({
+		step: "planning",
+		branch: "iterator/p",
+		plan: { title: "P", status: "approved", planReviewed: null, worktree: null },
+		stage: "retirable",
+		progress: { done: 1, total: 1 },
+		features: [
+			{
+				name: "a", title: "A", status: "done", size: "small",
+				testsStatus: "green", dependsOn: [], ready: true, waitingOn: [],
+				hasDiff: false, hasCommits: true, conflicts: 0,
+			},
+		],
+		state: { mode: "manual", paused: false, phase: "idle", strikes: {}, escalation: null },
+		settings: { review_required: "on" },
+		dirty: { count: 0, files: [] },
+		retired: [{ name: "2026-01-01-old", title: "Old plan", created: "2026-01-01" }],
+		backlog: [],
+	});
+	// Lifecycle buttons key off the server-derived stage.
+	assert.match(html, /D\.stage==='retirable'/);
 	assert.match(html, /action\('review-plan'/);
 	assert.match(html, /Retires the plan/);
+	assert.match(html, /action\('cancel-plan'/);
+	assert.match(html, /action\('cancel-feature'/);
+	// The execution controls live on Work, not here.
+	assert.doesNotMatch(html, /action\('implement'/);
+	assert.doesNotMatch(html, /auto-implement/);
+	// Dependency graph + retired-plan browser render here.
+	assert.match(html, /renderGraphInto/);
+	assert.match(html, /view-archive/);
 });
 
 test("review view groups files by Declared/Tests/Incidental with pre-seeded dispositions", async () => {
@@ -366,10 +442,10 @@ test("review view groups files by Declared/Tests/Incidental with pre-seeded disp
 	assert.match(html, /file\.defaulted && file\.disposition/);
 });
 
-test("hub hero goal box persists an unsent draft and clears it on plan start", async () => {
-	const { render: hub } = await import("../lib/views/hub.mjs");
-	const html = hub({
-		step: "hub",
+test("planning hero goal box persists an unsent draft and clears it on plan start", async () => {
+	const { render: planning } = await import("../lib/views/planning.mjs");
+	const html = planning({
+		step: "planning",
 		branch: "main",
 		plan: null,
 		progress: { done: 0, total: 0 },
@@ -416,4 +492,29 @@ test("idle dashboard tabs omit the header Cancel button; round views keep it wit
 	const planHtml = plan({ branch: "main", title: "P", plan: {}, knowledge: {} });
 	assert.ok(planHtml.includes(CANCEL_BTN), "round views keep Cancel");
 	assert.match(planHtml, /it-btn cancel" onclick="cancelFlow\(\)" title="/, "Cancel explains itself");
+});
+
+test("hub flags an implemented feature whose changes are nowhere to be found", async () => {
+	const { render: hub } = await import("../lib/views/hub.mjs");
+	const html = hub({
+		step: "hub",
+		branch: "iterator/p",
+		plan: { title: "P", status: "approved", planReviewed: null, worktree: null },
+		stage: "awaiting-plan-review",
+		progress: { done: 0, total: 1 },
+		features: [
+			{
+				name: "a", title: "A", status: "implemented", size: "small",
+				testsStatus: "none", dependsOn: [], ready: true, waitingOn: [],
+				hasDiff: false, hasCommits: false, conflicts: 0,
+			},
+		],
+		state: { mode: "manual", paused: false, phase: "idle", strikes: {}, escalation: null },
+		settings: { review_required: "on" },
+		dirty: { count: 0, files: [] },
+		retired: [],
+		backlog: [],
+	});
+	assert.match(html, /no recorded changes/);
+	assert.match(html, /committed outside the accept flow/);
 });

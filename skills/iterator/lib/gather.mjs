@@ -39,6 +39,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { git } from "./git.mjs";
 import { effectiveSettings, parseState } from "./settings.mjs";
+import { planStage, readiness, satisfiedSet } from "./status.mjs";
 import {
 	backlogItems,
 	body,
@@ -328,6 +329,7 @@ export function gather(startDir) {
 			step: "hub",
 			branch: b.branch,
 			plan: null,
+			stage: planStage(null, [], b.settings),
 			progress: { done: 0, total: 0 },
 			features: [],
 			// Tracked files for the goal box's @-mention suggestions (capped so
@@ -368,6 +370,8 @@ export function gather(startDir) {
 	];
 
 	const trailerMap = featureCommitMap(b.root);
+	// Readiness is computed here, once, server-side — views only render it.
+	const ready = readiness(b.features, b.settings);
 	const features = b.features.map((c) => {
 		const files = listy(c.fm.files);
 		const globs = files.map(globToRegExp);
@@ -382,6 +386,7 @@ export function gather(startDir) {
 			size: c.fm.size || "small",
 			testsStatus: c.fm.tests_status || "none",
 			dependsOn: listy(c.fm.depends_on),
+			...ready.get(c.slug),
 			hasDiff,
 			hasCommits,
 			conflicts: featureConflicts(c.fm).length,
@@ -406,6 +411,9 @@ export function gather(startDir) {
 			planReviewed: b.plan.fm.plan_reviewed || null,
 			worktree: b.plan.fm.worktree || null,
 		},
+		// Derived plan lifecycle stage — views drive their plan controls from
+		// this instead of re-deriving it from feature statuses.
+		stage: planStage(b.plan, b.features, b.settings),
 		progress: progress(b.features),
 		features,
 		knowledgeInitialized: knowledgeReady(b.memDir),
@@ -549,12 +557,7 @@ function unionMemories(c, concepts) {
 export function gatherImplement(startDir) {
 	const b = loadBundle(startDir);
 	const concepts = loadConcepts(b.memDir);
-	// A dependency satisfies its dependents when it is done (reviewed &
-	// committed) — or merely implemented, when review_required is off.
-	const satisfies = (c) =>
-		c.fm.status === "done" ||
-		(c.fm.status === "implemented" && b.settings.review_required === "off");
-	const satisfied = new Set(b.features.filter(satisfies).map((c) => c.slug));
+	const satisfied = satisfiedSet(b.features, b.settings);
 	// Drafts are not implementable — they are an unaccepted feature proposal.
 	const pending = b.features.filter(
 		(c) => (c.fm.status || "pending") === "pending",
@@ -1069,6 +1072,44 @@ export function gatherKnowledge(startDir) {
 	};
 }
 
+/**
+ * Fill `existingBody` on memory cards from disk — the server owns file
+ * loading, so the LLM never echoes a concept's current body. Covers both
+ * card shapes: memory-review `memories[]` ({ action, id }) and the accept
+ * review's `memory.proposals[]` ({ action, area, slug }). Only cards whose
+ * action shows an existing concept (update|delete|keep) and whose
+ * `existingBody` is absent are touched — an explicitly passed body wins.
+ * Mutates and returns `data`.
+ */
+export function hydrateMemoryCards(data, startDir) {
+	const cards =
+		data?.step === "memory-review"
+			? data.memories
+			: data?.step === "review" || data?.mode === "commit"
+				? data.memory?.proposals
+				: null;
+	if (!Array.isArray(cards)) return data;
+	const SLUG = /^[a-z0-9][a-z0-9._-]*$/;
+	const needy = cards.filter(
+		(m) =>
+			m &&
+			["update", "delete", "keep"].includes(m.action) &&
+			m.existingBody == null,
+	);
+	if (!needy.length) return data;
+	const b = loadBundle(startDir);
+	for (const m of needy) {
+		const [area, slug] = m.id
+			? String(m.id).split("/")
+			: [m.area, m.slug];
+		if (!SLUG.test(area || "") || !SLUG.test(slug || "")) continue;
+		const file = join(b.memDir, area, `${slug}.md`);
+		if (existsSync(file))
+			m.existingBody = body(readFileSync(file, "utf8")).trim();
+	}
+	return data;
+}
+
 // ---------------------------------------------------------------------------
 // test
 
@@ -1458,8 +1499,37 @@ export function gatherReview(startDir, opts = {}) {
 	const hasChanges =
 		features.some((c) => c.files.length > 0) || uncategorized.length > 0;
 
+	// Cap the embedded hunk text like plan-review caps its raw diff — a huge
+	// round must not blow the payload (or the agent's context). Structure is
+	// never dropped: every file keeps its path, group, and disposition (the
+	// accept-commit staging runs on paths), only overflow hunks are stripped
+	// and flagged so the reviewer digs into those files with git instead.
+	const MAX_DIFF = 400_000;
+	let diffTruncated = false;
+	const diffOmittedFiles = [];
+	{
+		let budget = MAX_DIFF;
+		const allFiles = [
+			...features.flatMap((c) => c.files),
+			...uncategorized,
+		];
+		for (const f of allFiles) {
+			const size = JSON.stringify(f.hunks || []).length;
+			if (size <= budget) {
+				budget -= size;
+			} else if (f.hunks?.length) {
+				f.hunks = [];
+				f.omitted = true;
+				diffTruncated = true;
+				diffOmittedFiles.push(f.path);
+			}
+		}
+	}
+
 	return {
 		step: "review",
+		diffTruncated,
+		diffOmittedFiles,
 		branch: b.branch,
 		root: b.root,
 		commit: commitLabel,
@@ -1560,6 +1630,42 @@ export function gatherPlanReview(startDir) {
 	};
 }
 
+/**
+ * The retire step's whole context: plan sections plus condensed per-feature
+ * summaries (title, description, status, files, review notes) — everything
+ * the retiring agent needs to write the decision concept without reading the
+ * plan and every feature file wholesale.
+ */
+export function gatherRetire(startDir) {
+	const b = loadBundle(startDir);
+	if (!b.plan) return { step: "retire", error: "no plan.md to retire" };
+	const feats = b.features.map((c) => ({
+		name: c.slug,
+		title: c.fm.title || c.slug,
+		description: c.fm.description || "",
+		status: c.fm.status || "pending",
+		files: listy(c.fm.files),
+		review: c.sections["Review"] || "",
+	}));
+	return {
+		step: "retire",
+		branch: b.branch,
+		root: b.root,
+		plan: {
+			title: b.plan.fm.title || "Plan",
+			description: b.plan.fm.description || "",
+			created: b.plan.fm.created || null,
+			goal: b.plan.sections["Goal"] || "",
+			architecture: b.plan.sections["Architecture"] || "",
+			keyDecisions: b.plan.sections["Key decisions"] || "",
+		},
+		features: feats,
+		// The default `files:` anchor set for the condensed decision concept.
+		filesUnion: [...new Set(feats.flatMap((f) => f.files))],
+		allDone: feats.length > 0 && feats.every((f) => f.status === "done"),
+	};
+}
+
 // ---------------------------------------------------------------------------
 // CLI (invoked through the skills/iterator/gather.mjs shim)
 
@@ -1587,6 +1693,7 @@ export function runCli(args) {
 		test: () => gatherTest(rootArg, feature),
 		review: () => gatherReview(rootArg, { feature }),
 		"plan-review": () => gatherPlanReview(rootArg),
+		retire: () => gatherRetire(rootArg),
 	};
 	// One-JSON-line contract, success or failure: a throw (corrupt bundle,
 	// racing file deletion, unreadable file) must never print a stack trace
@@ -1594,7 +1701,7 @@ export function runCli(args) {
 	try {
 		if (!steps[step]) {
 			throw new Error(
-				`unknown step '${step}' (hub|plan|feature|implement|memorize|range|session|settings|usage|archive|knowledge|test|review)`,
+				`unknown step '${step}' (hub|plan|feature|implement|memorize|range|session|settings|usage|archive|knowledge|test|review|plan-review|retire)`,
 			);
 		}
 		process.stdout.write(JSON.stringify(steps[step]()) + "\n");

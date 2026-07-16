@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   gatherPlan, gatherFeature, gatherImplement, gatherTest, gatherReview,
-  parseDiff, sections, snippets,
+  gatherRetire, hydrateMemoryCards, parseDiff, sections, snippets,
 } from '../lib/gather.mjs';
 
 const git = (dir, ...args) => execFileSync('git', args, {
@@ -359,6 +359,102 @@ test('gatherImplement carries a pre-composed advice string', () => {
     const p = gatherImplement(root);
     assert.match(p.advice, /auth-middleware/);
     assert.match(p.advice, /exactly ONE feature/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('hydrateMemoryCards fills existingBody from disk; explicit bodies win', () => {
+  const root = makeFixture();
+  try {
+    mkdirSync(join(root, 'memory', 'patterns'), { recursive: true });
+    writeFileSync(join(root, 'memory', 'patterns', 'error-handling.md'), `---
+type: Pattern
+title: Error handling
+description: One sentence.
+---
+
+Always wrap fails.
+`);
+    writeFileSync(join(root, 'memory', 'patterns', 'logging.md'), `---
+type: Pattern
+title: Logging
+description: One sentence.
+---
+
+Log through the shared logger.
+`);
+    // memory-review card shape ({ action, id }); the LLM sends no bodies.
+    const data = hydrateMemoryCards({
+      step: 'memory-review',
+      memories: [
+        { action: 'update', id: 'patterns/error-handling', body: 'New body.' },
+        { action: 'keep', id: 'patterns/logging' },
+        { action: 'keep', id: 'patterns/missing' },          // no file — left alone
+        { action: 'create', id: 'patterns/new', body: 'X' }, // creates never hydrate
+        { action: 'delete', id: 'patterns/logging', existingBody: 'explicit' },
+        { action: 'keep', id: '../../etc/passwd' },          // traversal ignored
+      ],
+    }, root);
+    assert.equal(data.memories[0].existingBody, 'Always wrap fails.');
+    assert.equal(data.memories[1].existingBody, 'Log through the shared logger.');
+    assert.equal(data.memories[2].existingBody, undefined);
+    assert.equal(data.memories[3].existingBody, undefined);
+    assert.equal(data.memories[4].existingBody, 'explicit');
+    assert.equal(data.memories[5].existingBody, undefined);
+    // Accept-review proposal shape ({ action, area, slug }) hydrates too.
+    const review = hydrateMemoryCards({
+      step: 'review',
+      memory: { proposals: [{ action: 'update', area: 'patterns', slug: 'logging' }] },
+    }, root);
+    assert.equal(review.memory.proposals[0].existingBody, 'Log through the shared logger.');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('gatherRetire returns plan sections + condensed feature summaries', () => {
+  const root = makeFixture();
+  try {
+    const p = gatherRetire(root);
+    assert.equal(p.step, 'retire');
+    assert.equal(p.plan.title, 'Add JWT auth');
+    assert.equal(p.plan.goal, 'Protect the API with JWT.');
+    assert.equal(p.plan.keyDecisions, 'HS256 for simplicity.');
+    assert.deepEqual(p.features.map(f => f.name), ['config-module', 'auth-middleware']);
+    assert.equal(p.features[0].status, 'done');
+    assert.deepEqual([...p.filesUnion].sort(), ['src/auth/*.ts', 'src/config.ts']);
+    assert.equal(p.allDone, false, 'auth-middleware is still pending');
+    // No bodies, notes, or diffs ride along — the step is deliberately narrow.
+    assert.equal(p.features[0].implementationNotes, undefined);
+    assert.equal(p.diff, undefined);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('gatherReview strips overflow hunks but keeps every file attributable', () => {
+  const root = makeFixture();
+  try {
+    // ~450KB of changes in the declared file → over the 400KB hunk budget
+    // once a second file is added; structure must survive for staging.
+    const big = Array.from({ length: 9000 }, (_, i) => `export const v${i} = '${'x'.repeat(40)}';`).join('\n');
+    writeFileSync(join(root, 'src', 'auth', 'index.ts'), big + '\n');
+    writeFileSync(join(root, 'src', 'auth', 'extra.ts'), 'export const tail = 1;\n');
+    const p = gatherReview(root);
+    assert.equal(p.diffTruncated, true);
+    assert.ok(p.diffOmittedFiles.length >= 1);
+    const auth = p.features.find(c => c.name === 'auth-middleware');
+    const paths = auth.files.map(f => f.path);
+    for (const omitted of p.diffOmittedFiles) {
+      assert.ok(paths.includes(omitted), `omitted ${omitted} still attributed`);
+      const f = auth.files.find(x => x.path === omitted);
+      assert.equal(f.omitted, true);
+      assert.deepEqual(f.hunks, []);
+    }
+    // At least one file kept its hunks (the budget is spent in order).
+    assert.ok(auth.files.some(f => (f.hunks || []).length > 0));
+    assert.equal(p.hasChanges, true);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

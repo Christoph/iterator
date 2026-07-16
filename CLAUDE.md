@@ -45,11 +45,19 @@ section) are owned by the writer. Pipe ops to `skills/iterator/write.mjs`
 (`--schema` lists ops, `--schema <op>` shows a payload) instead of editing
 them directly; semantic prose in feature bodies is yours to write.
 
+## State is server-derived — views only render
+
+Status rules live once, in `lib/status.mjs` (feature transition table,
+dependency readiness, derived plan `stage`). Gather payloads ship the derived
+state (`ready`, `waitingOn`, `stage`); views and skills must never re-derive
+it from raw statuses. The dashboard splits into Planning (backlog, plan
+lifecycle, dependency graph) and Work (test/implement/review) surfaces, both
+rendered from the same gather payload.
+
 ## Development loop
 
 - Source of truth is repo-root `lib/`; run `npm run sync` after editing it
   (skills ship synced copies; `test/sync.test.mjs` fails on drift).
 - `npm test` runs the suite (`node --test`, 60s per-test timeout).
-- `lib/gather.mjs` contains a literal NUL byte — grep it with `-a`.
 - The user reviews and commits themselves: never commit, branch, or flip a
   feature to `done` (accept-commit owns that) unless explicitly asked.

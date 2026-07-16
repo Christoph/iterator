@@ -20,7 +20,7 @@ This skill folder also owns the shared tooling every step skill calls:
   small agent-authored `extra` on top, so most flows need no gather|server
   pipe. Single-instance on a fixed port (default `7777`, `$ITERATOR_PORT`).
 - `gather.mjs` — deterministic state
-  (`--step hub|plan|feature|implement|memorize|range|knowledge|test|review|session|settings|usage|archive`).
+  (`--step hub|planning|plan|feature|implement|memorize|range|knowledge|test|review|plan-review|retire|session|settings|usage|archive`).
 - `write.mjs` — deterministic bundle writer. `--schema` lists ops,
   `--schema <op>` prints an op's payload shape; errors come back as
   `{ok:false, error, hint}` — fix the payload and re-pipe, never write bundle
@@ -52,7 +52,12 @@ echo '{"gather":true,"step":"hub"}' | node <skill-dir>/server.mjs
 ```
 
 Add `"project":"<path>"` only when the shell's cwd is not inside the target
-repo. With no bundle the dashboard shows a Create-plan hero.
+repo. The hub is the **Work** surface (progress, escalation, per-feature
+Test / Implement / Review). Plan management — the idea/bug backlog, plan
+creation/revision/retirement, the dependency graph, feature cancellation —
+lives on the **planning** surface, same command with `"step":"planning"`
+(with no bundle it shows the Create-plan hero; both render from the same
+gather payload).
 
 ### 2. Dispatch the action
 
@@ -67,8 +72,10 @@ invalid by the time it arrives, report why and reopen the dashboard.
 `cancel` / `timeout` results carry a human `report` string — relay it, print
 a short state summary (done/total, next ready feature), and stop.
 
-Two navigation actions stay inside this skill instead of dispatching:
+Navigation actions stay inside this skill instead of dispatching:
 
+- `{ "action": "planning" }` → open the planning surface:
+  `echo '{"gather":true,"step":"planning"}' | node <skill-dir>/server.mjs`
 - `{ "action": "view-archive", "feature": "<archive-name>" }` → open the
   read-only retired-plan browser:
   `echo '{"gather":true,"step":"archive","feature":"<archive-name>"}' | node <skill-dir>/server.mjs`
@@ -82,9 +89,12 @@ Two navigation actions stay inside this skill instead of dispatching:
 A finished plan is knowledge, not a dead work item. When every feature is done,
 condense it:
 
-1. Read the plan and its features (they are about to be archived) and write the
-   **semantic** condensation yourself: what was built, why, and the key
-   trade-offs — a durable `decisions/` concept, not a play-by-play.
+1. Run `node <skill-dir>/gather.mjs --step retire` — it returns the plan's
+   sections plus condensed per-feature summaries (title, description, status,
+   files, review notes) and `filesUnion`; that payload is your whole context —
+   do not read the plan or feature files wholesale. Write the **semantic**
+   condensation yourself: what was built, why, and the key trade-offs — a
+   durable `decisions/` concept, not a play-by-play.
 2. Pipe `{ "op": "retire-plan", "concept": { slug, title, description, body,
    tags, files } }` into `node <skill-dir>/write.mjs`. Everything mechanical
    (the decisions concept, archiving `plan.md` + `features/*.md`, root-index
