@@ -322,13 +322,21 @@ function render(){
   bar.className = 'planbar';
   bar.innerHTML = '<span class="pt">'+esc(D.plan.title||'Plan')+'</span>'+
     '<span class="pst '+(D.plan.status==='approved'?'approved':'draft')+'">'+esc(D.plan.status||'draft')+'</span>'+
-    '<span class="pcount">'+done+' / '+total+' features done</span>'+
-    '<div class="pbar"><div style="width:'+(total?Math.round(done/total*100):0)+'%"></div></div>';
+    (total
+      ? '<span class="pcount">'+done+' / '+total+' features done</span>'+
+        '<div class="pbar"><div style="width:'+Math.round(done/total*100)+'%"></div></div>'
+      : '<span class="pcount">not broken into features yet</span>');
   const revise = document.createElement('button');
   revise.className='act'; revise.textContent='Revise plan';
   revise.addEventListener('click', () => action('plan', null, 'Starting /iterator-plan'));
+  // Before featuring, this button IS the continue action — make it read and
+  // look like one instead of a "Re-feature" that has nothing to redo.
   const refeature = document.createElement('button');
-  refeature.className='act'; refeature.textContent='Re-feature';
+  refeature.className = CH.length ? 'act' : 'act primary-act';
+  refeature.textContent = CH.length ? 'Re-feature' : 'Feature the plan';
+  refeature.title = CH.length
+    ? 'Redraw the feature set from the plan (/iterator-feature)'
+    : 'Next step: break the approved plan into small, dependency-ordered features (/iterator-feature)';
   refeature.addEventListener('click', () => action('feature', null, 'Starting /iterator-feature'));
   bar.insertBefore(refeature, bar.querySelector('.pbar'));
   bar.insertBefore(revise, refeature);
@@ -348,7 +356,7 @@ function render(){
     const dw = document.createElement('span');
     dw.className = 'chip cy';
     dw.textContent = '\\u26a0 ' + D.dirty.count + ' uncommitted file' + (D.dirty.count!==1?'s':'');
-    dw.title = (D.dirty.files||[]).join('\\n');
+    dw.title = 'Changes sitting uncommitted in the git working tree (independent of feature progress) \\u2014 the flow commits per feature, so tidy these before accepting:\\n' + (D.dirty.files||[]).join('\\n');
     bar.insertBefore(dw, bar.querySelector('.pbar'));
   }
   // Every feature implemented or done → the whole-plan review: check the
@@ -603,5 +611,6 @@ export function render(data) {
 		body: BODY,
 		clientJs: JS,
 		primary: false, // the per-card action buttons are the primaries here
+		cancel: false, // idle dashboard — there is no round to cancel
 	});
 }

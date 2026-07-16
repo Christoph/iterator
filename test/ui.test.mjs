@@ -388,3 +388,32 @@ test("hub hero goal box persists an unsent draft and clears it on plan start", a
 	// The larger input within the saved design parameters.
 	assert.match(html, /textarea\.goal\{[^}]*min-height:132px/);
 });
+
+test("idle dashboard tabs omit the header Cancel button; round views keep it with a tooltip", async () => {
+	const CANCEL_BTN = 'onclick="cancelFlow()"';
+	const { render: hub } = await import("../lib/views/hub.mjs");
+	const { render: knowledge } = await import("../lib/views/knowledge.mjs");
+	const { render: usage } = await import("../lib/views/usage.mjs");
+	const { render: plan } = await import("../lib/views/plan.mjs");
+	const hubHtml = hub({
+		step: "hub",
+		branch: "main",
+		plan: { title: "P", status: "approved" },
+		progress: { done: 0, total: 0 },
+		features: [],
+		retired: [],
+	});
+	// On these tabs no round is pending — /cancel is a no-op, the button lies.
+	assert.ok(!hubHtml.includes(CANCEL_BTN), "hub has no header Cancel");
+	assert.ok(
+		!knowledge({ branch: "main", memory: {}, areas: [], memories: [], design: null }).includes(CANCEL_BTN),
+		"knowledge has no header Cancel",
+	);
+	assert.ok(
+		!usage({ branch: "main", plan: "P", usage: { steps: [] } }).includes(CANCEL_BTN),
+		"usage has no header Cancel",
+	);
+	const planHtml = plan({ branch: "main", title: "P", plan: {}, knowledge: {} });
+	assert.ok(planHtml.includes(CANCEL_BTN), "round views keep Cancel");
+	assert.match(planHtml, /it-btn cancel" onclick="cancelFlow\(\)" title="/, "Cancel explains itself");
+});

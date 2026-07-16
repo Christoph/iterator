@@ -81,5 +81,6 @@ export function render(data) {
     step: 'usage', subtitle: '/ token usage', branch: data.branch, title: data.plan,
     data, css: CSS, body: BODY, clientJs: JS,
     primary: false,
+    cancel: false, // idle dashboard tab — there is no round to cancel
   });
 }

@@ -1,5 +1,8 @@
 # iterator update log
 
+## 2026-07-16
+* **Creation**: Memorized [Client JS in view template literals needs double-backslash escapes](/pitfalls/client-js-template-literal-escaping.md).
+
 ## 2026-07-15
 * **Retirement**: Plan "Unify Iterator dashboard and feature workflow" condensed into [Unify Iterator dashboard and feature workflow](/decisions/iterator-dashboard-feature-workflow.md).
 * **Implementation**: Committed feature(feature-idea-backlog) on branch iterator/iterator-terminology-migration.
