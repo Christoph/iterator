@@ -41,9 +41,13 @@ test("embed escapes </script> so payload data cannot break the page", () => {
 	const out = embed({ diff: "x</script><script>alert(1)</script>" });
 	assert.ok(!out.includes("</script>"));
 	assert.ok(out.includes("\\u003c/script>"));
-	assert.deepEqual(JSON.parse(out), {
-		diff: "x</script><script>alert(1)</script>",
-	});
+	let parsed;
+	try {
+		parsed = JSON.parse(out);
+	} catch (error) {
+		assert.fail(`embed() must return valid JSON: ${error.message}`);
+	}
+	assert.deepEqual(parsed, { diff: "x</script><script>alert(1)</script>" });
 });
 
 test("embed escapes U+2028/U+2029 and handles null", () => {
@@ -312,6 +316,12 @@ test("planning backlog submits scoped CRUD actions and hands selected candidates
 	);
 	assert.match(html, /Plan selected candidates/);
 	assert.match(html, /selectedBacklogGoal/);
+	// Long history feeds scroll within their own region; headings and controls
+	// remain available outside it.
+	assert.match(html, /backlog-list bounded-list/);
+	assert.match(html, /retired-list bounded-list/);
+	assert.match(html, /max-block-size:420px/);
+	assert.match(html, /max-block-size:50vh/);
 });
 
 test("hub gates Implement/Review on status and renders escalation + review-plan controls", async () => {
