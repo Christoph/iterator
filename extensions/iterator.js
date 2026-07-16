@@ -874,7 +874,10 @@ export default function iteratorExtension(pi) {
 						void escalationRestart(result.feature);
 						return;
 					}
-					if (result?.type === "action" && result.action === "escalation-guide") {
+					if (
+						result?.type === "action" &&
+						result.action === "escalation-guide"
+					) {
 						void escalationGuide(
 							result.feature || null,
 							String(result.prompt || "").trim() || "continue",
