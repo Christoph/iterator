@@ -56,8 +56,9 @@ Otherwise report the outcome (`applied.summary` is a ready-made line).
 
 Draft cards carry `action` (`create|update|delete|keep`), `id`
 (`<area>/<slug>`) or `area` + `slug`, `type`, `title`, `description`,
-optional `tags`/`files`, and `body`; `update`/`delete`/`keep` cards also
-carry `existingBody`. The writer turns each accepted card into
+optional `tags`/`files`, and `body` (`create`/`update` only). Never include
+`existingBody` — the server hydrates the current body from disk by id for
+the review display. The writer turns each accepted card into
 `<area>/<slug>.md`:
 
 ```yaml

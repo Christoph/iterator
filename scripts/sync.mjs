@@ -19,17 +19,22 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-const VIEWS = ['hub', 'plan', 'feature', 'test', 'review', 'knowledge', 'memory-review', 'settings', 'question', 'usage', 'archive'];
+const VIEWS = ['graph', 'widgets', 'hub', 'planning', 'plan', 'feature', 'test', 'review', 'knowledge', 'memory-review', 'settings', 'question', 'usage', 'archive'];
 
 /** [source, destination] pairs, relative to the repo root. */
 export const COPIES = [
   ['lib/bundle.mjs', 'skills/iterator/lib/bundle.mjs'],
   ['lib/git.mjs', 'skills/iterator/lib/git.mjs'],
   ['lib/settings.mjs', 'skills/iterator/lib/settings.mjs'],
+  ['lib/status.mjs', 'skills/iterator/lib/status.mjs'],
   ['lib/gather.mjs', 'skills/iterator/lib/gather.mjs'],
   ['lib/write.mjs', 'skills/iterator/lib/write.mjs'],
   ['lib/app.mjs', 'skills/iterator/lib/app.mjs'],
   ['lib/server.mjs', 'skills/iterator/lib/server.mjs'],
+  ['lib/server/env.mjs', 'skills/iterator/lib/server/env.mjs'],
+  ['lib/server/run-id.mjs', 'skills/iterator/lib/server/run-id.mjs'],
+  ['lib/server/takeover.mjs', 'skills/iterator/lib/server/takeover.mjs'],
+  ['lib/server/listen.mjs', 'skills/iterator/lib/server/listen.mjs'],
   ['lib/ui.mjs', 'skills/iterator/lib/ui.mjs'],
   ...VIEWS.map((v) => [`lib/views/${v}.mjs`, `skills/iterator/lib/views/${v}.mjs`]),
   ['templates/format.md', 'skills/iterator-plan/templates/format.md'],

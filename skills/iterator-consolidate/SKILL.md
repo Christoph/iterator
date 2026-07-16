@@ -23,10 +23,9 @@ Scripted — do **not** walk memory/ yourself:
 node <skill-dir>/../iterator/gather.mjs --step knowledge
 ```
 
-`memories[]` lists every knowledge concept with `files:` anchors and a
-`stale` flag (an anchor pointing at an untracked path). Then read the actual
-concept files you plan to propose changes for — the review cards need their
-current bodies.
+`memories[]` lists every knowledge concept with its current `body`, `files:`
+anchors, and a `stale` flag (an anchor pointing at an untracked path) — the
+payload is your whole inventory; do not re-read the concept files.
 
 Follow the payload's `advice` sentence — it is the proceed/stop signal. The
 only no-op outcomes are the ones it names (no bundle, zero concepts). In every
@@ -48,7 +47,8 @@ stale memories with `stale: true` and clear `staleReasons` such as
 - Propose `action: "delete"` for memories that no longer apply.
 - Include all other memories as `action: "keep"` so the user can still delete
   them.
-- Include `existingBody` for every `update`, `delete`, and `keep` card.
+- Never include `existingBody` — the server reads each concept's current body
+  from disk for the review display.
 
 ## Review
 

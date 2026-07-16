@@ -48,9 +48,9 @@ skill (`skill: "iterator-knowledge"`):
   review before writing.
 - `update-memory`: `target` is the concept id shown on the card. Read that
   concept file, use `prompt` as the user's requested change (if empty, ask
-  what change they want), draft an `action: "update"` card with
-  `existingBody`, and send it through review. Never mutate memory directly
-  from browser state.
+  what change they want), draft an `action: "update"` card, and send it
+  through review (the server fills `existingBody` from disk). Never mutate
+  memory directly from browser state.
 - `close`: report that no action was selected.
 
 For `cancel` / `timeout`, write nothing — relay the result's `report`.

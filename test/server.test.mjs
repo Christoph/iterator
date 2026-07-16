@@ -501,7 +501,7 @@ test("ITERATOR_BIND_HOST overrides the bind address (ITERATOR_HOST is the deprec
 const SMOKE = [
 	[
 		"hub",
-		"Dependency graph",
+		"Implement all (auto)",
 		{
 			step: "hub",
 			branch: "test",
@@ -637,9 +637,9 @@ for (const [step, marker, payload] of SMOKE) {
 	});
 }
 
-test("hub without a plan renders the goal box with @-file suggestions", async () => {
+test("planning without a plan renders the goal box with @-file suggestions", async () => {
 	const io = await startServer({
-		step: "hub",
+		step: "planning",
 		branch: "test",
 		plan: null,
 		progress: { done: 0, total: 0 },
@@ -1001,4 +1001,29 @@ test("review with hasChanges:false prints no-changes and never opens a server", 
 	assert.match(out.report, /Nothing to review/);
 	assert.deepEqual(out.progress, { done: 1, total: 2 });
 	assert.doesNotMatch(stderr, /listening/, "no server was started");
+});
+
+test("listenWithTakeover walks up when the start port is busy and falls back to ephemeral", async () => {
+	const http = await import("node:http");
+	const { listenWithTakeover } = await import("../lib/server/listen.mjs");
+	const blocker = http.createServer(() => {});
+	const blockerPort = await new Promise((resolve) =>
+		blocker.listen(0, "127.0.0.1", () => resolve(blocker.address().port)),
+	);
+	try {
+		// Walk-up: start on the busy port, land on a nearby free one.
+		const s1 = http.createServer(() => {});
+		const p1 = await listenWithTakeover(s1, { startPort: blockerPort, maxRetries: 5 });
+		assert.notEqual(p1, blockerPort);
+		assert.ok(p1 > 0);
+		s1.close();
+		// Ephemeral fallback: no retries left → the OS picks a port.
+		const s2 = http.createServer(() => {});
+		const p2 = await listenWithTakeover(s2, { startPort: blockerPort, maxRetries: 0 });
+		assert.notEqual(p2, blockerPort);
+		assert.ok(p2 > 0);
+		s2.close();
+	} finally {
+		blocker.close();
+	}
 });
