@@ -28,6 +28,13 @@ node <skill-dir>/../iterator/gather.mjs --step knowledge
 concept files you plan to propose changes for — the review cards need their
 current bodies.
 
+Follow the payload's `advice` sentence — it is the proceed/stop signal. The
+only no-op outcomes are the ones it names (no bundle, zero concepts). In every
+other case the review round **always** opens, even when nothing looks stale:
+never conclude "the knowledge base looks healthy, nothing to do" from the
+inventory alone. An all-`keep` payload is still a valid round — it shows the
+user the current state and lets them prune.
+
 ## Staleness scan
 
 Beyond the gathered `stale` flags (frontmatter `files:` vs `git ls-files`),

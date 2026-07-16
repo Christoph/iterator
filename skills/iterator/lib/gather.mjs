@@ -1019,6 +1019,18 @@ export function gatherKnowledge(startDir) {
 		existsSync(formatFile) &&
 		readFileSync(template, "utf8") !== readFileSync(formatFile, "utf8");
 
+	const staleCount = memories.filter((m) => m.stale).length;
+	// The forcing sentence consolidate follows: the review round ALWAYS opens
+	// (even all-keep) so the run produces a visible outcome — the model must
+	// never conclude "nothing to do" from this inventory alone.
+	const advice = !initialized
+		? "No memory/index.md — run /iterator-init first."
+		: memories.length === 0
+			? "No knowledge concepts yet — nothing to consolidate; run /iterator-memorize (or /iterator-init) to create concepts first."
+			: staleCount > 0
+				? `${staleCount} stale concept(s) found — verify their anchors, draft update/delete verdicts, and open the review round.`
+				: "No stale anchors detected — still open the review round with keep verdicts so the user sees and confirms the result.";
+
 	return {
 		step: "knowledge",
 		branch: b.branch,
@@ -1029,9 +1041,11 @@ export function gatherKnowledge(startDir) {
 			okfVersion: rootFm.okf_version ?? null,
 			lastMemorizedCommit: lastCommit,
 			conceptCount: memories.length,
-			staleCount: memories.filter((m) => m.stale).length,
+			staleCount,
 			unmemorizedCommitCount: unmemorized,
 		},
+		hasStale: staleCount > 0,
+		advice,
 		areas,
 		memories,
 		design: b.design

@@ -141,6 +141,43 @@ add — the `pi` manifest already supports `"prompts"`.
 - Optional: a second, thin package (`iterator-tools`) exposing only §1's
   tools for people who want the bundle format without the browser UI.
 
+## 11. Dynamic tool loading (`pi.setActiveTools`) — keep context small
+
+pi now supports dynamic tool loading
+(<https://pi.dev/docs/latest/extensions#dynamic-tool-loading>):
+`pi.registerTool()` works after startup too (inside `session_start`, command
+handlers, other event handlers — new tools become available immediately), and
+`pi.setActiveTools(names)` controls which registered tools are visible to the
+LLM; only active tools land in the system prompt (`promptSnippet` /
+`promptGuidelines`).
+
+Today `extensions/iterator.js` registers all 4 tools unconditionally at load —
+`iterator_gather`, `iterator_write` (~1.5k-char description alone), `okf_write`,
+`iterator_ui`. In repos without a `memory/` bundle that is pure dead context
+weight; even in iterator repos `okf_write` is only needed during memory-review
+rounds and `iterator_write` only inside skill flows.
+
+Sketch:
+
+- **Bundle gate**: on `session_start`, activate the iterator tools only when
+  `memory/index.md` exists in `ctx.cwd`; otherwise keep them inactive (or
+  activate only a minimal entry point). `/iterator-init` must still work in a
+  bare repo, so its command handler activates what it needs before running.
+- **Per-flow activation**: each `/iterator-*` command handler calls a small
+  `updateActiveTools()` helper to enable the tools its skill references
+  (grep skills/*/SKILL.md + PROTOCOL.md for the mapping); `okf_write` only for
+  the knowledge/review flows.
+- **Re-check after writes**: `iterator_write` op results that create a bundle
+  (init path) should trigger the same helper (the `invalidateSession()` hook
+  is the natural place).
+- **Robustness**: skills instruct the model to call these tools by name — an
+  inactive tool means a failed call. Safest ladder: keep `iterator_gather`
+  always active as the entry point and activate the rest whenever any
+  `/iterator-*` command runs or a bundle is detected.
+
+Reference example: `packages/coding-agent/examples/extensions/dynamic-tools.ts`
+in the pi repo.
+
 ## Sequencing
 
 §1 and §2 are small and independent — do them first (§1 makes every other

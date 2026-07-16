@@ -131,8 +131,8 @@ function backlogAction(payload, button, message){
 function selectedBacklogGoal(){
   const selected = (D.backlog || []).filter(item => item.selected);
   if(!selected.length) return null;
-  return 'Create a plan from these saved backlog candidates:\n\n' + selected.map(item =>
-    '[' + item.kind + '] ' + item.title + (item.details ? '\n' + item.details : '')).join('\n\n');
+  return 'Create a plan from these saved backlog candidates:\\n\\n' + selected.map(item =>
+    '[' + item.kind + '] ' + item.title + (item.details ? '\\n' + item.details : '')).join('\\n\\n');
 }
 // A dependency satisfies its dependents when done — or merely implemented,
 // when the review_required setting is off.
