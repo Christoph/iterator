@@ -50,6 +50,7 @@ import {
 } from "../lib/guardrails.mjs";
 import {
 	actionToCommand,
+	activityTextFromMessage,
 	attributionFromInput,
 	AUTO_PHASE_FOR_STEP,
 	bundleExists,
@@ -642,21 +643,13 @@ export default function iteratorExtension(pi) {
 			await applyRole(action.role, sess.settings);
 			attribution = { step: action.step, feature: action.feature || null };
 			const p = sess.hub?.progress || {};
-			// Structured working state: the shell renders step/feature, a progress
-			// bar, and the memories the implementer will read for this feature.
-			const contract = action.feature
-				? [sess.implement?.next, ...(sess.implement?.wave || [])]
-						.filter(Boolean)
-						.find((c) => c.name === action.feature)
-				: null;
+			// Structured working state: the shell renders step/feature and a
+			// progress bar; the agent's own messages stream in via pushActivity.
 			session?.showWorking({
 				text: `Auto: ${action.step} ${action.feature || ""} (${p.done ?? 0}/${p.total ?? 0} done)…`,
 				step: action.step,
 				feature: action.feature || null,
 				progress: { done: p.done ?? 0, total: p.total ?? 0 },
-				memories: (contract?.relevantMemories || []).map(
-					({ id, title, description }) => ({ id, title, description }),
-				),
 			});
 			await pushStatus(cwd);
 			try {
@@ -1390,6 +1383,18 @@ export default function iteratorExtension(pi) {
 			/* a ledger failure must never take pi down */
 		}
 	};
+
+	// ---------------------------------------------------------------------
+	// Working-overlay narration: every finished assistant message becomes the
+	// overlay's live line, so the blocked Work tab shows what the agent is
+	// doing instead of one string set per step. pushActivity no-ops unless an
+	// overlay is actually up, so non-auto turns cost one string build.
+
+	pi.on("message_end", async (event) => {
+		const line = activityTextFromMessage(event?.message);
+		if (line) session?.pushActivity?.(line);
+		return undefined; // returning { message } would REPLACE the message
+	});
 
 	// ---------------------------------------------------------------------
 	// Session lifecycle: dashboard up for every project, down with pi. A

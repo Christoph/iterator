@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-17
+* **Retirement**: Plan "Polish dashboard and multi-agent workflows" condensed into [Polish dashboard and multi-agent workflows](/decisions/polish-dashboard-and-multi-agent-workflows.md).
 * **Review**: Accepted [Support Claude Code feature flow](/features/support-claude-code-feature-flow.md) (committed as feature(support-claude-code-feature-flow)).
 * **Implementation**: Committed feature(support-claude-code-feature-flow) on branch iterator/scope-settings-model-options; awaiting review.
 * **Review**: Accepted [Scope settings model options](/features/scope-settings-model-options.md) (committed as feature(scope-settings-model-options)).

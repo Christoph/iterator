@@ -20,6 +20,18 @@ test("working overlay identifies AI work and remains scoped to Work", async () =
 		assert.ok(nav < stage, "tab bar is a sibling above the stage, outside the overlay");
 		// Wide viewports: overlay content is constrained and centered.
 		assert.match(shell, /#overlay>\*\{max-width:min\(640px,92%\)\}/);
+		// The overlay narrates the agent's own messages instead of the memories
+		// reading list, in a fixed-width box that clips rather than scrolls.
+		assert.ok(!shell.includes("overlay-mem"), "the memories block is gone");
+		assert.match(shell, /#overlay-activity\{width:min\(640px,92%\);max-height:50vh/);
+		assert.match(shell, /#overlay-activity\{[^}]*overflow:hidden/);
+		// Two long messages must not collide: each entry clips its own text, and
+		// the newest keeps its height so only the older line is clipped away.
+		assert.match(shell, /#overlay-activity \.ae\{[^}]*overflow:hidden\}/);
+		assert.match(shell, /#overlay-activity \.ae:first-child\{flex-shrink:0\}/);
+		// Without this the toggled children (detail, bar, activity) never hide:
+		// the only other .hidden rule is scoped to #ctl.
+		assert.match(shell, /#overlay \.hidden\{display:none\}/);
 	} finally {
 		await session.stop();
 	}

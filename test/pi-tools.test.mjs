@@ -4,9 +4,9 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  actionToCommand, bundleExists, featuresDirEntries, composeAmbientContext,
-  extractPathsFromBash, footerText, mergePayload, runJson, scriptPath,
-  shouldNudge,
+  actionToCommand, activityTextFromMessage, bundleExists, featuresDirEntries,
+  composeAmbientContext, extractPathsFromBash, footerText, mergePayload, runJson,
+  scriptPath, shouldNudge,
 } from '../lib/pi-tools.mjs';
 
 test('mergePayload: extra wins, gathered object untouched, junk extra ignored', () => {
@@ -295,4 +295,77 @@ test('roleModelSpec resolves overrides and leaves active alone', () => {
   assert.deepEqual(roleModelSpec(settings, 'reviewer'), { model: 'anthropic/claude-opus-4-8', thinking: 'high' });
   assert.deepEqual(roleModelSpec(settings, 'implementer'), { model: null, thinking: 'medium' });
   assert.deepEqual(roleModelSpec({}, 'tester'), { model: null, thinking: null });
+});
+
+// ---------------------------------------------------------------------------
+// activityTextFromMessage — the working overlay's live line
+
+const assistant = (content, extra = {}) => ({ role: 'assistant', content, ...extra });
+
+test('activityTextFromMessage: joins text blocks and collapses whitespace', () => {
+  const msg = assistant([
+    { type: 'text', text: 'Adding requireAuth\n\n  to src/auth.ts' },
+    { type: 'text', text: 'then wiring the router.' },
+  ]);
+  assert.equal(
+    activityTextFromMessage(msg),
+    'Adding requireAuth to src/auth.ts then wiring the router.',
+  );
+});
+
+test('activityTextFromMessage: takes text and skips thinking, even when thinking leads', () => {
+  // The typical tool-using turn: thinking first, then prose, then tool calls.
+  const msg = assistant([
+    { type: 'thinking', thinking: 'Let me check the config first.' },
+    { type: 'text', text: 'Checking the config secret.' },
+    { type: 'toolCall', id: '1', name: 'read', arguments: {} },
+  ], { stopReason: 'toolUse' });
+  assert.equal(activityTextFromMessage(msg), 'Checking the config secret.');
+});
+
+test('activityTextFromMessage: falls back to a tool summary when a message has no prose', () => {
+  const msg = assistant([
+    { type: 'thinking', thinking: 'silent work' },
+    { type: 'toolCall', id: '1', name: 'read', arguments: {} },
+    { type: 'toolCall', id: '2', name: 'edit', arguments: {} },
+    { type: 'toolCall', id: '3', name: 'edit', arguments: {} },
+  ], { stopReason: 'toolUse' });
+  assert.equal(activityTextFromMessage(msg), 'Running read, edit ×2');
+});
+
+test('activityTextFromMessage: null for thinking-only and for messages without usable content', () => {
+  assert.equal(activityTextFromMessage(assistant([{ type: 'thinking', thinking: 'hm' }])), null);
+  assert.equal(activityTextFromMessage(assistant([])), null);
+  assert.equal(activityTextFromMessage(assistant(undefined)), null);
+  assert.equal(activityTextFromMessage(assistant('not an array')), null);
+  assert.equal(activityTextFromMessage(assistant([{ type: 'text', text: '   ' }])), null);
+  assert.equal(activityTextFromMessage(null), null);
+});
+
+test('activityTextFromMessage: only assistant messages produce a line', () => {
+  // message_end fires for every role — anything but assistant must stay silent.
+  for (const role of ['user', 'toolResult', 'bashExecution', 'custom', 'branchSummary', 'compactionSummary']) {
+    assert.equal(
+      activityTextFromMessage({ role, content: [{ type: 'text', text: 'nope' }] }),
+      null,
+      `${role} must not reach the overlay`,
+    );
+  }
+});
+
+test('activityTextFromMessage: aborted turns stay silent, errored ones still speak', () => {
+  const content = [{ type: 'text', text: 'partial work' }];
+  assert.equal(activityTextFromMessage(assistant(content, { stopReason: 'aborted' })), null);
+  assert.equal(activityTextFromMessage(assistant(content, { stopReason: 'error' })), 'partial work');
+});
+
+test('activityTextFromMessage: clips long prose on a word boundary', () => {
+  const long = assistant([{ type: 'text', text: 'word '.repeat(2000) }]);
+  const line = activityTextFromMessage(long);
+  assert.ok(line.length <= 801, `clipped to the cap, got ${line.length}`);
+  assert.ok(line.endsWith('…'), 'clipping is visible');
+  assert.ok(!line.includes('wor…'), 'cuts between words, not mid-word');
+  // A custom cap is honoured, and short text is returned untouched.
+  assert.equal(activityTextFromMessage(assistant([{ type: 'text', text: 'abcdef' }]), 4), 'abcd…');
+  assert.equal(activityTextFromMessage(assistant([{ type: 'text', text: 'abcd' }]), 4), 'abcd');
 });

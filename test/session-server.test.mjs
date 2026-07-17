@@ -235,16 +235,61 @@ test("showWorking accepts a structured payload and replays it to new SSE clients
 			step: "implement",
 			feature: "auth",
 			progress: { done: 1, total: 3 },
-			memories: [
-				{ id: "pitfalls/gone-anchor", title: "Gone anchor", description: "d" },
-			],
+			activity: ["Reading lib/status.mjs…"],
 		});
 		const sse = await firstSseEvent(origin);
 		assert.equal(sse.event, "working");
 		assert.equal(sse.data.step, "implement");
 		assert.equal(sse.data.feature, "auth");
 		assert.deepEqual(sse.data.progress, { done: 1, total: 3 });
-		assert.equal(sse.data.memories[0].title, "Gone anchor");
+		assert.equal(sse.data.activity[0], "Reading lib/status.mjs…");
+	} finally {
+		await session.stop();
+	}
+});
+
+test("pushActivity keeps the last two lines newest-first and replays them", async () => {
+	const { session, origin } = await startSession();
+	try {
+		session.showWorking({ text: "Auto: implement auth…", step: "implement" });
+		session.pushActivity("first");
+		session.pushActivity("second");
+		session.pushActivity("second"); // a repeat must not push the previous line out
+		session.pushActivity("third");
+		session.pushActivity("   "); // blank lines are not activity
+		// firstSseEvent connects after the pushes, so this is the replay path too.
+		const sse = await firstSseEvent(origin);
+		assert.equal(sse.event, "working");
+		assert.deepEqual(sse.data.activity, ["third", "second"]);
+		assert.equal(sse.data.text, "Auto: implement auth…", "the step header survives");
+	} finally {
+		await session.stop();
+	}
+});
+
+test("a new working step never inherits the last one's activity", async () => {
+	const { session, origin } = await startSession();
+	try {
+		session.showWorking({ text: "step one", feature: "a" });
+		session.pushActivity("a's line");
+		session.showWorking({ text: "step two", feature: "b" });
+		const sse = await firstSseEvent(origin);
+		assert.equal(sse.data.text, "step two");
+		assert.equal(sse.data.activity, undefined);
+	} finally {
+		await session.stop();
+	}
+});
+
+test("pushActivity never resurrects a cleared overlay", async () => {
+	const { session, origin } = await startSession();
+	try {
+		session.showView({ step: "hub", render: () => viewHtml("HUB") });
+		session.showWorking("working…");
+		session.clearWorking();
+		session.pushActivity("a message landing after the abort");
+		const sse = await firstSseEvent(origin);
+		assert.equal(sse.event, "view", "the overlay stays dismissed");
 	} finally {
 		await session.stop();
 	}
