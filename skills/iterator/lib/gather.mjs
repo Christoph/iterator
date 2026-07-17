@@ -424,7 +424,9 @@ export function gather(startDir) {
 			.filter((feature) => feature.status === "pending" && feature.ready)
 			.map((feature) => feature.name),
 		reviewWave: features
-			.filter((feature) => feature.status === "implemented" && feature.hasCommits)
+			.filter(
+				(feature) => feature.status === "implemented" && feature.hasCommits,
+			)
 			.map((feature) => feature.name),
 		knowledgeInitialized: knowledgeReady(b.memDir),
 		settings: b.settings,
@@ -1128,9 +1130,7 @@ export function hydrateMemoryCards(data, startDir) {
 	if (!needy.length) return data;
 	const b = loadBundle(startDir);
 	for (const m of needy) {
-		const [area, slug] = m.id
-			? String(m.id).split("/")
-			: [m.area, m.slug];
+		const [area, slug] = m.id ? String(m.id).split("/") : [m.area, m.slug];
 		if (!SLUG.test(area || "") || !SLUG.test(slug || "")) continue;
 		const file = join(b.memDir, area, `${slug}.md`);
 		if (existsSync(file))
@@ -1659,10 +1659,7 @@ export function gatherReview(startDir, opts = {}) {
 	const diffOmittedFiles = [];
 	{
 		let budget = MAX_DIFF;
-		const allFiles = [
-			...features.flatMap((c) => c.files),
-			...uncategorized,
-		];
+		const allFiles = [...features.flatMap((c) => c.files), ...uncategorized];
 		for (const f of allFiles) {
 			const size = JSON.stringify(f.hunks || []).length;
 			if (size <= budget) {

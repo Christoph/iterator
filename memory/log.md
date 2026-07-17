@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-17
+* **Review**: Accepted [Review implemented features together](/features/review-multiple-implemented-features.md) (committed as feature(review-multiple-implemented-features)).
 * **Implementation**: Committed feature(review-multiple-implemented-features) on branch iterator/consume-accepted-backlog-ideas; awaiting review.
 * **Review**: Reviewed [Implement a dependency-ready feature wave](/features/implement-ready-feature-wave.md); approved (agent).
 * **Review**: Accepted [Implement a dependency-ready feature wave](/features/implement-ready-feature-wave.md) (committed as feature(implement-ready-feature-wave)).
