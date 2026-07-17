@@ -7,10 +7,13 @@ size: medium
 depends_on: []
 files: ["lib/gather.mjs", "lib/views/hub.mjs", "lib/views/review.mjs", "extensions/iterator.js", "skills/iterator-review/SKILL.md", "test/gather.test.mjs", "test/ui.test.mjs", "test/session-server.test.mjs"]
 memories: [pitfalls/cancel-now-after-grace-timer, pitfalls/client-js-template-literal-escaping, architecture/package-and-skill-layout, architecture/workflow-state-ownership, patterns/safe-browser-rendering, decisions/iterator-dashboard-feature-workflow, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows]
-timestamp: "2026-07-17T15:23:57.692Z"
+timestamp: "2026-07-17T15:23:57.765Z"
 tags: []
 commits:
   - sha: e5853320eff434b2aaecca8069ceabceeecdffa3
+    kind: implement
+    date: 2026-07-17
+  - sha: 3a7f49f30705940e761692e6649bf3c833cdfe7f
     kind: implement
     date: 2026-07-17
 reviewed: 2026-07-17
