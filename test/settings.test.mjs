@@ -118,19 +118,37 @@ test("plan reviewer settings inherit from the feature reviewer unless set", () =
 	);
 });
 
-test("settings view renders a form over the defs (models free-text without a registry)", () => {
+test("settings view renders a form over the defs (models free-text without available choices)", () => {
 	const html = settingsView({
 		step: "settings",
 		branch: "main",
 		plan: "Add JWT auth",
 		settings: settingsDefaults(),
 		defined: false,
+		models: [],
 	});
 	assert.ok(html.includes("Project settings"));
 	assert.ok(html.includes("auto_mode"), "key names are shown");
 	assert.ok(html.includes("Reviewer model"));
 	assert.ok(html.includes("type:'settings'"), "submits a settings result");
 	assert.ok(html.includes("memory/settings.md"));
+	assert.ok(html.includes("free text otherwise"));
+});
+
+test("settings view limits model selectors to available choices and keeps saved unlisted values", () => {
+	const settings = { ...settingsDefaults(), reviewer_model: "saved/retired-model" };
+	const html = settingsView({
+		step: "settings",
+		branch: "main",
+		plan: "Add JWT auth",
+		settings,
+		defined: true,
+		models: [{ id: "openai/gpt-5.6", label: "openai/gpt-5.6" }],
+	});
+	assert.ok(html.includes("openai/gpt-5.6"));
+	assert.ok(html.includes("saved/retired-model"));
+	assert.ok(html.includes("' (unlisted)'"));
+	assert.ok(html.includes("active (session model)"));
 });
 
 test("question view renders options + free text and posts an answer", async () => {

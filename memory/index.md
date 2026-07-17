@@ -11,6 +11,7 @@ last_memorized_commit: a5d59c50453e568ec486a3c9c017c2506898700e
 * [Features](features/) - One document per implementation feature.
 * [Backlog](backlog/index.md) - Saved ideas and bugs outside active plan features.
 * [Plan](plan.md) - Refine Iterator’s dashboard presentation and backlog ergonomics, restrict settings model choices to the active scope, and make the Claude Code skill workflow reliably plan, slice, implement, and commit work without replacing Pi’s dashboard-centered workflow.
+* [Settings](settings.md) - Project settings (auto mode, models, git flow).
 * [Architecture](/architecture/) - How the system is structured.
 * [Decisions](/decisions/) - Durable product and implementation choices agents should preserve.
 * [Patterns & Conventions](/patterns/) - How code and workflows are written in this repo.

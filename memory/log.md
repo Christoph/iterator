@@ -1,5 +1,9 @@
 # iterator update log
 
+## 2026-07-17
+* **Implementation**: Committed feature(scope-settings-model-options) on branch iterator/scope-settings-model-options; awaiting review.
+* **Settings**: Updated planner_model, reviewer_model, plan_reviewer_model.
+
 ## 2026-07-16
 * **Review**: Accepted [Bound planning archives](/features/bound-planning-archives.md) (committed as feature(bound-planning-archives)).
 * **Implementation**: Committed feature(bound-planning-archives) on branch iterator/clarify-dashboard-identity; awaiting review.
