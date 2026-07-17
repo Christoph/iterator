@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-17
+* **Review**: Accepted [Apply configured models to manual turns](/features/apply-role-models-manual-turns.md) (committed as feature(apply-role-models-manual-turns)).
 * **Implementation**: Committed feature(apply-role-models-manual-turns) on branch iterator/always-available-backlog; awaiting review.
 * **Backlog**: edit after-consolidating-the-memory-files-there-is-still-a-stale-memory.
 * **Backlog**: create make-sure-work-state-is-working.
