@@ -343,6 +343,10 @@ test("the shell scopes the overlay to the Work tab and posts read-only state int
 			"overlay guarded by active tab",
 		);
 		assert.ok(
+			shell.includes("postMessage({ iterator: 'navigate'"),
+			"tab switches mark the outgoing iframe as navigation before pagehide",
+		);
+		assert.ok(
 			shell.includes("postMessage({ iterator: 'working'"),
 			"read-only state posted into the iframe",
 		);

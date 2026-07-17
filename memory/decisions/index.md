@@ -2,6 +2,7 @@
 
 Durable product and implementation choices agents should preserve.
 
+* [Backlog planning and parallel feature waves](/decisions/backlog-planning-and-feature-waves.md) - Keep low-risk backlog editing available during active work while implementing a fixed ready-feature wave and reviewing its commit-backed results together.
 * [Consume selected backlog ideas on plan approval](/decisions/consume-accepted-backlog-ideas.md) - Selected idea or bug candidates leave the backlog only after deterministic plan approval.
 * [Parallel feature waves and consolidated review](/decisions/parallel-feature-waves-and-consolidated-review.md) - The dashboard supports fixed dependency-ready implementation waves and commit-backed multi-feature review without weakening explicit acceptance.
 * [Polish dashboard and multi-agent workflows](/decisions/polish-dashboard-and-multi-agent-workflows.md) - Dashboard polish and workflow refinements that clarify project context, constrain settings to usable models, and support deterministic Claude Code feature execution.

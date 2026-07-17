@@ -1,25 +1,23 @@
 ---
 type: Plan
-title: Keep backlog planning available and support parallel feature waves
-description: Keep filesystem-backed backlog work available during active agent flows, and add dependency-ready implementation waves with consolidated review.
+title: Keep active review stable and clarify Planning versus Work
+description: Preserve active reviews across Planning navigation, move active work context to Work, and polish review controls.
 status: approved
-branch: iterator/keep-backlog-planning-available-and-support-parallel-feature-waves
-worktree: /Volumes/Extern/Projects/iterator-iterator-keep-backlog-planning-available-and-support-parallel-feature-waves
+branch: iterator/always-available-backlog
 created: 2026-07-17
-timestamp: "2026-07-17T15:28:32.570Z"
-plan_reviewed: 2026-07-17
+timestamp: 2026-07-17T16:15:52.935Z
 ---
 
 # Goal
 
-Allow users to continue reading and editing the filesystem-backed idea backlog while an agent is working, without permitting a second model flow. Add a dependency-ready “Implement next wave” workflow and a consolidated “Review all” experience so users can inspect each implemented feature’s attributable diff before explicitly accepting it.
+Prevent an in-progress review from being aborted when users visit Planning to manage backlog ideas, while making Work the clear home for the active plan, its features, and their dependency graph. Fix long feature-review titles so they remain fully readable, and remove the unused lower-right Feedback control.
 
 # Architecture
 
-- Extend `architecture/workflow-state-ownership`: derive the fixed dependency-ready wave and review scope in `lib/status.mjs`/`lib/gather.mjs`; views consume supplied readiness and scope rather than recalculating them.
-- Extend `architecture/browser-server-contract`: carry backlog CRUD, wave-control, and consolidated-review actions through the session server's single-pending-round protocol, retaining machine-readable results.
-- Keep the Planning and Work dashboard views compact and responsive under `memory/design.md`, with controls stacking below 640px and selectable feature diffs remaining usable on narrow screens.
-- Route Pi tools, the extension, and implement/review skills through the same deterministic gather/write contracts; canonical `lib/` changes are synchronized to shipped skill copies.
+- Extend `architecture/browser-server-contract` and the persistent session shell so navigation and filesystem-only backlog work do not destroy an existing pending review round; its eventual result remains the sole stdout outcome.
+- Extend `architecture/workflow-state-ownership`: gather supplies active-plan, feature, and dependency-graph data to Work, while Planning remains focused on backlog and plan-management surfaces rather than reconstructing workflow state locally.
+- Update the dashboard views and extension through their established contracts; preserve the compact responsive rules in `memory/design.md`, including wrapping or horizontal overflow instead of clipping titles.
+- Update canonical `lib/` sources and run `npm run sync` so shipped skill copies remain aligned, with session/UI/client-script regression coverage.
 
 # Dependencies
 
@@ -27,26 +25,16 @@ Allow users to continue reading and editing the filesystem-backed idea backlog w
 
 # Key decisions
 
-- Follow `decisions/parallel-feature-waves-and-consolidated-review`: backlog CRUD stays available during agent work, but any action that starts another model flow remains blocked.
-- Snapshot the pending, dependency-ready features at wave start; implement only that fixed set and never add features that become ready later.
-- Preserve the explicit review/acceptance gate: automated implementation may run checks and prepare review, but it must not self-accept features or mark them done.
-- Build consolidated review diffs independently from each feature’s recorded commits, keeping feature selection and findings attributable.
-- Follow `decisions/consume-accepted-backlog-ideas`: selected candidates remain in the backlog until deterministic plan approval consumes them.
-- Follow `decisions/synced-droppable-skill-libs`: update root shared code, run `npm run sync`, and test the synchronized copies rather than hand-editing them.
-- Avoid `pitfalls/client-js-template-literal-escaping` when adding view scripts: static JavaScript escapes in backtick templates use doubled backslashes and client-script parse tests cover the payload.
+- Follow `decisions/backlog-planning-and-feature-waves`: backlog CRUD may remain available during an active model round, but it must preserve the active review's pending state and must not unblock unrelated model-flow actions.
+- Follow `architecture/browser-server-contract`: a review round continues to own its one machine-readable result even when the user navigates to Planning and returns; navigation is not a cancellation signal.
+- Keep all active-plan lifecycle data and graph state server-derived per `architecture/workflow-state-ownership`; views only relocate and render the supplied data.
+- Follow `decisions/consume-accepted-backlog-ideas`: consume these four selected backlog candidates only when this plan is approved.
+- Long review feature titles must remain fully accessible at every breakpoint; prioritize wrapping or overflow over ellipsis/clipping, consistent with `memory/design.md`.
+- Remove the unused Feedback control and its obsolete client wiring without adding a replacement feedback path in this scope.
+- Follow `pitfalls/client-js-template-literal-escaping` for any changed inline view scripts, and cover their parseability in client-script tests.
 
 # Features
 
-* [Keep the idea backlog editable during agent work](/features/always-available-backlog.md) - Let users create, edit, delete, and select backlog candidates while an implementation turn is running.
-* [Implement a fixed dependency-ready feature wave](/features/implement-ready-feature-wave.md) - Start and advance a snapshot of every pending feature that is ready when the user clicks Implement next wave.
-* [Review all implemented features together](/features/review-multiple-implemented-features.md) - Open one selectable, commit-backed review for every implemented feature that has recorded commits.
-
-# Plan review
-
-## 2026-07-17 _(agent review: openai-codex/gpt-5.6-sol)_
-
-## Clean bill
-
-- **Goal coverage:** Complete. Backlog CRUD remains available during active agent work while unrelated submissions stay blocked; `Implement next wave` uses a fixed server-derived ready snapshot and stops features at `implemented`; `Review all` presents independently rebuilt, selectable commit-backed feature diffs before explicit acceptance.
-- **Architecture and decisions:** The implementation follows centralized gather/status readiness, the persistent session-server contract, explicit review gates, responsive dashboard design parameters, and synchronized root/skill library copies. No new dependency or decision contradiction was introduced.
-- **Scope and loose ends:** All three features are accepted (`done`), both review findings were addressed by follow-up commits, the complete suite passes, and no unexplained functional scope drift or TODO was found.
+* [Preserve reviews across Planning navigation](/features/preserve-review-across-planning.md) - Keep an active review open while users manage backlog items on the Planning tab and return to it.
+* [Show active plan context on Work](/features/show-active-work-in-work.md) - Make Work the home for the active plan, its feature set, and the dependency graph.
+* [Keep review controls fully readable](/features/streamline-review-interface.md) - Show complete feature titles in review and remove the unused Feedback panel.

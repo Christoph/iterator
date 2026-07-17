@@ -107,6 +107,10 @@ test("shared client JS posts to the server endpoints with the run id", () => {
 test("shared client JS wires read-only mode while the agent works", () => {
 	const html = renderPage({ step: "t", data: {}, body: "", clientJs: "" });
 	assert.ok(
+		html.includes("e.data.iterator === 'navigate'"),
+		"suppresses pagehide cancellation during shell tab navigation",
+	);
+	assert.ok(
 		html.includes("e.data.iterator !== 'working'"),
 		"listens for the shell working message",
 	);

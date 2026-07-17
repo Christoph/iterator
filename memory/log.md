@@ -1,6 +1,21 @@
 # iterator update log
 
 ## 2026-07-17
+* **Implementation**: Committed feature(preserve-review-across-planning) on branch iterator/always-available-backlog; awaiting review.
+* **Update**: Applied 3 feature adjustment(s).
+* **Creation**: 3 feature(s) written.
+* **Creation**: Plan "Keep active review stable and clarify Planning versus Work" approved on branch iterator/always-available-backlog. Consumed 4 selected backlog candidate(s).
+* **Backlog**: select remove-right-lower-feedback-button (selected).
+* **Backlog**: select feature-review-titles-are-cut-off (selected).
+* **Backlog**: select move-active-plan-and-features-to-work (selected).
+* **Backlog**: select review-aborded-after-going-to-planning-during-review (selected).
+* **Backlog**: create remove-right-lower-feedback-button.
+* **Backlog**: create feature-review-titles-are-cut-off.
+* **Backlog**: create move-active-plan-and-features-to-work.
+* **Retirement**: Plan "Keep backlog planning available and support parallel feature waves" condensed into [Backlog planning and parallel feature waves](/decisions/backlog-planning-and-feature-waves.md).
+* **Backlog**: select review-aborded-after-going-to-planning-during-review (deselected).
+* **Backlog**: select review-aborded-after-going-to-planning-during-review (selected).
+* **Backlog**: create review-aborded-after-going-to-planning-during-review.
 * **Plan review**: Whole-plan review recorded (agent).
 * **Review**: Reviewed [Review all implemented features together](/features/review-multiple-implemented-features.md); approved (agent).
 * **Review**: Accepted [Review all implemented features together](/features/review-multiple-implemented-features.md) (committed as feature(review-multiple-implemented-features)).

@@ -1,5 +1,5 @@
 # Features
 
-* [Keep the idea backlog editable during agent work](always-available-backlog.md) - ✅ done · medium · Let users create, edit, delete, and select backlog candidates while an implementation turn is running.
-* [Implement a fixed dependency-ready feature wave](implement-ready-feature-wave.md) - ✅ done · medium · Start and advance a snapshot of every pending feature that is ready when the user clicks Implement next wave.
-* [Review all implemented features together](review-multiple-implemented-features.md) - ✅ done · medium · Open one selectable, commit-backed review for every implemented feature that has recorded commits.
+* [Preserve reviews across Planning navigation](preserve-review-across-planning.md) - ⬜ pending · medium · Keep an active review open while users manage backlog items on the Planning tab and return to it.
+* [Show active plan context on Work](show-active-work-in-work.md) - ⬜ pending · medium · Make Work the home for the active plan, its feature set, and the dependency graph.
+* [Keep review controls fully readable](streamline-review-interface.md) - ⬜ pending · medium · Show complete feature titles in review and remove the unused Feedback panel.
