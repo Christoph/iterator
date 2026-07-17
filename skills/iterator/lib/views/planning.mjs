@@ -56,7 +56,7 @@ const CH = D.features || [];
 
 function backlogAction(payload, button, message){
   if(button){ button.disabled = true; button.dataset.label = button.textContent; button.textContent = 'Saving…'; }
-  post({ type:'backlog', ...payload }, message || 'Saved');
+  post({ type:'backlog', ...payload }, message || 'Saved', { allowWhileWorking:true });
 }
 function selectedBacklogGoal(){
   const selected = (D.backlog || []).filter(item => item.selected);
@@ -267,7 +267,7 @@ function render(){
 // Backlog: saved ideas and bugs, separate from active plan features.
 function renderBacklog(w){
   const items = Array.isArray(D.backlog) ? D.backlog : [];
-  const section = document.createElement('section'); section.className = 'backlog';
+  const section = document.createElement('section'); section.className = 'backlog backlog-active';
   section.innerHTML = '<div class="backlog-head"><div><h2>Idea backlog</h2><p>Saved ideas and bugs stay separate from active plan features.</p></div></div>';
   const form = document.createElement('form'); form.className = 'backlog-form';
   form.innerHTML = '<select aria-label="Candidate type"><option value="idea">Idea</option><option value="bug">Bug</option></select>'+

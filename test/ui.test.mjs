@@ -320,6 +320,16 @@ test("planning backlog submits scoped CRUD actions and hands selected candidates
 	);
 	assert.match(
 		html,
+		/allowWhileWorking:true/,
+		"backlog CRUD stays available while the agent implements",
+	);
+	assert.match(
+		html,
+		/backlog backlog-active/,
+		"the read-only shell exempts only backlog controls",
+	);
+	assert.match(
+		html,
 		/action:'select'/,
 		"selection is persisted through the writer",
 	);

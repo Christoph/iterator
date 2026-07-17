@@ -1,6 +1,16 @@
 # iterator update log
 
 ## 2026-07-17
+* **Implementation**: Committed feature(always-available-backlog) on branch iterator/consume-accepted-backlog-ideas; awaiting review.
+* **Update**: Applied 3 feature adjustment(s).
+* **Update**: 2 feature(s) written.
+* **Creation**: 3 feature(s) written.
+* **Creation**: Plan "Keep backlog planning available and support parallel feature waves" approved on branch iterator/consume-accepted-backlog-ideas.
+* **Backlog**: select parallel-features-implement (selected).
+* **Backlog**: select idea-backlog-always-active (selected).
+* **Backlog**: edit parallel-features-implement.
+* **Backlog**: create parallel-features-implement.
+* **Backlog**: create idea-backlog-always-active.
 * **Backlog**: delete remove-elements-from-idea-backlog-when-the-plan-and-feature-is-created.
 * **Backlog**: delete idea-backlog-layout.
 * **Backlog**: delete improve-the-interaction-with-claude-code.
