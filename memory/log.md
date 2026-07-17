@@ -1,6 +1,8 @@
 # iterator update log
 
 ## 2026-07-17
+* **Plan review**: Whole-plan review recorded (agent).
+* **Review**: Reviewed [Review all implemented features together](/features/review-multiple-implemented-features.md); approved (agent).
 * **Review**: Accepted [Review all implemented features together](/features/review-multiple-implemented-features.md) (committed as feature(review-multiple-implemented-features)).
 * **Implementation**: Committed feature(review-multiple-implemented-features) on branch iterator/always-available-backlog; awaiting review.
 * **Review**: Reviewed [Review all implemented features together](/features/review-multiple-implemented-features.md); changes (agent).
