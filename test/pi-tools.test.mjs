@@ -161,12 +161,36 @@ test('footerText trails the ui port rightmost, and shows it with no plan', () =>
 });
 
 test('uiPort reads ITERATOR_DISPLAY_PORT and rejects junk', () => {
-  assert.equal(uiPort({ ITERATOR_DISPLAY_PORT: '53421' }), 53421);
-  assert.equal(uiPort({}), null, 'unset — not sandboxed');
-  assert.equal(uiPort({ ITERATOR_DISPLAY_PORT: '' }), null);
-  assert.equal(uiPort({ ITERATOR_DISPLAY_PORT: 'nonsense' }), null);
-  assert.equal(uiPort({ ITERATOR_DISPLAY_PORT: '0' }), null, '0 is not a port');
-  assert.equal(uiPort({ ITERATOR_DISPLAY_PORT: '-1' }), null);
+  const none = '/nonexistent/.pisbx-env';
+  assert.equal(uiPort({ ITERATOR_DISPLAY_PORT: '53421' }, none), 53421);
+  assert.equal(uiPort({}, none), null, 'unset — not sandboxed');
+  assert.equal(uiPort({ ITERATOR_DISPLAY_PORT: '' }, none), null);
+  assert.equal(uiPort({ ITERATOR_DISPLAY_PORT: 'nonsense' }, none), null);
+  assert.equal(uiPort({ ITERATOR_DISPLAY_PORT: '0' }, none), null, '0 is not a port');
+  assert.equal(uiPort({ ITERATOR_DISPLAY_PORT: '-1' }, none), null);
+});
+
+test('uiPort falls back to ~/.pisbx-env — sbx run never sources it into the env', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'pisbx-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const file = join(dir, '.pisbx-env');
+
+  // The exact line pisbx writes.
+  writeFileSync(file, 'export ITERATOR_DISPLAY_PORT=49159\n');
+  assert.equal(uiPort({}, file), 49159, 'reads the port pisbx wrote');
+  assert.equal(uiPort({ ITERATOR_DISPLAY_PORT: '53421' }, file), 53421,
+    'a real env var still wins over the file');
+
+  writeFileSync(file, 'ITERATOR_DISPLAY_PORT="49160"\n');
+  assert.equal(uiPort({}, file), 49160, 'bare/quoted assignment also parses');
+
+  writeFileSync(file, 'export SOMETHING_ELSE=1\n');
+  assert.equal(uiPort({}, file), null, 'unrelated file — no port');
+
+  writeFileSync(file, 'export ITERATOR_DISPLAY_PORT=nonsense\n');
+  assert.equal(uiPort({}, file), null, 'junk in the file is not a port');
+
+  assert.equal(uiPort({}, join(dir, 'missing')), null, 'missing file never throws');
 });
 
 test('shouldNudge fires once per threshold-multiple and can be disabled', () => {

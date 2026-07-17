@@ -42,7 +42,12 @@
       "Bash(git -C /Volumes/Extern/Projects/iterator show --stat --format='%h %s' c0c5bf8)",
       "WebFetch(domain:login.docker.com)",
       "WebFetch(domain:hub.docker.com)",
-      "Read(//private/tmp/claude-501/**)"
+      "Read(//private/tmp/claude-501/**)",
+      "Bash(sbx ls *)",
+      "Bash(ps -eo pid,command)",
+      "Bash(grep -iE '[p]i\\( |$\\)|[p]i -a|iterator')",
+      "Bash(sbx run *)",
+      "Bash(sbx create *)"
     ]
   }
 }

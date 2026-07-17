@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-17
+* **Update**: Memorized [Powerline shows the sandbox-published UI port](/decisions/powerline-shows-sandbox-ui-port.md).
 * **Creation**: Memorized [Powerline shows the sandbox-published UI port](/decisions/powerline-shows-sandbox-ui-port.md).
 * **Retirement**: Plan "Polish dashboard and multi-agent workflows" condensed into [Polish dashboard and multi-agent workflows](/decisions/polish-dashboard-and-multi-agent-workflows.md).
 * **Review**: Accepted [Support Claude Code feature flow](/features/support-claude-code-feature-flow.md) (committed as feature(support-claude-code-feature-flow)).
