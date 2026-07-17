@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-17
+* **Review**: Accepted [Keep the backlog available during active work](/features/always-available-backlog.md) (committed as feature(always-available-backlog)).
 * **Implementation**: Committed feature(always-available-backlog) on branch iterator/consume-accepted-backlog-ideas; awaiting review.
 * **Update**: Applied 3 feature adjustment(s).
 * **Update**: 2 feature(s) written.
