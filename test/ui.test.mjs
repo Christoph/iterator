@@ -520,6 +520,14 @@ test("review view groups files by Declared/Tests/Incidental with pre-seeded disp
 	assert.match(html, /review all/);
 	assert.match(html, /@media\(max-width:640px\)/);
 	assert.match(html, /\.main\{flex-direction:column\}/);
+	// Long feature labels wrap instead of being ellipsized at any breakpoint.
+	assert.match(html, /\.fn\{[^}]*white-space:normal;overflow-wrap:anywhere/);
+	assert.doesNotMatch(html, /\.fn\{[^}]*text-overflow:ellipsis/);
+	// Feedback still submits through the header; the obsolete fixed panel and
+	// its JSON-preview bookkeeping are gone.
+	assert.doesNotMatch(html, /id="fbpanel"/);
+	assert.doesNotMatch(html, /toggleFb|updateFb/);
+	assert.match(html, /post\(buildFeedbackObj\(\), 'Review sent to Claude'\)/);
 });
 
 test("planning hero goal box persists an unsent draft and clears it on plan start", async () => {

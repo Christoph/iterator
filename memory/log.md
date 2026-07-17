@@ -1,6 +1,8 @@
 # iterator update log
 
 ## 2026-07-17
+* **Implementation**: Committed feature(streamline-review-interface) on branch iterator/always-available-backlog; awaiting review.
+* **Review**: Reviewed [Show active plan context on Work](/features/show-active-work-in-work.md); approved (agent).
 * **Review**: Accepted [Show active plan context on Work](/features/show-active-work-in-work.md) (committed as feature(show-active-work-in-work)).
 * **Implementation**: Committed feature(show-active-work-in-work) on branch iterator/always-available-backlog; awaiting review.
 * **Review**: Reviewed [Preserve reviews across Planning navigation](/features/preserve-review-across-planning.md); approved (agent).

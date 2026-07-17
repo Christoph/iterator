@@ -51,18 +51,18 @@ body{height:100vh;overflow:hidden;display:flex;flex-direction:column}
 .dot{width:8px;height:8px;border-radius:50%;margin-top:4px;flex-shrink:0}
 .dg{background:var(--dot-green)}.dy{background:var(--dot-yellow)}.dr{background:var(--dot-red)}
 .fm{flex:1;min-width:0}
-.fn{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fn{font-size:13px;font-weight:500;white-space:normal;overflow-wrap:anywhere}
 .fs{font-size:11px;color:var(--text-muted);margin-top:2px}
 .sa{color:var(--add-fg)}.sd{color:var(--del-fg)}
 .sbadge{font-size:10px;border-radius:3px;padding:1px 5px;margin-top:3px;display:inline-block}
 .s-app{background:var(--bg-green);color:var(--dot-green)}
 .s-chg{background:var(--bg-red);color:var(--dot-red)}
 .s-qst{background:var(--bg-yellow);color:var(--dot-yellow)}
-.detail{flex:1;overflow-y:auto;padding:var(--sp-5);padding-bottom:130px}
+.detail{flex:1;overflow-y:auto;padding:var(--sp-5)}
 .fc{overflow:visible}
 .fch{position:sticky;top:0;z-index:5;border-radius:var(--radius-card) var(--radius-card) 0 0}
 .fh{margin-bottom:var(--sp-4);padding-bottom:var(--sp-4);border-bottom:1px solid var(--border)}
-.ftitle{font-family:var(--font-display);font-size:var(--fs-xl);font-weight:600;margin-bottom:6px}
+.ftitle{font-family:var(--font-display);font-size:var(--fs-xl);font-weight:600;margin-bottom:6px;overflow-wrap:anywhere}
 .fdesc{color:var(--text-muted);font-size:var(--fs-sm);margin-bottom:12px}
 button.note-btn{font-size:12px;background:none;border:1px dashed var(--border);color:var(--text-muted);border-radius:4px;padding:3px 8px;cursor:pointer}
 button.note-btn:hover{border-color:var(--accent);color:var(--accent)}
@@ -139,24 +139,11 @@ button.cs{background:var(--accent);border-color:var(--accent);color:var(--accent
 .muted{color:var(--text-muted)}
 .empty{text-align:center;padding:60px 20px;color:var(--text-muted)}
 .empty h3{font-size:16px;margin-bottom:8px}
-.fb{position:fixed;bottom:0;right:0;width:400px;background:var(--fb-bg);border-top:1px solid var(--border);
-  border-left:1px solid var(--border);border-radius:8px 0 0 0;z-index:100;transition:transform .2s}
-.fb.col{transform:translateY(calc(100% - 36px))}
-.fbh{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;cursor:pointer;user-select:none}
-.fbt{font-size:13px;font-weight:500}
-.fbc{font-size:var(--fs-xs);background:var(--accent);color:var(--accent-fg);border-radius:10px;padding:1px 7px;display:none}
-.fbc.vis{display:inline}
-.fbtog{font-size:11px;color:var(--text-muted)}
-.fbb{padding:0 12px 12px}
-.fbo{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:10px;font-family:var(--font-mono);
-  font-size:var(--fs-xs);color:var(--text);max-height:160px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;min-height:48px}
-.fbe{color:var(--text-muted);font-style:italic}
-.fbhint{margin-top:8px;font-size:var(--fs-xs);color:var(--text-muted)}
 .sdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:0}
 .sdot.g{background:var(--dot-green)}.sdot.r{background:var(--dot-red)}
 @media(max-width:640px){
   .main{flex-direction:column}.sidebar{width:100%;max-height:34vh;border-right:0;border-bottom:1px solid var(--border)}
-  .detail{padding:var(--sp-3);padding-bottom:130px}.fb{width:100%;border-left:0;border-radius:0}
+  .detail{padding:var(--sp-3)}
   .fi{min-height:44px}.sbtns{display:flex}.sbtns .sb{min-height:44px;flex:1}
 }
 `;
@@ -165,16 +152,6 @@ const BODY = `
 <div class="main">
   <div class="sidebar" id="sidebar"></div>
   <div class="detail" id="detail"><div class="empty"><h3>Select a feature to review</h3></div></div>
-</div>
-<div class="fb col" id="fbpanel">
-  <div class="fbh" onclick="toggleFb()">
-    <div style="display:flex;align-items:center;gap:8px"><span class="fbt">Feedback</span><span class="fbc" id="fbc">0</span></div>
-    <span class="fbtog" id="fbtog">▲ expand</span>
-  </div>
-  <div class="fbb">
-    <div class="fbo" id="fbo"><span class="fbe">Add comments or mark features to generate feedback…</span></div>
-    <div class="fbhint">Use <strong>Accept</strong> / <strong>Send review</strong> in the header to submit.</div>
-  </div>
 </div>
 `;
 
@@ -499,8 +476,8 @@ function testBadge(f){
   return dot + (t.passing!=null && t.total!=null ? t.passing+'/'+t.total+' passing' : 'tests '+t.status);
 }
 function toggleNote(){ const el=document.getElementById('note-area'); if(el) el.classList.toggle('open'); }
-function saveNote(name){ S.notes[name] = (document.getElementById('note-ta')||{}).value||''; updateFb(); renderSidebar(); selectFeature(name); }
-function setSt(name, val){ S.statuses[name] = S.statuses[name]===val ? null : val; renderSidebar(); selectFeature(name); updateFb(); }
+function saveNote(name){ S.notes[name] = (document.getElementById('note-ta')||{}).value||''; refresh(); renderSidebar(); selectFeature(name); }
+function setSt(name, val){ S.statuses[name] = S.statuses[name]===val ? null : val; renderSidebar(); selectFeature(name); refresh(); }
 function toggleComment(row, cr, ta){
   const wasOpen = cr.classList.contains('open');
   document.querySelectorAll('.cr.open').forEach(r=>r.classList.remove('open'));
@@ -512,7 +489,7 @@ function saveComment(id, feat, path, line, val){
   if(t) S.comments[id] = { feature: feat.name==='__unc__'?'uncategorized':feat.name,
     file: path, content: (line.content||'').trim(), type: line.type, comment: t };
   else delete S.comments[id];
-  updateFb(); selectFeature(S.active);
+  refresh(); selectFeature(S.active);
 }
 
 function buildFeedbackObj(){
@@ -526,21 +503,6 @@ function buildFeedbackObj(){
     ({ feature: c.feature, file: c.file, content: c.content, type: c.type, comment: c.comment }));
   return { type:'review-feedback', branch: D.branch||'HEAD', features, lineComments };
 }
-function updateFb(){
-  const obj = buildFeedbackObj();
-  const count = obj.features.length + obj.lineComments.length;
-  const fbo = document.getElementById('fbo'); const fbc = document.getElementById('fbc');
-  if(!count){ fbo.innerHTML='<span class="fbe">Add comments or mark features to generate feedback…</span>'; fbc.classList.remove('vis'); }
-  else {
-    fbo.textContent = JSON.stringify(obj, null, 2);
-    fbc.textContent = count; fbc.classList.add('vis');
-    document.getElementById('fbpanel').classList.remove('col');
-    document.getElementById('fbtog').textContent = '▼ collapse';
-  }
-  refresh();
-}
-function toggleFb(){ const p=document.getElementById('fbpanel'); const t=document.getElementById('fbtog'); p.classList.toggle('col'); t.textContent = p.classList.contains('col')?'▲ expand':'▼ collapse'; }
-
 function hasChanges(){ const o=buildFeedbackObj(); return o.features.length>0 || o.lineComments.length>0; }
 function onPrimary(){
   if(MODE==='commit' && !hasChanges()){

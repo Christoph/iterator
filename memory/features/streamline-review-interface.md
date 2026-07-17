@@ -2,12 +2,12 @@
 type: Feature
 title: Keep review controls fully readable
 description: Show complete feature titles in review and remove the unused Feedback panel.
-status: pending
+status: implemented
 size: medium
 depends_on: []
 files: ["lib/views/review.mjs", "test/ui.test.mjs", "test/client-js-parse.test.mjs"]
 memories: [pitfalls/client-js-template-literal-escaping, patterns/safe-browser-rendering, decisions/backlog-planning-and-feature-waves, decisions/iterator-dashboard-feature-workflow, decisions/parallel-feature-waves-and-consolidated-review]
-timestamp: "2026-07-17T16:17:17.904Z"
+timestamp: "2026-07-17T16:29:00.013Z"
 tags: []
 ---
 
