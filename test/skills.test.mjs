@@ -14,7 +14,8 @@ function skillDocs() {
 		if (!skill.isDirectory()) continue;
 		const dir = join(skillsDir, skill.name);
 		for (const f of readdirSync(dir)) {
-			if (f.endsWith(".md")) docs.push({ skill: skill.name, dir, file: join(dir, f) });
+			if (f.endsWith(".md"))
+				docs.push({ skill: skill.name, dir, file: join(dir, f) });
 		}
 	}
 	return docs;
@@ -26,7 +27,10 @@ const REF_RE = /<skill-dir>(\/[A-Za-z0-9_./-]+)/g;
 
 test("every <skill-dir> path in the skill docs points at an existing file", () => {
 	const docs = skillDocs();
-	assert.ok(docs.length >= 11, `expected the full skill set, found ${docs.length} docs`);
+	assert.ok(
+		docs.length >= 11,
+		`expected the full skill set, found ${docs.length} docs`,
+	);
 	const missing = [];
 	for (const { skill, dir, file } of docs) {
 		const text = readFileSync(file, "utf8");
@@ -57,21 +61,43 @@ test("Claude Code flow documents direct deterministic steps and user approval", 
 	assert.match(claude, /Claude Code feature flow/);
 	assert.match(claude, /commit-feature/);
 	assert.match(claude, /explicitly\s+accepts.*accept-commit/s);
-	for (const skill of ["iterator", "iterator-plan", "iterator-feature", "iterator-test", "iterator-implement", "iterator-review"]) {
+	for (const skill of [
+		"iterator",
+		"iterator-plan",
+		"iterator-feature",
+		"iterator-test",
+		"iterator-implement",
+		"iterator-review",
+	]) {
 		const text = readFileSync(join(skillsDir, skill, "SKILL.md"), "utf8");
 		assert.match(text, /Claude Code mode/);
 		assert.match(text, /gather.*write/s);
 	}
-	const plugin = readFileSync(join(root, ".claude-plugin", "plugin.json"), "utf8");
+	const plugin = readFileSync(
+		join(root, ".claude-plugin", "plugin.json"),
+		"utf8",
+	);
 	assert.match(plugin, /Claude Code and Pi workflow/);
 });
 
 test("write.mjs ops named in the skill docs exist in the writer's schema table", () => {
 	const schemas = readFileSync(join(root, "lib", "write.mjs"), "utf8");
-	const ops = ["plan", "features", "update-feature", "apply-review", "retire-plan",
-		"accept-commit", "commit-feature", "commit-tests", "refresh-format", "extensions"];
+	const ops = [
+		"plan",
+		"features",
+		"update-feature",
+		"apply-review",
+		"retire-plan",
+		"accept-commit",
+		"commit-feature",
+		"commit-tests",
+		"refresh-format",
+		"extensions",
+	];
 	for (const op of ops) {
-		assert.ok(schemas.includes(`"${op}"`) || schemas.includes(`'${op}'`),
-			`op ${op} referenced by the skills is missing from lib/write.mjs`);
+		assert.ok(
+			schemas.includes(`"${op}"`) || schemas.includes(`'${op}'`),
+			`op ${op} referenced by the skills is missing from lib/write.mjs`,
+		);
 	}
 });
