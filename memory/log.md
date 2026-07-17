@@ -1,6 +1,11 @@
 # iterator update log
 
 ## 2026-07-17
+* **Implementation**: Committed feature(reset-plan-runtime-state) on branch iterator/always-available-backlog; awaiting review.
+* **Backlog**: create feature-plannning-memory-files.
+* **Update**: Applied 2 feature adjustment(s).
+* **Creation**: 2 feature(s) written.
+* **Creation**: Plan "Apply role models on manual turns and reset stale auto state" approved on branch iterator/always-available-backlog.
 * **Memorize**: Set last_memorized_commit to c5b75e3e4b03.
 * **Update**: Memorized [Explicit cancel must pre-empt pagehide grace](/pitfalls/cancel-now-after-grace-timer.md).
 * **Update**: Memorized [Browser server contract](/architecture/browser-server-contract.md).

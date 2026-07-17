@@ -679,7 +679,12 @@ export default function iteratorExtension(pi) {
 			if (!action) return;
 
 			if (action.done) {
-				await writeState({ phase: "done", active_feature: null });
+				await writeState({
+					mode: "manual",
+					paused: false,
+					phase: "done",
+					active_feature: null,
+				});
 				autoSteps = 0;
 				await restoreModel();
 				notifyUi(
