@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-17
+* **Review**: Accepted [Show active plan context on Work](/features/show-active-work-in-work.md) (committed as feature(show-active-work-in-work)).
 * **Implementation**: Committed feature(show-active-work-in-work) on branch iterator/always-available-backlog; awaiting review.
 * **Review**: Reviewed [Preserve reviews across Planning navigation](/features/preserve-review-across-planning.md); approved (agent).
 * **Review**: Accepted [Preserve reviews across Planning navigation](/features/preserve-review-across-planning.md) (committed as feature(preserve-review-across-planning)).
