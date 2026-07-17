@@ -246,6 +246,13 @@ test("backlog writes remain available while an agent is working", async () => {
 			action: "create",
 			title: "Next idea",
 		});
+		assert.equal(session.isWorking(), true, "backlog writes preserve the active model guard");
+		const blocked = await fetch(`${origin}/submit?r=${srvMod.RUN_ID}`, {
+			method: "POST",
+			body: '{"type":"action","action":"implement","feature":"other"}',
+		});
+		assert.equal(blocked.status, 409);
+		assert.deepEqual(await blocked.json(), { busy: true });
 	} finally {
 		await session.stop();
 	}
