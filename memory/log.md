@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-17
+* **Review**: Accepted [Keep review controls fully readable](/features/streamline-review-interface.md) (committed as feature(streamline-review-interface)).
 * **Implementation**: Committed feature(streamline-review-interface) on branch iterator/always-available-backlog; awaiting review.
 * **Review**: Reviewed [Show active plan context on Work](/features/show-active-work-in-work.md); approved (agent).
 * **Review**: Accepted [Show active plan context on Work](/features/show-active-work-in-work.md) (committed as feature(show-active-work-in-work)).
