@@ -7,8 +7,12 @@ size: medium
 depends_on: []
 files: ["lib/views/review.mjs", "test/ui.test.mjs", "test/client-js-parse.test.mjs"]
 memories: [pitfalls/client-js-template-literal-escaping, patterns/safe-browser-rendering, decisions/backlog-planning-and-feature-waves, decisions/iterator-dashboard-feature-workflow, decisions/parallel-feature-waves-and-consolidated-review]
-timestamp: "2026-07-17T16:29:00.013Z"
+timestamp: "2026-07-17T16:29:00.112Z"
 tags: []
+commits:
+  - sha: e7d5824e2ac431640e6a1abc6169dfcc6121b43b
+    kind: implement
+    date: 2026-07-17
 ---
 
 # Implementation notes
