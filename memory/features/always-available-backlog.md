@@ -7,8 +7,12 @@ size: medium
 depends_on: []
 files: ["lib/gather.mjs", "lib/views/planning.mjs", "lib/session-server.mjs", "test/gather.test.mjs", "test/ui.test.mjs", "test/session-server.test.mjs"]
 memories: [pitfalls/cancel-now-after-grace-timer, architecture/browser-server-contract, architecture/workflow-state-ownership, decisions/consume-accepted-backlog-ideas, decisions/iterator-dashboard-feature-workflow, decisions/polish-dashboard-and-multi-agent-workflows, decisions/settings-close-returns-to-work]
-timestamp: "2026-07-17T14:15:38.037Z"
+timestamp: "2026-07-17T14:15:38.119Z"
 tags: []
+commits:
+  - sha: f44d2f9e2da9ba16c40498873fadf4824c686891
+    kind: implement
+    date: 2026-07-17
 ---
 
 # Implementation notes
