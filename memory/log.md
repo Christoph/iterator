@@ -1,6 +1,8 @@
 # iterator update log
 
 ## 2026-07-17
+* **Update**: Memorized [Remote browser access](/setup/remote-browser-access.md).
+* **Creation**: Memorized [An IPv4-only bind breaks localhost behind a sandbox forward](/pitfalls/ipv4-only-bind-breaks-localhost.md).
 * **Update**: Memorized [Powerline shows the sandbox-published UI port](/decisions/powerline-shows-sandbox-ui-port.md).
 * **Creation**: Memorized [Powerline shows the sandbox-published UI port](/decisions/powerline-shows-sandbox-ui-port.md).
 * **Retirement**: Plan "Polish dashboard and multi-agent workflows" condensed into [Polish dashboard and multi-agent workflows](/decisions/polish-dashboard-and-multi-agent-workflows.md).

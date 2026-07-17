@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import http from "node:http";
 import { randomUUID } from "node:crypto";
-import { tmpdir } from "node:os";
+import { networkInterfaces, tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { isRemoteSession } from "../lib/server.mjs";
@@ -456,12 +456,44 @@ const reqStatus = (io, path, host) =>
 		req.end();
 	});
 
+/** Status code from `path`, dialling `connectHost` explicitly (no DNS games). */
+const reqStatusFrom = (connectHost, port, path) =>
+	new Promise((resolve, reject) => {
+		const req = http.request({ host: connectHost, port, path }, (res) => {
+			res.resume();
+			resolve(res.statusCode);
+		});
+		req.on("error", reject);
+		req.end();
+	});
+
+/** IPv4-only CI has no ::1 to bind — skip the v6 half rather than fail there. */
+const hasIpv6Loopback = () =>
+	Object.values(networkInterfaces())
+		.flat()
+		.some((a) => a && a.address === "::1");
+
+test("ITERATOR_REMOTE=1 binds dual-stack: 127.0.0.1 and ::1 both reach it", async () => {
+	const io = await startServer(PLAN_PAYLOAD, { ITERATOR_REMOTE: "1" });
+	const port = io.url.port;
+	// The tokenless status endpoint — probing it cannot disturb the flow.
+	assert.equal(await reqStatusFrom("127.0.0.1", port, "/__iterator/status"), 200);
+	if (hasIpv6Loopback()) {
+		// A sandbox publishes ::1:<host>-><container> alongside the v4 forward.
+		// Bound IPv4-only, that forward RSTs rather than refusing, so browsers
+		// never fall back to IPv4 and `localhost` (→ ::1 first) breaks.
+		assert.equal(await reqStatusFrom("::1", port, "/__iterator/status"), 200);
+	}
+	io.child.kill();
+	await waitExit(io.child);
+});
+
 test("ITERATOR_REMOTE=1 binds all interfaces and prints a loopback URL", async () => {
 	const io = await startServer(PLAN_PAYLOAD, { ITERATOR_REMOTE: "1" });
 	// The printed URL must be clickable on the host: localhost, never 0.0.0.0.
 	assert.match(io.stderr(), /listening on http:\/\/localhost:\d+\//);
 	await sleep(100); // the hint line lands right after the resolving "listening on" line
-	assert.match(io.stderr(), /remote session — bound to 0\.0\.0\.0/);
+	assert.match(io.stderr(), /remote session — bound to ::/);
 	// Host browser reaching a container by IP/hostname: allowed when exposed.
 	assert.equal(await reqStatus(io, "/", "172.17.0.2:7777"), 200);
 	io.child.kill();
@@ -485,7 +517,7 @@ test("SSH markers imply remote unless ITERATOR_REMOTE=0 forces local", async () 
 	const ssh = { SSH_CONNECTION: "1.2.3.4 5 6.7.8.9 22", ITERATOR_REMOTE: "" };
 	const remote = await startServer(PLAN_PAYLOAD, ssh);
 	await sleep(100);
-	assert.match(remote.stderr(), /remote session — bound to 0\.0\.0\.0/);
+	assert.match(remote.stderr(), /remote session — bound to ::/);
 	remote.child.kill();
 	await waitExit(remote.child);
 

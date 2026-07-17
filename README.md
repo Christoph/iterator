@@ -300,7 +300,7 @@ protection). Reloading the tab is safe — only closing it cancels.
 
 When the agent runs inside a container or SSH session but your browser is on
 the host, the server detects it (SSH/container markers, or explicit
-`ITERATOR_REMOTE=1`) and switches to remote mode: binds `0.0.0.0` (override
+`ITERATOR_REMOTE=1`) and switches to remote mode: binds `::` (override
 with `ITERATOR_BIND_HOST`), skips the browser opener, and prints a
 `http://localhost:<port>/` URL to open on the host. The sandbox must publish
 the port:
@@ -318,8 +318,17 @@ matches — `pisbx` does both automatically.
 
 MicroVM sandboxes have no container marker files, so set `ITERATOR_REMOTE=1`
 in the sandbox image (pi-docker-sandbox-setup's image already does). Binding
-`0.0.0.0` exposes the UI to whatever network the sandbox is attached to —
+`::` exposes the UI to whatever network the sandbox is attached to —
 keep the host-side publish on loopback.
+
+`::` is the *dual-stack* wildcard: it answers over both IPv4 and IPv6. That
+matters because a sandbox with an IPv6 address gets **two** loopback forwards
+(`127.0.0.1:<host>->7777` and `::1:<host>->7777`). Bound IPv4-only, the v6
+forward has nothing behind it and resets — and a reset, unlike a refusal, stops
+browsers falling back to IPv4, so `http://localhost:<port>/` fails on the host
+while `http://127.0.0.1:<port>/` works. Where the kernel or container has no
+IPv6 stack, the listener downgrades to `0.0.0.0` on its own; set
+`ITERATOR_BIND_HOST=0.0.0.0` to force IPv4 explicitly.
 
 ## How it works
 

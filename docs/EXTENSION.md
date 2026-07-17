@@ -277,8 +277,8 @@ PAYLOAD
 The server should:
 
 1. Bind to `127.0.0.1` locally; in remote sessions (SSH, container/microVM
-   sandbox) bind `0.0.0.0` so a forwarded port can reach it (see
-   "Remote sessions" below).
+   sandbox) bind `::` — the dual-stack wildcard — so a forwarded port can reach
+   it over either family (see "Remote sessions" below).
 2. Check the `Host` header locally to prevent DNS rebinding. (A per-run URL
    token is optional hardening; iterator/okf-memory dropped theirs as
    dev-only friction — with the host-side publish kept on loopback the
@@ -535,13 +535,22 @@ Behavior by mode:
 
 | | local | remote |
 | --- | --- | --- |
-| bind host | `127.0.0.1` | `0.0.0.0` (override: `<APP>_BIND_HOST`) |
+| bind host | `127.0.0.1` | `::` — dual-stack (override: `<APP>_BIND_HOST`) |
 | port | fixed default (`<APP>_PORT`); single-instance takeover keeps it stable; walk up only past foreign processes | same — the takeover is what keeps a `port:port` forward valid across runs |
 | browser | auto-open via `open`/`xdg-open`/`BROWSER` | skip; print `http://127.0.0.1:<port>/` to stderr for the host |
 
-Always print the URL with `127.0.0.1` as the display host, never `0.0.0.0` —
-`0.0.0.0` is a bind address, not a clickable URL, and through a forward the
+Always print the URL with `127.0.0.1` as the display host, never `0.0.0.0` or
+`::` — those are bind addresses, not clickable URLs, and through a forward the
 host reaches the server on its own loopback anyway.
+
+Bind `::` rather than `0.0.0.0`: a sandbox with an IPv6 address publishes
+loopback forwards for **both** families, and an IPv4-only listener leaves the
+v6 one resetting. A reset (unlike a refusal) stops browsers falling back, so
+`http://localhost:<port>/` — which resolves to `::1` first — breaks while
+`http://127.0.0.1:<port>/` works. `::` is dual-stack in node (`ipv6Only`
+defaults to false), so one socket serves both. Fall back to `0.0.0.0` if the
+`::` bind raises `EAFNOSUPPORT`/`EPROTONOSUPPORT`/`EADDRNOTAVAIL`/`EINVAL`,
+which is what a missing IPv6 stack looks like.
 
 The server side alone is not enough: the sandbox must also publish the port
 to the host. Some environments detect microVM/sandbox images automatically
@@ -597,8 +606,8 @@ the host inward:
    Re-run the skill and use the freshly printed URL; check the stderr
    "listening on" line for the port.
 
-Security: binding `0.0.0.0` exposes the UI to whatever network the sandbox
-is attached to. Keep the host-side publish on loopback (`127.0.0.1:8888`,
+Security: binding `::` (like `0.0.0.0`) exposes the UI to whatever network the
+sandbox is attached to. Keep the host-side publish on loopback (`127.0.0.1:8888`,
 not `0.0.0.0:8888`), keep the `Host` check, and remember that without a
 token anyone who can reach the published port can answer as the user — add
 per-run token hardening back if the sandbox shares a network with other

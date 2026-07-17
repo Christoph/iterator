@@ -47,7 +47,10 @@
       "Bash(ps -eo pid,command)",
       "Bash(grep -iE '[p]i\\( |$\\)|[p]i -a|iterator')",
       "Bash(sbx run *)",
-      "Bash(sbx create *)"
+      "Bash(sbx create *)",
+      "Bash(curl -sv -o /dev/null --max-time 5 http://localhost:49159/)",
+      "Bash(curl -s -o /dev/null -w 'HTTP %{http_code} via %{remote_ip}\\\\n' --max-time 8 http://127.0.0.1:49159/)",
+      "Bash(curl -s -o /dev/null -w 'HTTP %{http_code} via %{remote_ip}\\\\n' --max-time 8 \"http://[::1]:49159/\")"
     ]
   }
 }

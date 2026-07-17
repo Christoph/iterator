@@ -9,6 +9,12 @@
 import { BIND_HOST, FORCE_PORT } from './env.mjs';
 import { reclaimPort } from './takeover.mjs';
 
+// The dual-stack bind ('::', see env.mjs) is unavailable where the kernel or
+// container has no IPv6 stack. Downgrading to the IPv4 wildcard beats failing
+// to start — and keeps 127.0.0.1 answering, which reclaimPort's status probe
+// depends on (a v6-only bind would make it fall through to lsof + SIGKILL).
+const NO_IPV6 = new Set(['EAFNOSUPPORT', 'EPROTONOSUPPORT', 'EADDRNOTAVAIL', 'EINVAL']);
+
 /**
  * Bind `server` starting at `startPort`; resolves with the bound port.
  *
@@ -25,9 +31,15 @@ import { reclaimPort } from './takeover.mjs';
 export function listenWithTakeover(server, { startPort, maxRetries = 20, say, onReclaimFail } = {}) {
   return new Promise((resolve, reject) => {
     let reclaimTried = false;
+    let host = BIND_HOST; // downgraded to '0.0.0.0' once if IPv6 is missing
+    let downgraded = false;
     const tryListen = (p, attemptsLeft) => {
       const onError = err => {
-        if (err.code === 'EADDRINUSE' && FORCE_PORT && p === startPort
+        if (!downgraded && host === '::' && NO_IPV6.has(err.code)) {
+          downgraded = true;
+          host = '0.0.0.0';
+          tryListen(p, attemptsLeft); // same port, other family
+        } else if (err.code === 'EADDRINUSE' && FORCE_PORT && p === startPort
           && !reclaimTried && !process.env.ITERATOR_NO_TAKEOVER) {
           // Only the start port is published to the host — reclaim it once
           // instead of drifting to an unreachable port.
@@ -42,13 +54,13 @@ export function listenWithTakeover(server, { startPort, maxRetries = 20, say, on
         } else if (err.code === 'EADDRINUSE') {
           // All nearby ports busy — let the OS pick an ephemeral one.
           server.once('error', reject);
-          server.listen(0, BIND_HOST, () => resolve(server.address().port));
+          server.listen(0, host, () => resolve(server.address().port));
         } else {
           reject(err);
         }
       };
       server.once('error', onError);
-      server.listen(p, BIND_HOST, () => {
+      server.listen(p, host, () => {
         server.removeListener('error', onError);
         resolve(server.address().port);
       });

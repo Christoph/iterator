@@ -267,9 +267,13 @@ browser JS; the shell provides the rest:
   `ITERATOR_NO_OPEN=1` skips the browser opener (CI); the real URL is always
   printed to stderr. Remote sessions (SSH, Docker/devcontainer — detected via
   `isRemoteSession()`: `ITERATOR_REMOTE` override, then SSH markers, then
-  container marker files) bind `0.0.0.0` instead of loopback so a forwarded
+  container marker files) bind `::` instead of loopback so a forwarded
   port can reach the server, skip the opener, and print a `127.0.0.1` URL for
-  the host browser. `ITERATOR_BIND_HOST` (alias `ITERATOR_HOST`, deprecated)
+  the host browser. `::` is the dual-stack wildcard, so one socket answers both
+  the v4 and v6 forwards a sandbox publishes — bound IPv4-only, the v6 forward
+  resets and `localhost` (→ `::1` first) fails on the host. Where there is no
+  IPv6 stack the listener downgrades to `0.0.0.0`.
+  `ITERATOR_BIND_HOST` (alias `ITERATOR_HOST`, deprecated)
   overrides the bind address either way; the localhost Host-header check is
   relaxed when bound beyond loopback, so keep the host-side publish on
   loopback. This is the mode the

@@ -34,9 +34,18 @@ export function isRemoteSession(env = process.env) {
 // (ITERATOR_HOST is the deprecated alias). The localhost Host-header check is
 // relaxed when exposed, because the host browser may reach us via a container
 // IP or hostname; keep the host-side publish on loopback.
+//
+// '::' — not '0.0.0.0' — because it is the *dual-stack* wildcard (node leaves
+// ipv6Only false), so one socket answers both forwards a sandbox publishes
+// (127.0.0.1:N->7777 and ::1:N->7777). Bound IPv4-only, the v6 forward has
+// nothing behind it and RSTs; a reset (unlike a refusal) stops clients falling
+// back, so `localhost` — which resolves to ::1 first — breaks on the host.
+// listen.mjs downgrades to '0.0.0.0' where there is no IPv6 stack.
 export const REMOTE = isRemoteSession();
 export const BIND_HOST = process.env.ITERATOR_BIND_HOST || process.env.ITERATOR_HOST
-  || (REMOTE ? '0.0.0.0' : '127.0.0.1');
+  || (REMOTE ? '::' : '127.0.0.1');
+// Any bind other than plain loopback is reachable off-box, so the Host check
+// relaxes. '::' is all-interfaces, so this stays true — as it was for '0.0.0.0'.
 export const EXPOSED = BIND_HOST !== '127.0.0.1';
 
 // Single-instance takeover. There is one iterator UI per user — the browser
