@@ -7,8 +7,12 @@ size: medium
 depends_on: []
 files: ["lib/session-server.mjs", "extensions/iterator.js", "test/session-server.test.mjs", "test/nonblocking-working-overlay.test.mjs"]
 memories: [pitfalls/cancel-now-after-grace-timer, architecture/browser-server-contract, architecture/package-and-skill-layout, decisions/backlog-planning-and-feature-waves, decisions/iterator-dashboard-feature-workflow, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows, decisions/powerline-shows-sandbox-ui-port]
-timestamp: "2026-07-17T16:19:19.010Z"
+timestamp: "2026-07-17T16:19:19.091Z"
 tags: []
+commits:
+  - sha: 30c6a6b70a54d59a72a79ba2f864a9b993006262
+    kind: implement
+    date: 2026-07-17
 ---
 
 # Implementation notes
