@@ -191,17 +191,6 @@ const MEM = (D.memory && D.memory.proposals) || [];
   if(file.defaulted && file.disposition) S.unc[file.path] = file.disposition;
 }));
 
-renderSidebar();
-const first = (D.features||[])[0] || (D.uncategorized && D.uncategorized.length ? {name:'__unc__'} : null);
-if(first) selectFeature(first.name);
-else {
-  // Defensive empty state — the zero-change guard upstream should make this
-  // unreachable; never show an empty review as if it were reviewable.
-  document.getElementById('detail').innerHTML =
-    '<div class="empty"><h3>Nothing to review</h3><p>No diff and no recorded commits for this scope.</p></div>';
-}
-refresh();
-
 function renderSidebar(){
   const sb = document.getElementById('sidebar');
   sb.innerHTML = '';
@@ -566,6 +555,20 @@ function onPrimary(){
   }
   post(buildFeedbackObj(), 'Review sent to Claude');
 }
+
+// Bootstrap LAST: selectFeature -> renderHunks reads consts declared through
+// this script (GROUP_ORDER et al.) — running it earlier hits their temporal
+// dead zone, the exception aborts the script, and the diff never renders.
+renderSidebar();
+const first = (D.features||[])[0] || (D.uncategorized && D.uncategorized.length ? {name:'__unc__'} : null);
+if(first) selectFeature(first.name);
+else {
+  // Defensive empty state — the zero-change guard upstream should make this
+  // unreachable; never show an empty review as if it were reviewable.
+  document.getElementById('detail').innerHTML =
+    '<div class="empty"><h3>Nothing to review</h3><p>No diff and no recorded commits for this scope.</p></div>';
+}
+refresh();
 `;
 
 export function render(data) {

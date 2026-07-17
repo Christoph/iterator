@@ -35,7 +35,12 @@ const MIN_DATA = {
 		design: null,
 		formatStale: false,
 	},
-	"memory-review": { branch: "main", mode: "consolidate", memories: [], round: 1 },
+	"memory-review": {
+		branch: "main",
+		mode: "consolidate",
+		memories: [],
+		round: 1,
+	},
 	planning: {
 		branch: "main",
 		plan: null,
@@ -43,8 +48,18 @@ const MIN_DATA = {
 		knowledgeInitialized: true,
 		dirty: { count: 0, files: [] },
 		features: [],
-		retired: [{ name: "2026-01-01-old", title: "Old plan", created: "2026-01-01" }],
-		backlog: [{ id: "idea", title: "A saved idea", details: "Line one\nLine two", kind: "idea", selected: false }],
+		retired: [
+			{ name: "2026-01-01-old", title: "Old plan", created: "2026-01-01" },
+		],
+		backlog: [
+			{
+				id: "idea",
+				title: "A saved idea",
+				details: "Line one\nLine two",
+				kind: "idea",
+				selected: false,
+			},
+		],
 	},
 	plan: { branch: "main", title: "P", plan: {}, knowledge: {} },
 	question: { branch: "main", title: "Q", question: { text: "?" } },

@@ -18,9 +18,9 @@
  *     { type:"backlog", action:"create"|"edit"|"delete"|"select", ... }
  *     plus the shared { type:"cancel" } / { type:"timeout" }.
  */
-import { renderPage } from '../ui.mjs';
-import { GRAPH_CSS, GRAPH_JS } from './graph.mjs';
-import { WIDGETS_CSS, WIDGETS_JS } from './widgets.mjs';
+import { renderPage } from "../ui.mjs";
+import { GRAPH_CSS, GRAPH_JS } from "./graph.mjs";
+import { WIDGETS_CSS, WIDGETS_JS } from "./widgets.mjs";
 
 const PLANNING_CSS = `
 .hero textarea.goal{display:block;width:100%;max-width:640px;margin:0 auto var(--sp-4);padding:12px 14px;
@@ -369,8 +369,8 @@ function makeCard(c){
 
 export function render(data) {
 	return renderPage({
-		step: 'planning',
-		subtitle: '/ planning',
+		step: "planning",
+		subtitle: "/ planning",
 		branch: data.branch,
 		title: data.plan && data.plan.title,
 		data,

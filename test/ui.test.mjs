@@ -22,11 +22,20 @@ test("dependency graph renders full labels — no ellipsis, auto-width nodes", a
 	assert.match(ctx.g.innerHTML, /score-breakdown-tooltip-rework/);
 	assert.match(ctx.g.innerHTML, /dependent-risk-signal-badges/);
 	assert.doesNotMatch(ctx.g.innerHTML, /…/, "labels must never be clipped");
-	assert.match(ctx.g.innerHTML, /✓ score-breakdown-tooltip-rework/, "done marker rides the full label");
+	assert.match(
+		ctx.g.innerHTML,
+		/✓ score-breakdown-tooltip-rework/,
+		"done marker rides the full label",
+	);
 	// Nodes size to their label — the two different slugs get different widths.
-	const widths = [...ctx.g.innerHTML.matchAll(/rect [^>]*width="(\d+)"/g)].map((m) => Number(m[1]));
+	const widths = [...ctx.g.innerHTML.matchAll(/rect [^>]*width="(\d+)"/g)].map(
+		(m) => Number(m[1]),
+	);
 	assert.equal(widths.length, 2);
-	assert.ok(widths[0] > 150 && widths[1] > 150, "long labels outgrow the old fixed 150px node");
+	assert.ok(
+		widths[0] > 150 && widths[1] > 150,
+		"long labels outgrow the old fixed 150px node",
+	);
 	assert.equal(ctx.cw.innerHTML, "", "no cycle warning for an acyclic graph");
 	// And a cycle still warns.
 	ctx.features = [
@@ -329,7 +338,12 @@ test("hub gates Implement/Review on status and renders escalation + review-plan 
 	const html = hub({
 		step: "hub",
 		branch: "iterator/p",
-		plan: { title: "P", status: "approved", planReviewed: null, worktree: null },
+		plan: {
+			title: "P",
+			status: "approved",
+			planReviewed: null,
+			worktree: null,
+		},
 		stage: "awaiting-plan-review",
 		progress: { done: 0, total: 1 },
 		features: [
@@ -352,7 +366,11 @@ test("hub gates Implement/Review on status and renders escalation + review-plan 
 			paused: true,
 			phase: "escalated",
 			strikes: {},
-			escalation: { feature: "a", reason: "failed agent review 3 time(s)", at: "2026-07-15" },
+			escalation: {
+				feature: "a",
+				reason: "failed agent review 3 time(s)",
+				at: "2026-07-15",
+			},
 		},
 		settings: { review_required: "on" },
 		dirty: { count: 0, files: [] },
@@ -382,20 +400,41 @@ test("planning drives plan-lifecycle controls from the server-derived stage", as
 	const html = planning({
 		step: "planning",
 		branch: "iterator/p",
-		plan: { title: "P", status: "approved", planReviewed: null, worktree: null },
+		plan: {
+			title: "P",
+			status: "approved",
+			planReviewed: null,
+			worktree: null,
+		},
 		stage: "retirable",
 		progress: { done: 1, total: 1 },
 		features: [
 			{
-				name: "a", title: "A", status: "done", size: "small",
-				testsStatus: "green", dependsOn: [], ready: true, waitingOn: [],
-				hasDiff: false, hasCommits: true, conflicts: 0,
+				name: "a",
+				title: "A",
+				status: "done",
+				size: "small",
+				testsStatus: "green",
+				dependsOn: [],
+				ready: true,
+				waitingOn: [],
+				hasDiff: false,
+				hasCommits: true,
+				conflicts: 0,
 			},
 		],
-		state: { mode: "manual", paused: false, phase: "idle", strikes: {}, escalation: null },
+		state: {
+			mode: "manual",
+			paused: false,
+			phase: "idle",
+			strikes: {},
+			escalation: null,
+		},
 		settings: { review_required: "on" },
 		dirty: { count: 0, files: [] },
-		retired: [{ name: "2026-01-01-old", title: "Old plan", created: "2026-01-01" }],
+		retired: [
+			{ name: "2026-01-01-old", title: "Old plan", created: "2026-01-01" },
+		],
 		backlog: [],
 	});
 	// Lifecycle buttons key off the server-derived stage.
@@ -492,16 +531,33 @@ test("idle dashboard tabs omit the header Cancel button; round views keep it wit
 	// On these tabs no round is pending — /cancel is a no-op, the button lies.
 	assert.ok(!hubHtml.includes(CANCEL_BTN), "hub has no header Cancel");
 	assert.ok(
-		!knowledge({ branch: "main", memory: {}, areas: [], memories: [], design: null }).includes(CANCEL_BTN),
+		!knowledge({
+			branch: "main",
+			memory: {},
+			areas: [],
+			memories: [],
+			design: null,
+		}).includes(CANCEL_BTN),
 		"knowledge has no header Cancel",
 	);
 	assert.ok(
-		!usage({ branch: "main", plan: "P", usage: { steps: [] } }).includes(CANCEL_BTN),
+		!usage({ branch: "main", plan: "P", usage: { steps: [] } }).includes(
+			CANCEL_BTN,
+		),
 		"usage has no header Cancel",
 	);
-	const planHtml = plan({ branch: "main", title: "P", plan: {}, knowledge: {} });
+	const planHtml = plan({
+		branch: "main",
+		title: "P",
+		plan: {},
+		knowledge: {},
+	});
 	assert.ok(planHtml.includes(CANCEL_BTN), "round views keep Cancel");
-	assert.match(planHtml, /it-btn cancel" onclick="cancelFlow\(\)" title="/, "Cancel explains itself");
+	assert.match(
+		planHtml,
+		/it-btn cancel" onclick="cancelFlow\(\)" title="/,
+		"Cancel explains itself",
+	);
 });
 
 test("hub flags an implemented feature whose changes are nowhere to be found", async () => {
@@ -509,17 +565,36 @@ test("hub flags an implemented feature whose changes are nowhere to be found", a
 	const html = hub({
 		step: "hub",
 		branch: "iterator/p",
-		plan: { title: "P", status: "approved", planReviewed: null, worktree: null },
+		plan: {
+			title: "P",
+			status: "approved",
+			planReviewed: null,
+			worktree: null,
+		},
 		stage: "awaiting-plan-review",
 		progress: { done: 0, total: 1 },
 		features: [
 			{
-				name: "a", title: "A", status: "implemented", size: "small",
-				testsStatus: "none", dependsOn: [], ready: true, waitingOn: [],
-				hasDiff: false, hasCommits: false, conflicts: 0,
+				name: "a",
+				title: "A",
+				status: "implemented",
+				size: "small",
+				testsStatus: "none",
+				dependsOn: [],
+				ready: true,
+				waitingOn: [],
+				hasDiff: false,
+				hasCommits: false,
+				conflicts: 0,
 			},
 		],
-		state: { mode: "manual", paused: false, phase: "idle", strikes: {}, escalation: null },
+		state: {
+			mode: "manual",
+			paused: false,
+			phase: "idle",
+			strikes: {},
+			escalation: null,
+		},
 		settings: { review_required: "on" },
 		dirty: { count: 0, files: [] },
 		retired: [],
@@ -527,4 +602,133 @@ test("hub flags an implemented feature whose changes are nowhere to be found", a
 	});
 	assert.match(html, /no recorded changes/);
 	assert.match(html, /committed outside the accept flow/);
+});
+
+test("review page renders diff hunks on initial load (no TDZ crash)", async () => {
+	const { render } = await import("../lib/views/review.mjs");
+	const html = render({
+		step: "review",
+		branch: "iterator/x",
+		commit: "abc123",
+		plan: "P",
+		mode: "commit",
+		source: "commits",
+		hasFeaturesFile: true,
+		hasChanges: true,
+		features: [
+			{
+				name: "f1",
+				description: "d",
+				blastRadius: "",
+				dependsOn: [],
+				stats: { added: 1, removed: 0, files: 1, complexity: "green" },
+				files: [
+					{
+						path: "src/a.mjs",
+						group: "declared",
+						hunks: [
+							{
+								header: "@@ -1,1 +1,2 @@",
+								oldStart: 1,
+								newStart: 1,
+								lines: [
+									{ type: "context", content: "a" },
+									{ type: "addition", content: "b" },
+								],
+							},
+						],
+					},
+				],
+				pitfalls: [],
+			},
+		],
+		uncategorized: [],
+	});
+	const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(
+		(m) => m[1],
+	);
+	assert.equal(scripts.length, 1);
+
+	// Minimal DOM: enough for the review client script's initial render path.
+	class El {
+		constructor() {
+			this.children = [];
+			this._innerHTML = "";
+			this._text = "";
+			this.style = { cssText: "" };
+			this.dataset = {};
+			this.value = "";
+			this.title = "";
+			const s = new Set();
+			this.classList = {
+				add: (...c) => c.forEach((x) => s.add(x)),
+				remove: (...c) => c.forEach((x) => s.delete(x)),
+				toggle: (c, f) =>
+					f === undefined
+						? s.has(c)
+							? s.delete(c)
+							: s.add(c)
+						: f
+							? s.add(c)
+							: s.delete(c),
+				contains: (c) => s.has(c),
+			};
+		}
+		set innerHTML(v) {
+			this._innerHTML = String(v);
+			this.children = [];
+		}
+		get innerHTML() {
+			return this._innerHTML;
+		}
+		set textContent(v) {
+			this._text = String(v);
+		}
+		get textContent() {
+			return this._text;
+		}
+		appendChild(c) {
+			this.children.push(c);
+			return c;
+		}
+		querySelector() {
+			return new El();
+		}
+		querySelectorAll() {
+			return [];
+		}
+		addEventListener() {}
+		focus() {}
+	}
+	const byId = new Map();
+	const doc = {
+		getElementById(id) {
+			if (!byId.has(id)) byId.set(id, new El());
+			return byId.get(id);
+		},
+		createElement: () => new El(),
+		querySelector: () => new El(),
+		querySelectorAll: () => [],
+		documentElement: new El(),
+		body: new El(),
+		addEventListener() {},
+	};
+	const ctx = vm.createContext({
+		document: doc,
+		window: { addEventListener() {}, close() {}, parent: null },
+		navigator: { sendBeacon() {} },
+		alert() {},
+		fetch: async () => ({ status: 200 }),
+	});
+	// The whole inline script must run — an exception anywhere at top level
+	// (e.g. a const still in its temporal dead zone when the bootstrap render
+	// fires) leaves the page half-rendered with an empty diff.
+	vm.runInContext(scripts[0], ctx, { filename: "review-inline.js" });
+	const hunks = byId.get("hunks");
+	assert.ok(hunks, "initial render must reach renderHunks");
+	assert.ok(
+		hunks.children.length > 0,
+		"the first feature's file cards render on page load",
+	);
+	assert.match(hunks.children[0].innerHTML, /src\/a\.mjs/);
 });
