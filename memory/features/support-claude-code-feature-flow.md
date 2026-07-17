@@ -2,17 +2,18 @@
 type: Feature
 title: Support Claude Code feature flow
 description: Make Claude Code skills reliably drive the existing plan and feature workflow without changing Pi’s review-centered flow.
-status: implemented
+status: done
 size: medium
 depends_on: []
 files: ["CLAUDE.md", ".claude-plugin/plugin.json", ".claude-plugin/marketplace.json", "skills/iterator/SKILL.md", "skills/iterator-plan/SKILL.md", "skills/iterator-feature/SKILL.md", "skills/iterator-test/SKILL.md", "skills/iterator-implement/SKILL.md", "skills/iterator-review/SKILL.md", "lib/gather.mjs", "lib/write.mjs", "test/skills.test.mjs", "test/gather.test.mjs", "test/write.test.mjs"]
 memories: [architecture/workflow-state-ownership, decisions/iterator-dashboard-feature-workflow]
-timestamp: "2026-07-17T08:10:13.237Z"
+timestamp: "2026-07-17T08:10:43.057Z"
 tags: []
 commits:
   - sha: 7d84d320f4fc58a35247aa54941998bd418850f7
     kind: implement
     date: 2026-07-17
+done: 2026-07-17
 ---
 
 # Implementation notes

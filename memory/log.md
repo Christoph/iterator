@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-17
+* **Review**: Accepted [Support Claude Code feature flow](/features/support-claude-code-feature-flow.md) (committed as feature(support-claude-code-feature-flow)).
 * **Implementation**: Committed feature(support-claude-code-feature-flow) on branch iterator/scope-settings-model-options; awaiting review.
 * **Review**: Accepted [Scope settings model options](/features/scope-settings-model-options.md) (committed as feature(scope-settings-model-options)).
 * **Implementation**: Committed feature(scope-settings-model-options) on branch iterator/scope-settings-model-options; awaiting review.
