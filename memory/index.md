@@ -1,6 +1,6 @@
 ---
 okf_version: "0.1"
-last_memorized_commit: a5d59c50453e568ec486a3c9c017c2506898700e
+last_memorized_commit: c5b75e3e4b034bc80a1600e57249e162639d32a8
 ---
 
 # iterator memory
@@ -10,8 +10,6 @@ last_memorized_commit: a5d59c50453e568ec486a3c9c017c2506898700e
 * [Design](design.md) - A compact dark developer control plane with clear workflow state.
 * [Backlog](backlog/index.md) - Saved ideas and bugs outside active plan features.
 * [Settings](settings.md) - Project settings (auto mode, models, git flow).
-* [Plan](plan.md) - Keep filesystem-backed backlog work available during active agent flows, and add dependency-ready implementation waves with consolidated review.
-* [Features](features/) - One document per implementation feature.
 * [Architecture](/architecture/) - How the system is structured.
 * [Decisions](/decisions/) - Durable product and implementation choices agents should preserve.
 * [Patterns & Conventions](/patterns/) - How code and workflows are written in this repo.

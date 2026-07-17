@@ -107,6 +107,10 @@ test("shared client JS posts to the server endpoints with the run id", () => {
 test("shared client JS wires read-only mode while the agent works", () => {
 	const html = renderPage({ step: "t", data: {}, body: "", clientJs: "" });
 	assert.ok(
+		html.includes("window.parent !== window"),
+		"embedded session views never own pagehide cancellation",
+	);
+	assert.ok(
 		html.includes("e.data.iterator !== 'working'"),
 		"listens for the shell working message",
 	);
@@ -409,6 +413,9 @@ test("hub gates Implement/Review on status and renders escalation + review-plan 
 	assert.match(html, /Review all/);
 	assert.match(html, /action\('review-all'/);
 	assert.match(html, /Array\.isArray\(D\.reviewWave\)/);
+	// Active feature context and management live on Work.
+	assert.match(html, /renderGraphInto/);
+	assert.match(html, /action\('cancel-feature'/);
 	// Plan-lifecycle controls live on the Planning surface, not Work.
 	assert.doesNotMatch(html, /action\('review-plan'/);
 	assert.doesNotMatch(html, /Retires the plan/);
@@ -461,12 +468,13 @@ test("planning drives plan-lifecycle controls from the server-derived stage", as
 	assert.match(html, /action\('review-plan'/);
 	assert.match(html, /Retires the plan/);
 	assert.match(html, /action\('cancel-plan'/);
-	assert.match(html, /action\('cancel-feature'/);
+	// Active features and their dependency graph live on Work, not Planning.
+	assert.doesNotMatch(html, /action\('cancel-feature'/);
+	assert.doesNotMatch(html, /renderGraphInto/);
 	// The execution controls live on Work, not here.
 	assert.doesNotMatch(html, /action\('implement'/);
 	assert.doesNotMatch(html, /auto-implement/);
-	// Dependency graph + retired-plan browser render here.
-	assert.match(html, /renderGraphInto/);
+	// Retired-plan browsing remains a planning concern.
 	assert.match(html, /view-archive/);
 });
 
@@ -512,6 +520,14 @@ test("review view groups files by Declared/Tests/Incidental with pre-seeded disp
 	assert.match(html, /review all/);
 	assert.match(html, /@media\(max-width:640px\)/);
 	assert.match(html, /\.main\{flex-direction:column\}/);
+	// Long feature labels wrap instead of being ellipsized at any breakpoint.
+	assert.match(html, /\.fn\{[^}]*white-space:normal;overflow-wrap:anywhere/);
+	assert.doesNotMatch(html, /\.fn\{[^}]*text-overflow:ellipsis/);
+	// Feedback still submits through the header; the obsolete fixed panel and
+	// its JSON-preview bookkeeping are gone.
+	assert.doesNotMatch(html, /id="fbpanel"/);
+	assert.doesNotMatch(html, /toggleFb|updateFb/);
+	assert.match(html, /post\(buildFeedbackObj\(\), 'Review sent to Claude'\)/);
 });
 
 test("planning hero goal box persists an unsent draft and clears it on plan start", async () => {

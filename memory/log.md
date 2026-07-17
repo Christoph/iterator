@@ -1,6 +1,54 @@
 # iterator update log
 
 ## 2026-07-17
+* **Retirement**: Plan "Apply role models on manual turns and reset stale auto state" condensed into [Apply role models to manual turns and reset stale runtime state](/decisions/manual-role-models-and-runtime-reset.md).
+* **Plan review**: Whole-plan review recorded (agent).
+* **Review**: Reviewed [Apply configured models to manual turns](/features/apply-role-models-manual-turns.md); approved (agent).
+* **Review**: Accepted [Apply configured models to manual turns](/features/apply-role-models-manual-turns.md) (committed as feature(apply-role-models-manual-turns)).
+* **Implementation**: Committed feature(apply-role-models-manual-turns) on branch iterator/always-available-backlog; awaiting review.
+* **Backlog**: edit after-consolidating-the-memory-files-there-is-still-a-stale-memory.
+* **Backlog**: create make-sure-work-state-is-working.
+* **Backlog**: create settign-and-function-to-memorize-commits-in-retire-plan.
+* **Review**: Reviewed [Apply configured models to manual turns](/features/apply-role-models-manual-turns.md); changes (agent).
+* **Implementation**: Committed feature(apply-role-models-manual-turns) on branch iterator/always-available-backlog; awaiting review.
+* **Backlog**: create after-consolidating-the-memory-files-there-is-still-a-stale-memory.
+* **Review**: Accepted [Reset runtime state for approved plans](/features/reset-plan-runtime-state.md) (committed as feature(reset-plan-runtime-state)).
+* **Backlog**: create let-in-usage-add-a-price-for-the-models-ioptional.
+* **Implementation**: Committed feature(reset-plan-runtime-state) on branch iterator/always-available-backlog; awaiting review.
+* **Backlog**: create feature-plannning-memory-files.
+* **Update**: Applied 2 feature adjustment(s).
+* **Creation**: 2 feature(s) written.
+* **Creation**: Plan "Apply role models on manual turns and reset stale auto state" approved on branch iterator/always-available-backlog.
+* **Memorize**: Set last_memorized_commit to c5b75e3e4b03.
+* **Update**: Memorized [Explicit cancel must pre-empt pagehide grace](/pitfalls/cancel-now-after-grace-timer.md).
+* **Update**: Memorized [Browser server contract](/architecture/browser-server-contract.md).
+* **Retirement**: Plan "Keep active review stable and clarify Planning versus Work" condensed into [Review navigation and Work context](/decisions/review-navigation-and-work-context.md).
+* **Plan review**: Whole-plan review recorded (agent).
+* **Review**: Reviewed [Keep review controls fully readable](/features/streamline-review-interface.md); approved (agent).
+* **Review**: Accepted [Keep review controls fully readable](/features/streamline-review-interface.md) (committed as feature(streamline-review-interface)).
+* **Implementation**: Committed feature(streamline-review-interface) on branch iterator/always-available-backlog; awaiting review.
+* **Review**: Reviewed [Show active plan context on Work](/features/show-active-work-in-work.md); approved (agent).
+* **Review**: Accepted [Show active plan context on Work](/features/show-active-work-in-work.md) (committed as feature(show-active-work-in-work)).
+* **Implementation**: Committed feature(show-active-work-in-work) on branch iterator/always-available-backlog; awaiting review.
+* **Review**: Reviewed [Preserve reviews across Planning navigation](/features/preserve-review-across-planning.md); approved (agent).
+* **Review**: Accepted [Preserve reviews across Planning navigation](/features/preserve-review-across-planning.md) (committed as feature(preserve-review-across-planning)).
+* **Implementation**: Committed feature(preserve-review-across-planning) on branch iterator/always-available-backlog; awaiting review.
+* **Review**: Reviewed [Preserve reviews across Planning navigation](/features/preserve-review-across-planning.md); changes (agent).
+* **Implementation**: Committed feature(preserve-review-across-planning) on branch iterator/always-available-backlog; awaiting review.
+* **Update**: Applied 3 feature adjustment(s).
+* **Creation**: 3 feature(s) written.
+* **Creation**: Plan "Keep active review stable and clarify Planning versus Work" approved on branch iterator/always-available-backlog. Consumed 4 selected backlog candidate(s).
+* **Backlog**: select remove-right-lower-feedback-button (selected).
+* **Backlog**: select feature-review-titles-are-cut-off (selected).
+* **Backlog**: select move-active-plan-and-features-to-work (selected).
+* **Backlog**: select review-aborded-after-going-to-planning-during-review (selected).
+* **Backlog**: create remove-right-lower-feedback-button.
+* **Backlog**: create feature-review-titles-are-cut-off.
+* **Backlog**: create move-active-plan-and-features-to-work.
+* **Retirement**: Plan "Keep backlog planning available and support parallel feature waves" condensed into [Backlog planning and parallel feature waves](/decisions/backlog-planning-and-feature-waves.md).
+* **Backlog**: select review-aborded-after-going-to-planning-during-review (deselected).
+* **Backlog**: select review-aborded-after-going-to-planning-during-review (selected).
+* **Backlog**: create review-aborded-after-going-to-planning-during-review.
 * **Plan review**: Whole-plan review recorded (agent).
 * **Review**: Reviewed [Review all implemented features together](/features/review-multiple-implemented-features.md); approved (agent).
 * **Review**: Accepted [Review all implemented features together](/features/review-multiple-implemented-features.md) (committed as feature(review-multiple-implemented-features)).

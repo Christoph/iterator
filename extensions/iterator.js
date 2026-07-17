@@ -65,6 +65,7 @@ import {
 	nextFeatureWaveAction,
 	pauseFeatureWave,
 	projectRoot,
+	roleFromInput,
 	roleModelSpec,
 	runJson,
 	scriptPath,
@@ -511,6 +512,8 @@ export default function iteratorExtension(pi) {
 	let autoSteps = 0;
 	let featureWave = null; // fixed ready-feature snapshot; review stays manual
 	let preAutoModel = null; // the user's model before the first role switch
+	let pendingRole = null; // exact role command captured from the current input
+	let manualRoleActive = false; // this turn switched a manual role model
 
 	const notifyUi = (msg, level = "info") => {
 		if (lastCtx?.hasUI) lastCtx.ui.notify(`iterator: ${msg}`, level);
@@ -564,7 +567,7 @@ export default function iteratorExtension(pi) {
 		}
 	};
 
-	/** Restore the user's pre-auto model on done/escalate/pause. */
+	/** Restore the user's model after an automatic or manual role turn. */
 	const restoreModel = async () => {
 		if (!preAutoModel) return;
 		const m = preAutoModel;
@@ -679,7 +682,12 @@ export default function iteratorExtension(pi) {
 			if (!action) return;
 
 			if (action.done) {
-				await writeState({ phase: "done", active_feature: null });
+				await writeState({
+					mode: "manual",
+					paused: false,
+					phase: "done",
+					active_feature: null,
+				});
 				autoSteps = 0;
 				await restoreModel();
 				notifyUi(
@@ -1449,8 +1457,14 @@ export default function iteratorExtension(pi) {
 	pi.on("before_agent_start", async (_event, ctx) => {
 		rememberCtx(ctx);
 		try {
+			const { hub, implement, settings, state } = await gatherSession(ctx.cwd);
+			if (pendingRole && state?.mode !== "auto" && !featureWave) {
+				await applyRole(pendingRole, settings);
+				manualRoleActive = true;
+			}
+			// Model selection also applies to /iterator-plan before a bundle exists;
+			// only the ambient bundle context depends on durable plan state.
 			if (!bundleExists(ctx.cwd)) return undefined;
-			const { hub, implement } = await gatherSession(ctx.cwd);
 			let matched = [];
 			if (recentFiles.size) {
 				const knowledge = await gatherPayload(ctx.cwd, "knowledge");
@@ -1484,6 +1498,7 @@ export default function iteratorExtension(pi) {
 	let usageBuffer = [];
 
 	pi.on("input", async (event) => {
+		pendingRole = roleFromInput(event.text);
 		const a = attributionFromInput(event.text);
 		if (a) attribution = a;
 	});
@@ -1567,6 +1582,10 @@ export default function iteratorExtension(pi) {
 		rememberCtx(ctx);
 		invalidateSession(); // the turn may have changed files/commits
 		await flushUsage(ctx.cwd);
+		if (manualRoleActive) {
+			manualRoleActive = false;
+			await restoreModel();
+		}
 		await refreshHub(ctx.cwd);
 		await refreshStatus(ctx);
 		// Keep abortPending set until this stale agent_end reaches its final

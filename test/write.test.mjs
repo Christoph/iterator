@@ -109,6 +109,58 @@ test("plan op writes a conformant bundle and log entry", () => {
 	}
 });
 
+test("plan approval resets runtime state while drafts preserve it", () => {
+	const root = makeRepo();
+	try {
+		applyOp(
+			{
+				op: "state",
+				set: {
+					mode: "auto",
+					paused: true,
+					phase: "escalated",
+					active_feature: "old-feature",
+					strikes: { "old-feature": 2 },
+					escalation: { feature: "old-feature", reason: "stuck" },
+				},
+			},
+			root,
+		);
+
+		const approved = applyOp(PLAN_OP, root);
+		assert.ok(approved.written.includes("state.md"));
+		let state = frontmatter(read(root, "state.md"));
+		assert.equal(state.mode, "manual");
+		assert.equal(state.paused, "false");
+		assert.equal(state.phase, "idle");
+		assert.equal(state.active_feature, "null");
+		assert.equal(state.strikes, "{}");
+		assert.equal(state.escalation, "null");
+
+		applyOp(
+			{
+				op: "state",
+				set: {
+					mode: "auto",
+					phase: "implementing",
+					active_feature: "draft-work",
+				},
+				strike: "draft-work",
+			},
+			root,
+		);
+		const draft = applyOp({ ...PLAN_OP, status: "draft" }, root);
+		assert.ok(!draft.written.includes("state.md"));
+		state = frontmatter(read(root, "state.md"));
+		assert.equal(state.mode, "auto");
+		assert.equal(state.phase, "implementing");
+		assert.equal(state.active_feature, "draft-work");
+		assert.equal(state.strikes, '{"draft-work":1}');
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("plan approval consumes selected backlog candidates only", () => {
 	const root = makeRepo();
 	try {

@@ -1,11 +1,10 @@
 /**
  * iterator: Work dashboard UI on the shared shell (../ui.mjs,
  * ../server.mjs). The execution surface of the flow: the active plan's
- * progress, the escalation banner, and the feature cards with their
- * Test / Implement / Review actions. Plan management — backlog, plan
- * creation/revision/retirement, the dependency graph, feature cancellation —
- * lives on the planning surface (./planning.mjs); both render from the same
- * gather payload so they can never disagree about state.
+ * progress, dependency graph, and feature cards with their Test / Implement /
+ * Review actions. Planning owns backlog and plan-lifecycle controls; active
+ * plan context and feature management live here. Both surfaces render from
+ * the same gather payload so they can never disagree about state.
  *
  *   input:  { step:"hub", branch,
  *             plan: { title, status } | null,      // null = no bundle yet
@@ -21,12 +20,13 @@
  *             retired: [ { name, title, created } ]   // archived plans, newest first
  *   output: one JSON line to stdout —
  *     { type:"action", action:"planning"|"test"|"implement"|"review"|"review-all"|"implement-wave"|"auto-implement"
- *       |"escalation-restart"|"escalation-guide",
+ *       |"cancel-feature"|"escalation-restart"|"escalation-guide",
  *       feature:"<slug>"|null,
  *       prompt:"<guidance>"|null }                 // escalation-guide only
  *     plus the shared { type:"cancel" } / { type:"timeout" }.
  */
 import { renderPage } from "../ui.mjs";
+import { GRAPH_CSS, GRAPH_JS } from "./graph.mjs";
 import { WIDGETS_CSS, WIDGETS_JS } from "./widgets.mjs";
 
 const CSS = `
@@ -147,6 +147,14 @@ function render(){
   }
   w.appendChild(bar);
 
+  // Active dependency structure belongs beside execution status. Readiness and
+  // dependencies are supplied by gather; this view only renders them.
+  const gt = document.createElement('div'); gt.className='sec-title'; gt.textContent='Dependency graph';
+  const cw = document.createElement('div'); cw.id='cyclewarn';
+  const g = document.createElement('div'); g.className='graph'; g.id='graph';
+  w.appendChild(gt); w.appendChild(cw); w.appendChild(g);
+  renderGraphInto(g, cw, CH, 'fix depends-on in /iterator-feature before implementing.');
+
   // cards
   const ct = document.createElement('div'); ct.className='sec-title'; ct.textContent='Features';
   w.appendChild(ct);
@@ -214,7 +222,14 @@ function makeCard(c){
   else { rev.disabled = true; rev.title = 'Implement first — review unlocks once the feature is implemented'; }
   rev.addEventListener('click', () => action('review', c.name, 'Starting /iterator-review'));
 
-  btns.appendChild(impl); btns.appendChild(test); btns.appendChild(rev);
+  const cancel = document.createElement('button');
+  cancel.className = 'act danger';
+  cancel.textContent = 'Cancel feature';
+  cancel.title = 'Remove this feature from the plan (its file is archived; dependents are unwired)';
+  confirmButton(cancel, 'Really cancel \\u2014 click again', () =>
+    action('cancel-feature', c.name, 'Cancelling feature'));
+
+  btns.appendChild(impl); btns.appendChild(test); btns.appendChild(rev); btns.appendChild(cancel);
   card.appendChild(btns);
   return card;
 }
@@ -227,9 +242,9 @@ export function render(data) {
 		branch: data.branch,
 		title: data.plan && data.plan.title,
 		data,
-		css: WIDGETS_CSS + CSS,
+		css: WIDGETS_CSS + GRAPH_CSS + CSS,
 		body: BODY,
-		clientJs: WIDGETS_JS + JS,
+		clientJs: WIDGETS_JS + GRAPH_JS + JS,
 		primary: false, // the per-card action buttons are the primaries here
 		cancel: false, // idle dashboard — there is no round to cancel
 	});

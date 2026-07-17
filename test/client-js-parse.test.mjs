@@ -63,7 +63,20 @@ const MIN_DATA = {
 	},
 	plan: { branch: "main", title: "P", plan: {}, knowledge: {} },
 	question: { branch: "main", title: "Q", question: { text: "?" } },
-	review: { branch: "main", plan: "P", features: [], mode: "review" },
+	review: {
+		branch: "main",
+		plan: "P",
+		mode: "review",
+		features: [
+			{
+				name: "a-feature-name-that-must-remain-fully-readable-in-the-sidebar",
+				description: "Long labels wrap without changing review behavior.",
+				dependsOn: [],
+				stats: { added: 0, removed: 0, files: 0, complexity: "green" },
+				files: [],
+			},
+		],
+	},
 	settings: { branch: "main", plan: "P", settings: {}, schema: [] },
 	test: { branch: "main", feature: { name: "f" }, tests: [] },
 	usage: { branch: "main", plan: "P", usage: { steps: [] } },

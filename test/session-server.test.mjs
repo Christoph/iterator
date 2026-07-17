@@ -343,6 +343,10 @@ test("the shell scopes the overlay to the Work tab and posts read-only state int
 			"overlay guarded by active tab",
 		);
 		assert.ok(
+			shell.includes("navigator.sendBeacon('/cancel'"),
+			"the persistent shell owns cancellation when the dashboard unloads",
+		);
+		assert.ok(
 			shell.includes("postMessage({ iterator: 'working'"),
 			"read-only state posted into the iframe",
 		);
@@ -415,6 +419,33 @@ test("cancel grace: a reload (GET /view) keeps the round; ?now=1 cancels immedia
 			body: "{}",
 		});
 		assert.deepEqual(await round, { type: "cancel" });
+	} finally {
+		await session.stop();
+	}
+});
+
+test("explicit cancel pre-empts a pending pagehide grace timer", async () => {
+	const { session, origin } = await startSession();
+	try {
+		const round = session.showStep({
+			step: "review",
+			render: () => viewHtml("REVIEW"),
+		});
+		await fetch(`${origin}/cancel?r=${srvMod.RUN_ID}`, {
+			method: "POST",
+			body: "{}",
+		});
+		await fetch(`${origin}/cancel?r=${srvMod.RUN_ID}&now=1`, {
+			method: "POST",
+			body: "{}",
+		});
+		assert.deepEqual(
+			await Promise.race([
+				round,
+				sleep(100).then(() => ({ type: "too-slow" })),
+			]),
+			{ type: "cancel" },
+		);
 	} finally {
 		await session.stop();
 	}
@@ -503,6 +534,55 @@ test("tabs: steps render into their tab; inactive-tab refreshes are stored silen
 		await fetch(origin + "/tab", { method: "POST", body: '{"tab":"work"}' });
 		const shell = await (await fetch(origin + "/")).text();
 		assert.ok(shell.includes('let tab = "work"'));
+	} finally {
+		await session.stop();
+	}
+});
+
+test("review survives Planning navigation and can submit after returning to Work", async () => {
+	const { session, origin } = await startSession();
+	try {
+		// Seed the inactive Planning tab, then open an interactive review round
+		// on Work. Switching the shell's iframe between them is navigation only.
+		session.showView({ step: "planning", render: () => viewHtml("PLANNING") });
+		const round = session.showStep({
+			step: "review",
+			render: () => viewHtml("ACTIVE-REVIEW"),
+		});
+		const reviewRun = srvMod.RUN_ID;
+
+		await fetch(origin + "/tab", {
+			method: "POST",
+			body: '{"tab":"planning"}',
+		});
+		assert.match(
+			await (await fetch(origin + "/view?tab=planning")).text(),
+			/PLANNING/,
+		);
+		await fetch(origin + "/tab", {
+			method: "POST",
+			body: '{"tab":"work"}',
+		});
+		assert.match(
+			await (await fetch(origin + "/view?tab=work")).text(),
+			/ACTIVE-REVIEW/,
+		);
+		assert.equal(
+			srvMod.RUN_ID,
+			reviewRun,
+			"navigation preserves round identity",
+		);
+		assert.equal(session.hasPending(), true, "review remains pending");
+
+		const response = await fetch(`${origin}/submit?r=${reviewRun}`, {
+			method: "POST",
+			body: '{"type":"review-feedback","features":[]}',
+		});
+		assert.equal(response.status, 200);
+		assert.deepEqual(await round, {
+			type: "review-feedback",
+			features: [],
+		});
 	} finally {
 		await session.stop();
 	}
