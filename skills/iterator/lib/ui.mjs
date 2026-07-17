@@ -100,6 +100,9 @@ body{font-family:var(--font-ui);font-size:var(--fs-md);
 .lbl{font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.08em;
   font-family:var(--font-mono);color:var(--text-muted);margin:18px 0 6px}
 .empty{color:var(--text-muted);font-style:italic}
+/* Constrain unbounded history feeds without hiding their contents. Views add
+   this to the list itself so headings and controls remain outside the scroll. */
+.bounded-list{max-block-size:420px;overflow-y:auto;overscroll-behavior:contain;padding-right:var(--sp-2)}
 .md h1,.md h2,.md h3,.md h4{margin:10px 0 6px;line-height:1.3;font-family:var(--font-display)}
 .md h1{font-size:var(--fs-xl)}.md h2{font-size:var(--fs-lg)}.md h3{font-size:16px}.md h4{font-size:var(--fs-sm)}
 .md h1:first-child,.md h2:first-child,.md h3:first-child,.md p:first-child{margin-top:0}
