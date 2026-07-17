@@ -1,7 +1,7 @@
 ---
 type: Decision
 title: Unify Iterator dashboard and feature workflow
-description: Iterator’s dashboard uses explicit operation state and consistent iterator/features terminology so active work and navigation remain unambiguous.
+description: Dashboard workflows keep backlog candidates separate from active work until selected candidates are consumed by approved plan creation.
 status: accepted
 date: 2026-07-15
 tags:
@@ -33,22 +33,20 @@ files:
   - test/bundle.test.mjs
   - test/gather.test.mjs
   - test/write.test.mjs
-timestamp: 2026-07-16T11:27:44.913Z
+timestamp: "2026-07-17T13:53:47.909Z"
 ---
 
 ## Context
 
-Iterator’s dashboard and feature workflow had accumulated mixed `lr`/`chunk` terminology and broad action payloads. That made state ownership, navigation, and plan creation harder to reason about.
+Iterator’s dashboard and feature workflow use scoped actions and deterministic writer operations to keep active work unambiguous.
 
 ## Decision
 
-Use a state-driven dashboard and scoped action protocol. Actions submit only the fields they own, while operation lifecycle state drives contextual controls and Work/Knowledge activity badges. Keep Knowledge as a persistent destination without a Close control; retain Settings close as navigation.
-
-Standardize the plugin on `iterator` and `features` terminology across commands, documentation, paths, UI, and persisted records. Treat the rename as an explicit breaking migration for existing `CHUNKS.md`-based data rather than silently preserving legacy aliases.
+Keep saved backlog candidates separate from active plan features. A candidate selected for planning is consumed from the backlog only when the deterministic plan operation writes an approved plan; draft writes and non-approval review outcomes retain it. The writer reports the consumed candidate IDs and regenerates the backlog index in the same operation.
 
 ## Consequences
 
-The browser never hand-writes workflow records, and active plan graphs remain focused on implementation work. Existing persisted plans require the supported migration path.
+The Planning backlog shows only candidates that have not entered approved planning work. Browser selection remains intent only; it never directly mutates workflow records.
 
 # Retired plan
 

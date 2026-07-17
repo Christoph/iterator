@@ -1,6 +1,8 @@
 # iterator update log
 
 ## 2026-07-17
+* **Update**: Memorized [Unify Iterator dashboard and feature workflow](/decisions/iterator-dashboard-feature-workflow.md).
+* **Review**: Accepted [Consume accepted backlog ideas](/features/consume-accepted-backlog-ideas.md) (committed as feature(consume-accepted-backlog-ideas)).
 * **Implementation**: Committed feature(consume-accepted-backlog-ideas) on branch iterator/consume-accepted-backlog-ideas; awaiting review.
 * **Update**: Applied 1 feature adjustment(s).
 * **Creation**: 1 feature(s) written.

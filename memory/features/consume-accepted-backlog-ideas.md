@@ -2,17 +2,18 @@
 type: Feature
 title: Consume accepted backlog ideas
 description: Remove selected backlog candidates atomically when their plan and resulting feature set are accepted.
-status: implemented
+status: done
 size: medium
 depends_on: []
 files: ["lib/write.mjs", "lib/gather.mjs", "lib/bundle.mjs", "lib/views/planning.mjs", "extensions/iterator.js", "test/write.test.mjs", "test/gather.test.mjs", "test/ui.test.mjs", "test/client-js-parse.test.mjs", "test/sync.test.mjs", "skills/iterator/lib/write.mjs", "skills/iterator/lib/gather.mjs", "skills/iterator/lib/bundle.mjs", "skills/iterator/lib/views/planning.mjs"]
 memories: [pitfalls/client-js-template-literal-escaping, architecture/package-and-skill-layout, architecture/workflow-state-ownership, decisions/iterator-dashboard-feature-workflow, decisions/polish-dashboard-and-multi-agent-workflows, decisions/powerline-shows-sandbox-ui-port, decisions/settings-close-returns-to-work, decisions/synced-droppable-skill-libs]
-timestamp: "2026-07-17T13:52:37.857Z"
+timestamp: "2026-07-17T13:53:47.894Z"
 tags: []
 commits:
   - sha: b2d4863bbdf801d70d9d6e05b0516d983b11bdf0
     kind: implement
     date: 2026-07-17
+done: 2026-07-17
 ---
 
 # Implementation notes
