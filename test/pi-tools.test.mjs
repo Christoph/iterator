@@ -246,7 +246,7 @@ test('usageRowFromMessage extracts assistant usage with attribution', async () =
 // ---------------------------------------------------------------------------
 // Auto mode state machine
 
-const { nextAutoAction, roleModelSpec, AUTO_PHASE_FOR_STEP } = await import('../lib/pi-tools.mjs');
+const { nextAutoAction, nextFeatureWaveAction, roleModelSpec, AUTO_PHASE_FOR_STEP } = await import('../lib/pi-tools.mjs');
 
 const S = (over = {}) => ({
   auto_mode: 'on', testing_default: 'on', max_review_iterations: 3,
@@ -256,6 +256,46 @@ const ST = (over = {}) => ({ mode: 'auto', paused: false, phase: 'implementing',
 const sess = ({ features = [], next = null, drafts = [], stuck = false, done = 0, total = features.length } = {}) => ({
   hub: { plan: { title: 'P' }, progress: { done, total }, features },
   implement: { next, drafts, stuck },
+});
+
+test('nextFeatureWaveAction freezes the queue and reports each implementation result', () => {
+  let wave = { queue: ['a', 'b'], active: null, results: [] };
+  let decision = nextFeatureWaveAction(wave, [
+    { name: 'a', status: 'pending', conflicts: 0 },
+    { name: 'b', status: 'pending', conflicts: 0 },
+    { name: 'later', status: 'pending', conflicts: 0 },
+  ]);
+  assert.equal(decision.action.feature, 'a');
+  assert.equal(decision.action.cmd, '/skill:iterator-implement a --auto');
+  assert.deepEqual(decision.wave.queue, ['b'], 'newly ready features never join the snapshot');
+
+  wave = decision.wave;
+  decision = nextFeatureWaveAction(wave, [
+    { name: 'a', status: 'implemented', conflicts: 0 },
+    { name: 'b', status: 'pending', conflicts: 0 },
+    { name: 'later', status: 'pending', conflicts: 0 },
+  ]);
+  assert.equal(decision.action.feature, 'b');
+  assert.deepEqual(decision.wave.results, [{ feature: 'a', status: 'implemented' }]);
+
+  decision = nextFeatureWaveAction(decision.wave, [
+    { name: 'a', status: 'implemented', conflicts: 0 },
+    { name: 'b', status: 'pending', conflicts: 0 },
+  ]);
+  assert.equal(decision.done, true);
+  assert.deepEqual(decision.wave.results, [
+    { feature: 'a', status: 'implemented' },
+    { feature: 'b', status: 'failed' },
+  ]);
+});
+
+test('nextFeatureWaveAction skips conflicts without dispatching them', () => {
+  const decision = nextFeatureWaveAction(
+    { queue: ['blocked'], active: null, results: [] },
+    [{ name: 'blocked', status: 'pending', conflicts: 1 }],
+  );
+  assert.equal(decision.done, true);
+  assert.deepEqual(decision.wave.results, [{ feature: 'blocked', status: 'conflict' }]);
 });
 
 test('nextAutoAction is inert outside active auto mode', () => {

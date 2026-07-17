@@ -20,7 +20,7 @@
  *                         conflicts } ] }               // # of flagged decision conflicts
  *             retired: [ { name, title, created } ]   // archived plans, newest first
  *   output: one JSON line to stdout —
- *     { type:"action", action:"planning"|"test"|"implement"|"review"|"auto-implement"
+ *     { type:"action", action:"planning"|"test"|"implement"|"review"|"implement-wave"|"auto-implement"
  *       |"escalation-restart"|"escalation-guide",
  *       feature:"<slug>"|null,
  *       prompt:"<guidance>"|null }                 // escalation-guide only
@@ -112,10 +112,17 @@ function render(){
       : '<span class="pcount">not broken into features yet</span>');
   // Auto mode: once the feature set is approved (pending features exist), the
   // whole test → implement → review loop can run agent-driven.
-  const pendingReady = CH.some(c => c.status==='pending');
-  if(pendingReady){
+  const readyWave = Array.isArray(D.readyWave) ? D.readyWave : [];
+  if(readyWave.length){
+    const wave = document.createElement('button');
+    wave.className = 'act primary-act';
+    wave.textContent = 'Implement next wave';
+    wave.title = 'Implement the '+readyWave.length+' feature'+(readyWave.length!==1?'s':'')+' that are dependency-ready now; review remains a separate explicit step';
+    wave.addEventListener('click', () => action('implement-wave', null, 'Implementing next ready wave'));
+    bar.insertBefore(wave, bar.querySelector('.pbar'));
+
     const auto = document.createElement('button');
-    auto.className = 'act primary-act';
+    auto.className = 'act';
     auto.textContent = 'Implement all (auto)';
     auto.title = 'Run test \\u2192 implement \\u2192 review for every feature automatically; a reviewer agent stands in for you until escalation';
     auto.addEventListener('click', () => action('auto-implement', null, 'Starting auto mode'));

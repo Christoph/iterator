@@ -2,12 +2,12 @@
 type: Feature
 title: Implement a dependency-ready feature wave
 description: A Work action launches implementation for every feature ready at the start of the wave and reports each result.
-status: pending
+status: implemented
 size: large
 depends_on: []
 files: ["lib/gather.mjs", "lib/status.mjs", "lib/views/hub.mjs", "extensions/iterator.js", "skills/iterator-implement/SKILL.md", "test/gather.test.mjs", "test/status.test.mjs", "test/ui.test.mjs", "test/session-server.test.mjs"]
 memories: [pitfalls/cancel-now-after-grace-timer, pitfalls/client-js-template-literal-escaping, architecture/package-and-skill-layout, architecture/workflow-state-ownership, patterns/safe-browser-rendering, decisions/iterator-dashboard-feature-workflow, decisions/polish-dashboard-and-multi-agent-workflows, decisions/powerline-shows-sandbox-ui-port]
-timestamp: "2026-07-17T14:11:42.932Z"
+timestamp: "2026-07-17T14:22:32.827Z"
 tags: []
 ---
 

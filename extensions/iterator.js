@@ -61,6 +61,7 @@ import {
 	footerText,
 	mergePayload,
 	nextAutoAction,
+	nextFeatureWaveAction,
 	projectRoot,
 	roleModelSpec,
 	runJson,
@@ -455,6 +456,7 @@ export default function iteratorExtension(pi) {
 				await pushStatus(cwd);
 				resumeAuto(cwd); // no-op unless auto mode has work to pick up
 			} else if (input.action === "abort") {
+				featureWave = null;
 				// One-click recovery to a clean state: kill the in-flight stream,
 				// reset the runtime flow state, and re-render the hub — works even
 				// when a dispatch stalled, because /control never needs a model turn.
@@ -493,6 +495,7 @@ export default function iteratorExtension(pi) {
 
 	const AUTO_MAX_STEPS = 60; // per-session circuit breaker
 	let autoSteps = 0;
+	let featureWave = null; // fixed ready-feature snapshot; review stays manual
 	let preAutoModel = null; // the user's model before the first role switch
 
 	const notifyUi = (msg, level = "info") => {
@@ -556,6 +559,94 @@ export default function iteratorExtension(pi) {
 			await pi.setModel(m);
 		} catch {
 			/* the user can switch back manually */
+		}
+	};
+
+	/** Advance the fixed dependency-ready implementation wave by one agent turn. */
+	const advanceFeatureWave = async (cwd) => {
+		if (!featureWave || !bundleExists(cwd)) return;
+		try {
+			const { hub, settings } = await gatherSession(cwd);
+			const previousResults = featureWave.results.length;
+			const decision = nextFeatureWaveAction(featureWave, hub.features || []);
+			if (!decision) return;
+			featureWave = decision.wave;
+			for (const result of featureWave.results.slice(previousResults)) {
+				notifyUi(
+					`wave: ${result.feature} ${result.status}`,
+					result.status === "implemented" ? "info" : "warning",
+				);
+			}
+			if (decision.done) {
+				const results = featureWave.results;
+				const implemented = results.filter((result) => result.status === "implemented").length;
+				const failed = results.length - implemented;
+				featureWave = null;
+				await writeState({
+					mode: "manual",
+					paused: false,
+					phase: "idle",
+					active_feature: null,
+				});
+				await restoreModel();
+				session?.clearWorking?.();
+				notifyUi(
+					`ready wave finished: ${implemented} implemented${failed ? `, ${failed} failed or skipped` : ""} — review remains explicit`,
+					failed ? "warning" : "info",
+				);
+				await refreshHub(cwd);
+				return;
+			}
+
+			const action = decision.action;
+			await writeState({
+				mode: "manual",
+				paused: false,
+				phase: "implementing",
+				active_feature: action.feature,
+			});
+			await applyRole(action.role, settings);
+			attribution = { step: action.step, feature: action.feature };
+			session?.showWorking({
+				text: `Wave: implementing ${action.feature} (${featureWave.results.length}/${featureWave.results.length + featureWave.queue.length + 1} finished)…`,
+				step: action.step,
+				feature: action.feature,
+			});
+			await pushStatus(cwd);
+			await dispatch(action.cmd);
+		} catch (error) {
+			featureWave = null;
+			await writeState({
+				mode: "manual",
+				paused: false,
+				phase: "idle",
+				active_feature: null,
+			});
+			await restoreModel();
+			session?.clearWorking?.();
+			notifyUi(`ready wave stopped: ${error.message}`, "error");
+			await refreshHub(cwd);
+		}
+	};
+
+	/** Snapshot the server-derived ready set, then implement only that wave. */
+	const startFeatureWave = async (cwd) => {
+		try {
+			invalidateSession();
+			const { implement } = await gatherSession(cwd);
+			const queue = Array.isArray(implement?.ready) ? [...implement.ready] : [];
+			if (!queue.length) {
+				notifyUi("no dependency-ready features to implement", "warning");
+				await refreshHub(cwd);
+				return;
+			}
+			featureWave = { queue, active: null, results: [] };
+			session?.showWorking?.(`Ready wave: ${queue.length} feature(s)…`);
+			await advanceFeatureWave(cwd);
+		} catch (error) {
+			featureWave = null;
+			session?.clearWorking?.();
+			notifyUi(`ready wave did not start: ${error.message}`, "error");
 		}
 	};
 
@@ -850,6 +941,13 @@ export default function iteratorExtension(pi) {
 						["hub", "close", "planning"].includes(result.action)
 					) {
 						void refreshHub(ctxCwd());
+						return;
+					}
+					// Implement only the features that are dependency-ready right now;
+					// acceptance remains a separate user-controlled review step.
+					if (result?.type === "action" && result.action === "implement-wave") {
+						session.showWorking("Ready wave: taking a dependency snapshot…");
+						void startFeatureWave(ctxCwd());
 						return;
 					}
 					// Hub "Implement all (auto)" button: flip into auto mode for
@@ -1451,9 +1549,10 @@ export default function iteratorExtension(pi) {
 		await flushUsage(ctx.cwd);
 		await refreshHub(ctx.cwd);
 		await refreshStatus(ctx);
-		// The auto-mode loop advances exactly here: one decision per finished
-		// agent loop (no-op unless state.mode === 'auto' and not paused).
-		await kickAuto(ctx.cwd);
+		// A ready-wave snapshot advances before auto mode. Wave implementation
+		// intentionally stops at implemented; review remains a separate action.
+		if (featureWave) await advanceFeatureWave(ctx.cwd);
+		else await kickAuto(ctx.cwd);
 	});
 
 	// ---------------------------------------------------------------------

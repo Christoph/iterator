@@ -332,6 +332,7 @@ export function gather(startDir) {
 			stage: planStage(null, [], b.settings),
 			progress: { done: 0, total: 0 },
 			features: [],
+			readyWave: [],
 			// Tracked files for the goal box's @-mention suggestions (capped so
 			// the embedded payload stays small).
 			files: git(["ls-files"], b.root)
@@ -416,6 +417,11 @@ export function gather(startDir) {
 		stage: planStage(b.plan, b.features, b.settings),
 		progress: progress(b.features),
 		features,
+		// Snapshot candidates for the Work surface's "Implement next wave" action.
+		// Readiness is server-derived above; the browser only renders this list.
+		readyWave: features
+			.filter((feature) => feature.status === "pending" && feature.ready)
+			.map((feature) => feature.name),
 		knowledgeInitialized: knowledgeReady(b.memDir),
 		settings: b.settings,
 		state: b.state,

@@ -400,6 +400,12 @@ test("hub gates Implement/Review on status and renders escalation + review-plan 
 	assert.match(html, /escalation-restart/);
 	assert.match(html, /escalation-guide/);
 	assert.match(html, /Guide the agent/);
+	// The ready wave comes from the server payload and remains distinct from
+	// full auto mode (which also reviews and accepts).
+	assert.match(html, /Implement next wave/);
+	assert.match(html, /action\('implement-wave'/);
+	assert.match(html, /Implement all \(auto\)/);
+	assert.match(html, /Array\.isArray\(D\.readyWave\)/);
 	// Plan-lifecycle controls live on the Planning surface, not Work.
 	assert.doesNotMatch(html, /action\('review-plan'/);
 	assert.doesNotMatch(html, /Retires the plan/);

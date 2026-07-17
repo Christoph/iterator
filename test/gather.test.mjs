@@ -164,6 +164,11 @@ test("gather builds the hub payload from bundle + git state", () => {
 		assert.equal(auth.status, "pending");
 		assert.deepEqual(auth.dependsOn, ["config-module"]);
 		assert.equal(auth.ready, true, "done dependency satisfies");
+		assert.deepEqual(
+			p.readyWave,
+			["auth-middleware"],
+			"hub carries the server-derived ready-wave snapshot candidates",
+		);
 		assert.deepEqual(auth.waitingOn, []);
 		assert.equal(
 			auth.hasDiff,
