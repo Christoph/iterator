@@ -7,8 +7,12 @@ size: medium
 depends_on: []
 files: ["lib/views/hub.mjs", "lib/views/planning.mjs", "lib/views/graph.mjs", "test/ui.test.mjs"]
 memories: [pitfalls/client-js-template-literal-escaping, architecture/workflow-state-ownership, patterns/safe-browser-rendering, decisions/backlog-planning-and-feature-waves, decisions/consume-accepted-backlog-ideas, decisions/iterator-dashboard-feature-workflow, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows]
-timestamp: "2026-07-17T16:25:55.035Z"
+timestamp: "2026-07-17T16:25:55.104Z"
 tags: []
+commits:
+  - sha: e0b0453cbc024caa1cfdcbe079767214f4d8c6d8
+    kind: implement
+    date: 2026-07-17
 ---
 
 # Implementation notes
