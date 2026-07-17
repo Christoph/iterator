@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-17
+* **Retirement**: Plan "Remove accepted backlog ideas" condensed into [Consume selected backlog ideas on plan approval](/decisions/consume-accepted-backlog-ideas.md).
 * **Update**: Memorized [Unify Iterator dashboard and feature workflow](/decisions/iterator-dashboard-feature-workflow.md).
 * **Review**: Accepted [Consume accepted backlog ideas](/features/consume-accepted-backlog-ideas.md) (committed as feature(consume-accepted-backlog-ideas)).
 * **Implementation**: Committed feature(consume-accepted-backlog-ideas) on branch iterator/consume-accepted-backlog-ideas; awaiting review.
