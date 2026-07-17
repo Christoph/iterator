@@ -450,11 +450,25 @@ ${featuresSection}
 `.replace(/\n{3,}/g, "\n\n");
 
 	writeFileSync(join(b.memDir, "plan.md"), joinDoc(fm, bodyText));
+	// A selected candidate is explicitly being handed to plan creation. Consume
+	// it only after the approved plan has been written; drafts, feedback, and
+	// cancelled review rounds never invoke this deterministic operation.
+	const backlog = loadBacklogForWrite(b);
+	const consumedBacklog =
+		(payload.status || "approved") === "approved"
+			? backlog.filter((item) => item.selected === true)
+			: [];
+	if (consumedBacklog.length) {
+		writeFileSync(
+			backlogPath(b),
+			backlogIndex(backlog.filter((item) => item.selected !== true)),
+		);
+	}
 	regenerate(root);
 	prependLog(
 		b.memDir,
 		payload.log ||
-			`**${b.plan ? "Update" : "Creation"}**: Plan "${title}" approved on branch ${payload.branch || b.branch}.`,
+			`**${b.plan ? "Update" : "Creation"}**: Plan "${title}" approved on branch ${payload.branch || b.branch}.${consumedBacklog.length ? ` Consumed ${consumedBacklog.length} selected backlog candidate(s).` : ""}`,
 	);
 	// Soft memory-init gate: planning without the knowledge side means features
 	// get no relevant memories — surface it, never block.
@@ -536,7 +550,13 @@ ${featuresSection}
 
 	return {
 		op: "plan",
-		written: ["plan.md", "index.md", "log.md"],
+		written: [
+			"plan.md",
+			"index.md",
+			"log.md",
+			...(consumedBacklog.length ? ["backlog/index.md"] : []),
+		],
+		consumedBacklog: consumedBacklog.map((item) => item.id),
 		memoryDir: b.memDir,
 		...(branchResult ? branchResult : {}),
 		...(branchResult?.worktree

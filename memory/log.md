@@ -1,6 +1,16 @@
 # iterator update log
 
 ## 2026-07-17
+* **Implementation**: Committed feature(consume-accepted-backlog-ideas) on branch iterator/consume-accepted-backlog-ideas; awaiting review.
+* **Update**: Applied 1 feature adjustment(s).
+* **Creation**: 1 feature(s) written.
+* **Creation**: Plan "Remove accepted backlog ideas" approved on branch main.
+* **Backlog**: select remove-elements-from-idea-backlog-when-the-plan-and-feature-is-created (selected).
+* **Backlog**: select idea-backlog-layout (deselected).
+* **Backlog**: select improve-the-interaction-with-claude-code (deselected).
+* **Backlog**: select show-in-settings-for-models-only-the-scoped-models (deselected).
+* **Backlog**: select improve-overall-styling (deselected).
+* **Backlog**: create remove-elements-from-idea-backlog-when-the-plan-and-feature-is-created.
 * **Update**: Memorized [Remote browser access](/setup/remote-browser-access.md).
 * **Creation**: Memorized [An IPv4-only bind breaks localhost behind a sandbox forward](/pitfalls/ipv4-only-bind-breaks-localhost.md).
 * **Update**: Memorized [Powerline shows the sandbox-published UI port](/decisions/powerline-shows-sandbox-ui-port.md).

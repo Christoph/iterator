@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { join, resolve as resolvePath } from "node:path";
 import { applyOp, topoSort, setFmKeys } from "../lib/write.mjs";
 import { frontmatter, gather } from "../lib/gather.mjs";
+import { backlogItems } from "../lib/bundle.mjs";
 
 process.env.ITERATOR_NOW = "2026-07-06T12:00:00Z";
 
@@ -103,6 +104,54 @@ test("plan op writes a conformant bundle and log entry", () => {
 			read(root, "log.md"),
 			/## 2026-07-06\n\* \*\*Creation\*\*: Plan "Add JWT auth" approved/,
 		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("plan approval consumes selected backlog candidates only", () => {
+	const root = makeRepo();
+	try {
+		const selected = applyOp(
+			{
+				op: "backlog",
+				action: "create",
+				kind: "idea",
+				title: "Selected candidate",
+				details: "Turn this into a plan.",
+			},
+			root,
+		);
+		const retained = applyOp(
+			{
+				op: "backlog",
+				action: "create",
+				kind: "bug",
+				title: "Retained candidate",
+				details: "Leave this in the backlog.",
+			},
+			root,
+		);
+		applyOp(
+			{ op: "backlog", action: "select", id: selected.item.id, selected: true },
+			root,
+		);
+		const draft = applyOp({ ...PLAN_OP, status: "draft" }, root);
+		assert.deepEqual(draft.consumedBacklog, []);
+		assert.deepEqual(
+			backlogItems(read(root, "backlog", "index.md")).map((item) => item.id),
+			[selected.item.id, retained.item.id],
+			"draft plan writes leave selected candidates available",
+		);
+
+		const result = applyOp(PLAN_OP, root);
+		assert.deepEqual(result.consumedBacklog, [selected.item.id]);
+		assert.ok(result.written.includes("backlog/index.md"));
+		assert.deepEqual(
+			backlogItems(read(root, "backlog", "index.md")).map((item) => item.id),
+			[retained.item.id],
+		);
+		assert.match(read(root, "log.md"), /Consumed 1 selected backlog candidate/);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
