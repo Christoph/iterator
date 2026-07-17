@@ -7,10 +7,13 @@ size: medium
 depends_on: [reset-plan-runtime-state]
 files: ["lib/pi-tools.mjs", "extensions/iterator.js", "test/pi-tools.test.mjs"]
 memories: [architecture/package-and-skill-layout, decisions/backlog-planning-and-feature-waves, decisions/iterator-dashboard-feature-workflow, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows, decisions/powerline-shows-sandbox-ui-port, decisions/settings-close-returns-to-work, setup/install-and-command-surface]
-timestamp: "2026-07-17T17:48:49.552Z"
+timestamp: "2026-07-17T17:48:49.621Z"
 tags: []
 commits:
   - sha: 4b007e50016e5de9014a296b26749fe9dc063f48
+    kind: implement
+    date: 2026-07-17
+  - sha: c7157f5b89a8b3464ecd4f849849bf7d794d8121
     kind: implement
     date: 2026-07-17
 reviewed: 2026-07-17
