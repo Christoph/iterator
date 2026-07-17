@@ -246,7 +246,7 @@ test('usageRowFromMessage extracts assistant usage with attribution', async () =
 // ---------------------------------------------------------------------------
 // Auto mode state machine
 
-const { nextAutoAction, nextFeatureWaveAction, roleModelSpec, AUTO_PHASE_FOR_STEP } = await import('../lib/pi-tools.mjs');
+const { nextAutoAction, nextFeatureWaveAction, pauseFeatureWave, roleModelSpec, AUTO_PHASE_FOR_STEP } = await import('../lib/pi-tools.mjs');
 
 const S = (over = {}) => ({
   auto_mode: 'on', testing_default: 'on', max_review_iterations: 3,
@@ -287,6 +287,17 @@ test('nextFeatureWaveAction freezes the queue and reports each implementation re
     { feature: 'a', status: 'implemented' },
     { feature: 'b', status: 'failed' },
   ]);
+});
+
+test('pauseFeatureWave requeues the interrupted item for Continue', () => {
+  const paused = pauseFeatureWave({ queue: ['b'], active: 'a', results: [] });
+  assert.deepEqual(paused, { queue: ['a', 'b'], active: null, results: [] });
+  const resumed = nextFeatureWaveAction(paused, [
+    { name: 'a', status: 'pending', conflicts: 0 },
+    { name: 'b', status: 'pending', conflicts: 0 },
+  ]);
+  assert.equal(resumed.action.feature, 'a', 'Continue retries the paused feature');
+  assert.deepEqual(resumed.wave.results, [], 'pause is not recorded as a failure');
 });
 
 test('nextFeatureWaveAction skips conflicts without dispatching them', () => {

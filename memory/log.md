@@ -2,6 +2,8 @@
 
 ## 2026-07-17
 * **Implementation**: Committed feature(implement-ready-feature-wave) on branch iterator/consume-accepted-backlog-ideas; awaiting review.
+* **Review**: Reviewed [Implement a dependency-ready feature wave](/features/implement-ready-feature-wave.md); changes (agent).
+* **Implementation**: Committed feature(implement-ready-feature-wave) on branch iterator/consume-accepted-backlog-ideas; awaiting review.
 * **Review**: Reviewed [Keep the backlog available during active work](/features/always-available-backlog.md); approved (agent).
 * **Review**: Accepted [Keep the backlog available during active work](/features/always-available-backlog.md) (committed as feature(always-available-backlog)).
 * **Implementation**: Committed feature(always-available-backlog) on branch iterator/consume-accepted-backlog-ideas; awaiting review.

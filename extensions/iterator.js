@@ -62,6 +62,7 @@ import {
 	mergePayload,
 	nextAutoAction,
 	nextFeatureWaveAction,
+	pauseFeatureWave,
 	projectRoot,
 	roleModelSpec,
 	runJson,
@@ -437,6 +438,10 @@ export default function iteratorExtension(pi) {
 			if (input.action === "open-settings") {
 				await openSettings();
 			} else if (input.action === "pause") {
+				// A wave's active item was removed from its fixed queue when dispatched.
+				// Put it back before aborting so Continue retries it instead of treating
+				// the interrupted turn as a failed result and moving on.
+				if (featureWave) featureWave = pauseFeatureWave(featureWave);
 				await writeState({ paused: true });
 				// Stop the in-flight stream too — state is saved after each step,
 				// so Continue simply picks the flow back up.
@@ -454,7 +459,8 @@ export default function iteratorExtension(pi) {
 				await writeState({ paused: false, escalation: null });
 				if (lastCtx?.hasUI) lastCtx.ui.notify("iterator: continuing", "info");
 				await pushStatus(cwd);
-				resumeAuto(cwd); // no-op unless auto mode has work to pick up
+				if (featureWave) void advanceFeatureWave(cwd);
+				else resumeAuto(cwd); // no-op unless auto mode has work to pick up
 			} else if (input.action === "abort") {
 				featureWave = null;
 				// One-click recovery to a clean state: kill the in-flight stream,
@@ -566,7 +572,10 @@ export default function iteratorExtension(pi) {
 	const advanceFeatureWave = async (cwd) => {
 		if (!featureWave || !bundleExists(cwd)) return;
 		try {
-			const { hub, settings } = await gatherSession(cwd);
+			const { hub, settings, state } = await gatherSession(cwd);
+			// Pause is persisted before the active agent is aborted. Its agent_end
+			// callback may still arrive, but must not consume or dispatch the queue.
+			if (state?.paused) return;
 			const previousResults = featureWave.results.length;
 			const decision = nextFeatureWaveAction(featureWave, hub.features || []);
 			if (!decision) return;
@@ -579,7 +588,9 @@ export default function iteratorExtension(pi) {
 			}
 			if (decision.done) {
 				const results = featureWave.results;
-				const implemented = results.filter((result) => result.status === "implemented").length;
+				const implemented = results.filter(
+					(result) => result.status === "implemented",
+				).length;
 				const failed = results.length - implemented;
 				featureWave = null;
 				await writeState({
