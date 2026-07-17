@@ -390,10 +390,7 @@ test("roleFromInput maps exact role commands with plan review precedence", async
 	assert.equal(roleFromInput("/iterator-implement auth"), "implementer");
 	assert.equal(roleFromInput("/iterator-next"), "implementer");
 	assert.equal(roleFromInput("/iterator-review auth"), "reviewer");
-	assert.equal(
-		roleFromInput("/skill:iterator-review-plan"),
-		"plan_reviewer",
-	);
+	assert.equal(roleFromInput("/skill:iterator-review-plan"), "plan_reviewer");
 	assert.equal(roleFromInput("/iterator-review-plans"), null);
 	assert.equal(roleFromInput("fix the login bug"), null);
 });

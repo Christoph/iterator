@@ -2,8 +2,8 @@
 type: Usage
 title: Token usage
 description: Per-step model/token ledger for the active plan — written only by the usage op.
-totals: "{\"steps\":{\"hub\":{\"openai-codex/gpt-5.6-terra\":{\"input\":170439,\"output\":1029,\"cacheRead\":1018880,\"cacheWrite\":0,\"turns\":5}},\"memory\":{\"openai-codex/gpt-5.6-terra\":{\"input\":260681,\"output\":3539,\"cacheRead\":1991168,\"cacheWrite\":0,\"turns\":9}},\"plan\":{\"openai-codex/gpt-5.6-terra\":{\"input\":69670,\"output\":4171,\"cacheRead\":3958272,\"cacheWrite\":0,\"turns\":14}},\"implement\":{\"openai-codex/gpt-5.6-terra\":{\"input\":1374282,\"output\":3936,\"cacheRead\":6521856,\"cacheWrite\":0,\"turns\":23}},\"review\":{\"openai-codex/gpt-5.6-terra\":{\"input\":39405,\"output\":729,\"cacheRead\":1547264,\"cacheWrite\":0,\"turns\":8}}},\"features\":{\"retire-plan\":{\"input\":170439,\"output\":1029,\"cacheRead\":1018880,\"cacheWrite\":0,\"turns\":5},\"reset-plan-runtime-state\":{\"input\":1413687,\"output\":4665,\"cacheRead\":8069120,\"cacheWrite\":0,\"turns\":31}}}"
-timestamp: 2026-07-17T17:43:49.472Z
+totals: "{\"steps\":{\"hub\":{\"openai-codex/gpt-5.6-terra\":{\"input\":170439,\"output\":1029,\"cacheRead\":1018880,\"cacheWrite\":0,\"turns\":5}},\"memory\":{\"openai-codex/gpt-5.6-terra\":{\"input\":260681,\"output\":3539,\"cacheRead\":1991168,\"cacheWrite\":0,\"turns\":9}},\"plan\":{\"openai-codex/gpt-5.6-terra\":{\"input\":69670,\"output\":4171,\"cacheRead\":3958272,\"cacheWrite\":0,\"turns\":14}},\"implement\":{\"openai-codex/gpt-5.6-terra\":{\"input\":1476076,\"output\":7475,\"cacheRead\":7436288,\"cacheWrite\":0,\"turns\":39},\"openai-codex/gpt-5.6-sol\":{\"input\":0,\"output\":0,\"cacheRead\":0,\"cacheWrite\":0,\"turns\":1}},\"review\":{\"openai-codex/gpt-5.6-terra\":{\"input\":39405,\"output\":729,\"cacheRead\":1547264,\"cacheWrite\":0,\"turns\":8},\"openai-codex/gpt-5.6-sol\":{\"input\":149627,\"output\":727,\"cacheRead\":90112,\"cacheWrite\":0,\"turns\":3}}},\"features\":{\"retire-plan\":{\"input\":170439,\"output\":1029,\"cacheRead\":1018880,\"cacheWrite\":0,\"turns\":5},\"reset-plan-runtime-state\":{\"input\":1413687,\"output\":4665,\"cacheRead\":8069120,\"cacheWrite\":0,\"turns\":31},\"apply-role-models-manual-turns\":{\"input\":251421,\"output\":4266,\"cacheRead\":1004544,\"cacheWrite\":0,\"turns\":20}}}"
+timestamp: 2026-07-17T17:46:27.211Z
 ---
 
 # Usage
@@ -30,13 +30,15 @@ timestamp: 2026-07-17T17:43:49.472Z
 
 | model | input | output | cache read | cache write | turns |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| openai-codex/gpt-5.6-terra | 1374282 | 3936 | 6521856 | 0 | 23 |
+| openai-codex/gpt-5.6-terra | 1476076 | 7475 | 7436288 | 0 | 39 |
+| openai-codex/gpt-5.6-sol | 0 | 0 | 0 | 0 | 1 |
 
 ## review
 
 | model | input | output | cache read | cache write | turns |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | openai-codex/gpt-5.6-terra | 39405 | 729 | 1547264 | 0 | 8 |
+| openai-codex/gpt-5.6-sol | 149627 | 727 | 90112 | 0 | 3 |
 
 ## Per feature
 
@@ -44,5 +46,6 @@ timestamp: 2026-07-17T17:43:49.472Z
 | --- | ---: | ---: | ---: | ---: | ---: |
 | retire-plan | 170439 | 1029 | 1018880 | 0 | 5 |
 | reset-plan-runtime-state | 1413687 | 4665 | 8069120 | 0 | 31 |
+| apply-role-models-manual-turns | 251421 | 4266 | 1004544 | 0 | 20 |
 
-Total: 1914477 in / 13404 out / 15037440 cache-read / 0 cache-write over 59 turns.
+Total: 2165898 in / 17670 out / 16041984 cache-read / 0 cache-write over 79 turns.

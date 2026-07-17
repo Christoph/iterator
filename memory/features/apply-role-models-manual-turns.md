@@ -7,12 +7,13 @@ size: medium
 depends_on: [reset-plan-runtime-state]
 files: ["lib/pi-tools.mjs", "extensions/iterator.js", "test/pi-tools.test.mjs"]
 memories: [architecture/package-and-skill-layout, decisions/backlog-planning-and-feature-waves, decisions/iterator-dashboard-feature-workflow, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows, decisions/powerline-shows-sandbox-ui-port, decisions/settings-close-returns-to-work, setup/install-and-command-surface]
-timestamp: "2026-07-17T17:45:30.569Z"
+timestamp: "2026-07-17T17:48:49.552Z"
 tags: []
 commits:
   - sha: 4b007e50016e5de9014a296b26749fe9dc063f48
     kind: implement
     date: 2026-07-17
+reviewed: 2026-07-17
 ---
 
 # Implementation notes
@@ -32,3 +33,8 @@ export function attributionFromInput(text) {\n  const m = String(text || '').tri
 # Blast radius
 
 Pi input, before-agent-start, and agent-end lifecycle hooks; configured-model usage rows and automatic/feature-wave model restoration.
+
+# Review
+
+## 2026-07-17
+* **Needs changes** _(agent review: openai-codex/gpt-5.6-sol)_ — `extensions/iterator.js` returns from `before_agent_start` when `bundleExists(ctx.cwd)` is false before applying `pendingRole`, so manual `/iterator-plan` turns in a fresh or retired project never use `planner_model`. Apply the manual role (using gathered/default settings) before the bundle-only ambient-context early return, while preserving the auto/feature-wave guards and restoration order.

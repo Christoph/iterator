@@ -1457,12 +1457,14 @@ export default function iteratorExtension(pi) {
 	pi.on("before_agent_start", async (_event, ctx) => {
 		rememberCtx(ctx);
 		try {
-			if (!bundleExists(ctx.cwd)) return undefined;
 			const { hub, implement, settings, state } = await gatherSession(ctx.cwd);
 			if (pendingRole && state?.mode !== "auto" && !featureWave) {
 				await applyRole(pendingRole, settings);
 				manualRoleActive = true;
 			}
+			// Model selection also applies to /iterator-plan before a bundle exists;
+			// only the ambient bundle context depends on durable plan state.
+			if (!bundleExists(ctx.cwd)) return undefined;
 			let matched = [];
 			if (recentFiles.size) {
 				const knowledge = await gatherPayload(ctx.cwd, "knowledge");
