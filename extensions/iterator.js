@@ -57,6 +57,7 @@ import {
 	bundleExists,
 	featuresDirEntries,
 	composeAmbientContext,
+	completeFeatureWaveAbort,
 	extractPathsFromBash,
 	footerText,
 	mergePayload,
@@ -580,6 +581,7 @@ export default function iteratorExtension(pi) {
 			const decision = nextFeatureWaveAction(featureWave, hub.features || []);
 			if (!decision) return;
 			featureWave = decision.wave;
+			if (decision.waiting) return;
 			for (const result of featureWave.results.slice(previousResults)) {
 				notifyUi(
 					`wave: ${result.feature} ${result.status}`,
@@ -1560,10 +1562,21 @@ export default function iteratorExtension(pi) {
 		await flushUsage(ctx.cwd);
 		await refreshHub(ctx.cwd);
 		await refreshStatus(ctx);
-		// A ready-wave snapshot advances before auto mode. Wave implementation
-		// intentionally stops at implemented; review remains a separate action.
-		if (featureWave) await advanceFeatureWave(ctx.cwd);
-		else await kickAuto(ctx.cwd);
+		// Keep abortPending set until this stale agent_end reaches its final
+		// decision. Continue sees the flag and waits; once we clear it, exactly one
+		// side owns resumption: this callback when already unpaused, or a later
+		// Continue click when still paused.
+		if (featureWave?.abortPending) {
+			const { state } = await gatherSession(ctx.cwd);
+			featureWave = completeFeatureWaveAbort(featureWave);
+			if (!state?.paused) await advanceFeatureWave(ctx.cwd);
+		} else if (featureWave) {
+			// A ready-wave snapshot advances before auto mode. Wave implementation
+			// intentionally stops at implemented; review remains a separate action.
+			await advanceFeatureWave(ctx.cwd);
+		} else {
+			await kickAuto(ctx.cwd);
+		}
 	});
 
 	// ---------------------------------------------------------------------

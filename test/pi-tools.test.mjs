@@ -246,7 +246,7 @@ test('usageRowFromMessage extracts assistant usage with attribution', async () =
 // ---------------------------------------------------------------------------
 // Auto mode state machine
 
-const { nextAutoAction, nextFeatureWaveAction, pauseFeatureWave, roleModelSpec, AUTO_PHASE_FOR_STEP } = await import('../lib/pi-tools.mjs');
+const { completeFeatureWaveAbort, nextAutoAction, nextFeatureWaveAction, pauseFeatureWave, roleModelSpec, AUTO_PHASE_FOR_STEP } = await import('../lib/pi-tools.mjs');
 
 const S = (over = {}) => ({
   auto_mode: 'on', testing_default: 'on', max_review_iterations: 3,
@@ -289,15 +289,30 @@ test('nextFeatureWaveAction freezes the queue and reports each implementation re
   ]);
 });
 
-test('pauseFeatureWave requeues the interrupted item for Continue', () => {
-  const paused = pauseFeatureWave({ queue: ['b'], active: 'a', results: [] });
-  assert.deepEqual(paused, { queue: ['a', 'b'], active: null, results: [] });
-  const resumed = nextFeatureWaveAction(paused, [
+test('pauseFeatureWave waits for the aborted agent_end in either Continue ordering', () => {
+  const features = [
     { name: 'a', status: 'pending', conflicts: 0 },
     { name: 'b', status: 'pending', conflicts: 0 },
-  ]);
-  assert.equal(resumed.action.feature, 'a', 'Continue retries the paused feature');
-  assert.deepEqual(resumed.wave.results, [], 'pause is not recorded as a failure');
+  ];
+  const paused = pauseFeatureWave({ queue: ['b'], active: 'a', results: [] });
+  assert.deepEqual(paused, {
+    queue: ['a', 'b'], active: null, results: [], abortPending: true,
+  });
+
+  // Continue before the stale agent_end must not dispatch yet.
+  const earlyContinue = nextFeatureWaveAction(paused, features);
+  assert.equal(earlyContinue.waiting, true);
+  assert.equal(earlyContinue.action, undefined);
+  const afterEarlyAgentEnd = completeFeatureWaveAbort(earlyContinue.wave);
+  const earlyResumed = nextFeatureWaveAction(afterEarlyAgentEnd, features);
+  assert.equal(earlyResumed.action.feature, 'a');
+  assert.deepEqual(earlyResumed.wave.results, []);
+
+  // If agent_end arrives while still paused, a later Continue dispatches once.
+  const afterLateAgentEnd = completeFeatureWaveAbort(paused);
+  const lateResumed = nextFeatureWaveAction(afterLateAgentEnd, features);
+  assert.equal(lateResumed.action.feature, 'a');
+  assert.deepEqual(lateResumed.wave.results, []);
 });
 
 test('nextFeatureWaveAction skips conflicts without dispatching them', () => {

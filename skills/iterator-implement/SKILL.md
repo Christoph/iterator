@@ -237,8 +237,9 @@ feature reported dependency-ready by gather at click time, then dispatches one
 Each turn still implements and commits exactly one named feature under this
 skill's normal quality gates. Features unblocked later do not join the running
 wave. Failed rounds are reported per feature and do not prevent the remaining
-snapshot members from running. Pausing requeues the interrupted feature, and
-Continue retries it before advancing the snapshot. The wave stops with
+snapshot members from running. Pausing requeues the interrupted feature;
+Continue waits for the aborted turn's lifecycle to finish, then retries it
+before advancing the snapshot. The wave stops with
 successful features at `implemented`; it never opens, accepts, or substitutes
 for review.
 
