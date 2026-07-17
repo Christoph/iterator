@@ -65,7 +65,7 @@ import { readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 
 import {
   BIND_HOST, CANCEL_GRACE_MS, EXPOSED, LOCAL_HOST_RE, REMOTE, STATUS_PATH,
-  TIMEOUT_MS, openBrowser,
+  TIMEOUT_MS, displayPort, displayUrl, openBrowser,
 } from './server/env.mjs';
 import { RUN_ID } from './server/run-id.mjs';
 import { listenWithTakeover } from './server/listen.mjs';
@@ -75,8 +75,9 @@ import { registryPath, takeoverStale } from './server/takeover.mjs';
 // here (live bindings included), so session-server.mjs, app.mjs, tests, and
 // the skill shims keep their single import point.
 export {
-  BIND_HOST, CANCEL_GRACE_MS, EXPOSED, FORCE_PORT, LOCAL_HOST_RE, REMOTE,
-  STATUS_PATH, TIMEOUT_MS, isRemoteSession, openBrowser,
+  BIND_HOST, CANCEL_GRACE_MS, DISPLAY_HOST, EXPOSED, FORCE_PORT, LOCAL_HOST_RE,
+  REMOTE, STATUS_PATH, TIMEOUT_MS, displayPort, displayUrl, isRemoteSession,
+  openBrowser,
 } from './server/env.mjs';
 export { RUN_ID, newRunId } from './server/run-id.mjs';
 export { listenWithTakeover } from './server/listen.mjs';
@@ -233,17 +234,19 @@ export async function serve({ step = 'iterator', html, onSubmit, reports = {} })
         { pid: process.pid, port, step, started: new Date().toISOString() },
       ) + '\n', { mode: 0o600 });
     } catch {}
-    // Always display 127.0.0.1, never the bind address — 0.0.0.0 is not a
-    // clickable URL, and through a forward the host reaches us on its own
-    // loopback anyway.
-    const url = `http://127.0.0.1:${port}/`;
+    // Always display localhost (ITERATOR_DISPLAY_HOST overrides), never the
+    // bind address — 0.0.0.0 is not a clickable URL, and through a forward the
+    // host reaches us on its own loopback anyway. ITERATOR_DISPLAY_PORT swaps
+    // in the host-side port when the sandbox publish maps a different one.
+    const url = displayUrl(port);
     openBrowser(url);
     process.stderr.write(`iterator: ${step} listening on ${url}\n`);
     if (REMOTE) {
+      const hostPort = displayPort(port);
       process.stderr.write(
         `iterator: remote session — bound to ${BIND_HOST}. Forward/publish port ${port} ` +
-        `to the host loopback (e.g. sbx ports <sandbox> --publish ${port}:${port}, ` +
-        `docker run -p 127.0.0.1:${port}:${port}, or ssh -L ${port}:localhost:${port}), ` +
+        `to the host loopback (e.g. sbx ports <sandbox> --publish ${hostPort}:${port}, ` +
+        `docker run -p 127.0.0.1:${hostPort}:${port}, or ssh -L ${hostPort}:localhost:${port}), ` +
         `then open the URL above in the host browser.\n`);
     }
     if (EXPOSED) {
