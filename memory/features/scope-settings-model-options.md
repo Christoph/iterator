@@ -7,8 +7,12 @@ size: small
 depends_on: []
 files: ["extensions/iterator.js", "lib/views/settings.mjs", "test/settings.test.mjs", "test/session-server.test.mjs"]
 memories: [pitfalls/cancel-now-after-grace-timer, architecture/package-and-skill-layout, decisions/iterator-dashboard-feature-workflow, decisions/settings-close-returns-to-work, setup/install-and-command-surface]
-timestamp: "2026-07-17T08:04:58.147Z"
+timestamp: "2026-07-17T08:04:58.218Z"
 tags: []
+commits:
+  - sha: 1d8fb9d3337c008db42dbf7630bb31f65cd5c943
+    kind: implement
+    date: 2026-07-17
 ---
 
 # Implementation notes
