@@ -39,7 +39,10 @@
       "WebFetch(domain:registry.npmjs.org)",
       "WebFetch(domain:pi.dev)",
       "Bash(git -C /Volumes/Extern/Projects/iterator show --stat --format='%h %s' a5d59c5)",
-      "Bash(git -C /Volumes/Extern/Projects/iterator show --stat --format='%h %s' c0c5bf8)"
+      "Bash(git -C /Volumes/Extern/Projects/iterator show --stat --format='%h %s' c0c5bf8)",
+      "WebFetch(domain:login.docker.com)",
+      "WebFetch(domain:hub.docker.com)",
+      "Read(//private/tmp/claude-501/**)"
     ]
   }
 }

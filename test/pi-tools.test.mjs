@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import {
   actionToCommand, activityTextFromMessage, bundleExists, featuresDirEntries,
   composeAmbientContext, extractPathsFromBash, footerText, mergePayload, runJson,
-  scriptPath, shouldNudge,
+  scriptPath, shouldNudge, uiPort,
 } from '../lib/pi-tools.mjs';
 
 test('mergePayload: extra wins, gathered object untouched, junk extra ignored', () => {
@@ -145,6 +145,28 @@ test('footerText composes segments and omits what is absent', () => {
   assert.equal(footerText(hub, { next: null }, 0), '⛭ 3/7 · 🔴 1 red');
   assert.equal(footerText({ plan: null }, null, 4), '🧠 4 unmemorized');
   assert.equal(footerText({ plan: null }, null, 0), null);
+});
+
+test('footerText trails the ui port rightmost, and shows it with no plan', () => {
+  const hub = {
+    plan: { title: 'X' }, progress: { done: 3, total: 7 },
+    features: [{ name: 'a', testsStatus: 'red' }, { name: 'b', testsStatus: 'green' }],
+  };
+  assert.equal(footerText(hub, { next: { name: 'auth' } }, 4, 53421),
+    '⛭ 3/7 · next: auth · 🔴 1 red · 🧠 4 unmemorized · 🌐 ui:53421');
+  assert.equal(footerText({ plan: null }, null, 0, 53421), '🌐 ui:53421',
+    'the port is a property of the agent — it shows with nothing else to say');
+  assert.equal(footerText({ plan: null }, null, 0, null), null,
+    'no port and nothing else clears the segment');
+});
+
+test('uiPort reads ITERATOR_DISPLAY_PORT and rejects junk', () => {
+  assert.equal(uiPort({ ITERATOR_DISPLAY_PORT: '53421' }), 53421);
+  assert.equal(uiPort({}), null, 'unset — not sandboxed');
+  assert.equal(uiPort({ ITERATOR_DISPLAY_PORT: '' }), null);
+  assert.equal(uiPort({ ITERATOR_DISPLAY_PORT: 'nonsense' }), null);
+  assert.equal(uiPort({ ITERATOR_DISPLAY_PORT: '0' }), null, '0 is not a port');
+  assert.equal(uiPort({ ITERATOR_DISPLAY_PORT: '-1' }), null);
 });
 
 test('shouldNudge fires once per threshold-multiple and can be disabled', () => {

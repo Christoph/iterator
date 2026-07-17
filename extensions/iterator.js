@@ -14,7 +14,8 @@
  *
  * Ambient context (before_agent_start): each turn opens with the flow state
  * plus knowledge concepts anchored to recently touched files (display:false,
- * deduped). Footer (ctx.ui.setStatus): `⛭ 3/7 · next: … · 🧠 N unmemorized`,
+ * deduped). Footer (ctx.ui.setStatus): `⛭ 3/7 · next: … · 🧠 N unmemorized ·
+ * 🌐 ui:PORT` (the sandbox-published host port, ITERATOR_DISPLAY_PORT),
  * refreshed on session_start/agent_end/write ops, with an /iterator-memorize
  * nudge once the unmemorized count passes ITERATOR_MEMORIZE_NUDGE (default
  * 5, 0 disables).
@@ -65,6 +66,7 @@ import {
 	runJson,
 	scriptPath,
 	shouldNudge,
+	uiPort,
 	usageRowFromMessage,
 } from "../lib/pi-tools.mjs";
 import { createSessionServer } from "../lib/session-server.mjs";
@@ -255,15 +257,22 @@ export default function iteratorExtension(pi) {
 	const refreshStatus = async (ctx) => {
 		if (!ctx?.hasUI) return;
 		try {
+			// The port is a property of the agent, not of the plan, so it shows
+			// even with no bundle here — otherwise it would vanish in exactly
+			// the sessions where there is nothing else in the segment.
+			const port = uiPort();
 			if (!bundleExists(ctx.cwd)) {
-				ctx.ui.setStatus("iterator", undefined);
+				ctx.ui.setStatus(
+					"iterator",
+					footerText(null, null, 0, port) || undefined,
+				);
 				return;
 			}
 			const { hub, implement, memorize } = await gatherSession(ctx.cwd);
 			const pending = memorize.okf ? memorize.pendingCount : 0;
 			ctx.ui.setStatus(
 				"iterator",
-				footerText(hub, implement, pending) || undefined,
+				footerText(hub, implement, pending, port) || undefined,
 			);
 
 			if (pending < lastNudgedAt) lastNudgedAt = 0; // pointer advanced — reset
