@@ -383,6 +383,21 @@ test("attributionFromInput maps flow commands to ledger steps", async () => {
 	assert.equal(attributionFromInput("/help"), null);
 });
 
+test("roleFromInput maps exact role commands with plan review precedence", async () => {
+	const { roleFromInput } = await import("../lib/pi-tools.mjs");
+	assert.equal(roleFromInput("/skill:iterator-plan Build a CLI"), "planner");
+	assert.equal(roleFromInput("/iterator-test auth"), "tester");
+	assert.equal(roleFromInput("/iterator-implement auth"), "implementer");
+	assert.equal(roleFromInput("/iterator-next"), "implementer");
+	assert.equal(roleFromInput("/iterator-review auth"), "reviewer");
+	assert.equal(
+		roleFromInput("/skill:iterator-review-plan"),
+		"plan_reviewer",
+	);
+	assert.equal(roleFromInput("/iterator-review-plans"), null);
+	assert.equal(roleFromInput("fix the login bug"), null);
+});
+
 test("usageRowFromMessage extracts assistant usage with attribution", async () => {
 	const { usageRowFromMessage } = await import("../lib/pi-tools.mjs");
 	const msg = {

@@ -2,12 +2,12 @@
 type: Feature
 title: Apply configured models to manual turns
 description: "Run manual iterator commands with their configured role model and restore the user's model afterward."
-status: pending
+status: implemented
 size: medium
 depends_on: [reset-plan-runtime-state]
 files: ["lib/pi-tools.mjs", "extensions/iterator.js", "test/pi-tools.test.mjs"]
 memories: [architecture/package-and-skill-layout, decisions/backlog-planning-and-feature-waves, decisions/iterator-dashboard-feature-workflow, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows, decisions/powerline-shows-sandbox-ui-port, decisions/settings-close-returns-to-work, setup/install-and-command-surface]
-timestamp: "2026-07-17T17:35:23.410Z"
+timestamp: "2026-07-17T17:45:30.498Z"
 tags: []
 ---
 
