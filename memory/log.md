@@ -1,6 +1,8 @@
 # iterator update log
 
 ## 2026-07-17
+* **Review**: Accepted [Reset runtime state for approved plans](/features/reset-plan-runtime-state.md) (committed as feature(reset-plan-runtime-state)).
+* **Backlog**: create let-in-usage-add-a-price-for-the-models-ioptional.
 * **Implementation**: Committed feature(reset-plan-runtime-state) on branch iterator/always-available-backlog; awaiting review.
 * **Backlog**: create feature-plannning-memory-files.
 * **Update**: Applied 2 feature adjustment(s).

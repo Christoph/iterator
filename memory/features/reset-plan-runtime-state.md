@@ -2,17 +2,18 @@
 type: Feature
 title: Reset runtime state for approved plans
 description: Start each approved plan in a manual, idle runtime state so stale auto mode cannot dispatch work.
-status: implemented
+status: done
 size: medium
 depends_on: []
 files: ["lib/write.mjs", "extensions/iterator.js", "test/write.test.mjs"]
 memories: [architecture/package-and-skill-layout, architecture/workflow-state-ownership, decisions/backlog-planning-and-feature-waves, decisions/consume-accepted-backlog-ideas, decisions/iterator-dashboard-feature-workflow, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows, decisions/powerline-shows-sandbox-ui-port]
-timestamp: "2026-07-17T17:41:11.588Z"
+timestamp: "2026-07-17T17:43:46.967Z"
 tags: []
 commits:
   - sha: f4ecbdccab0d0109a8019cca9328f69a7066617e
     kind: implement
     date: 2026-07-17
+done: 2026-07-17
 ---
 
 # Implementation notes
