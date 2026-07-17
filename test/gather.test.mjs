@@ -807,6 +807,9 @@ test("implement contracts carry relevantMemories anchored to each feature, pitfa
 			mem.path.endsWith(join("memory", "architecture", "auth-shape.md")),
 			"path is readable directly",
 		);
+		// The concept body is inlined with the frontmatter stripped — the
+		// implementer reads knowledge from the contract, not from raw files.
+		assert.equal(mem.body, "body");
 
 		// A pitfall anchored to the same files sorts before architecture.
 		writeFileSync(

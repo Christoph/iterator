@@ -70,10 +70,11 @@ Prefer keeping edits inside the feature's `files`; when the work genuinely
 requires touching other paths, that is fine — the review will show them as
 this feature's incidental changes.
 
-**Memory first:** before coding, read the files in the contract's
-`relevantMemories` (the feature's stored `memories:` reading list unioned with
-a fresh anchor match; each entry carries the absolute `path` of one knowledge
-concept) — and ONLY those; never crawl all of `memory/`. Treat `pitfalls/*`
+**Memory first:** before coding, read the contract's `relevantMemories` (the
+feature's stored `memories:` reading list unioned with a fresh anchor match).
+Each entry inlines the concept's `body` with the frontmatter already stripped
+— read the bodies straight from the contract; open the file at `path` only
+when a body is marked truncated. Never crawl all of `memory/`. Treat `pitfalls/*`
 entries as constraints (a known sharp edge in exactly the files you are about
 to change), `architecture/*` and `patterns/*` as how the surrounding code
 expects to be extended. An empty list means no anchored knowledge — proceed

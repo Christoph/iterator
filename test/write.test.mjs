@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { join, resolve as resolvePath } from "node:path";
 import { applyOp, topoSort, setFmKeys } from "../lib/write.mjs";
 import { frontmatter, gather } from "../lib/gather.mjs";
+import { backlogItems } from "../lib/bundle.mjs";
 
 process.env.ITERATOR_NOW = "2026-07-06T12:00:00Z";
 
@@ -103,6 +104,54 @@ test("plan op writes a conformant bundle and log entry", () => {
 			read(root, "log.md"),
 			/## 2026-07-06\n\* \*\*Creation\*\*: Plan "Add JWT auth" approved/,
 		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("plan approval consumes selected backlog candidates only", () => {
+	const root = makeRepo();
+	try {
+		const selected = applyOp(
+			{
+				op: "backlog",
+				action: "create",
+				kind: "idea",
+				title: "Selected candidate",
+				details: "Turn this into a plan.",
+			},
+			root,
+		);
+		const retained = applyOp(
+			{
+				op: "backlog",
+				action: "create",
+				kind: "bug",
+				title: "Retained candidate",
+				details: "Leave this in the backlog.",
+			},
+			root,
+		);
+		applyOp(
+			{ op: "backlog", action: "select", id: selected.item.id, selected: true },
+			root,
+		);
+		const draft = applyOp({ ...PLAN_OP, status: "draft" }, root);
+		assert.deepEqual(draft.consumedBacklog, []);
+		assert.deepEqual(
+			backlogItems(read(root, "backlog", "index.md")).map((item) => item.id),
+			[selected.item.id, retained.item.id],
+			"draft plan writes leave selected candidates available",
+		);
+
+		const result = applyOp(PLAN_OP, root);
+		assert.deepEqual(result.consumedBacklog, [selected.item.id]);
+		assert.ok(result.written.includes("backlog/index.md"));
+		assert.deepEqual(
+			backlogItems(read(root, "backlog", "index.md")).map((item) => item.id),
+			[retained.item.id],
+		);
+		assert.match(read(root, "log.md"), /Consumed 1 selected backlog candidate/);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
@@ -1873,8 +1922,14 @@ test("commit-feature commits only the feature's files, flips implemented, record
 		);
 		assert.match(res.branch, /^iterator\/feature-a$/, "moved off main");
 		assert.deepEqual(res.staged, ["src/a.ts"]);
-		assert.ok(res.leftovers.includes("notes.txt"), "churn reported as leftover");
-		assert.ok(res.leftovers.includes("src/b.ts"), "the other feature's file stays uncommitted");
+		assert.ok(
+			res.leftovers.includes("notes.txt"),
+			"churn reported as leftover",
+		);
+		assert.ok(
+			res.leftovers.includes("src/b.ts"),
+			"the other feature's file stays uncommitted",
+		);
 		const body = git(root, "log", "--format=%B", "-1", res.sha);
 		assert.match(body, /feature\(feature-a\): implement a/);
 		assert.match(body, /Feature: feature-a/);
@@ -2008,7 +2063,11 @@ test("accept-commit slim path: already-committed features flip done with no new 
 			res.accepted.map((a) => a.feature),
 			["feature-a"],
 		);
-		assert.deepEqual(res.committed, [], "no new feature commit on the slim path");
+		assert.deepEqual(
+			res.committed,
+			[],
+			"no new feature commit on the slim path",
+		);
 		const after = git(root, "rev-list", "--count", "HEAD");
 		assert.equal(
 			Number(after) - Number(before),
@@ -2030,7 +2089,10 @@ test("accept-commit slim path: already-committed features flip done with no new 
 		);
 		assert.ok(res.leftovers.includes("notes.txt"), "churn stays uncommitted");
 		// Untouched: feature-b keeps the full staging path on a later accept.
-		const res2 = applyOp({ op: "accept-commit", features: ["feature-b"] }, root);
+		const res2 = applyOp(
+			{ op: "accept-commit", features: ["feature-b"] },
+			root,
+		);
 		assert.equal(res2.committed.length, 1);
 		assert.deepEqual(res2.accepted, []);
 	} finally {
@@ -2082,6 +2144,31 @@ test("features op warns about globs that match nothing in the repo", () => {
 		);
 		assert.deepEqual(res.warnings.unmatchedGlobs, [
 			{ feature: "typo-feature", globs: ["src/doesnotexist/**"] },
+		]);
+		assert.equal(res.validation.ok, true);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("features op warns when a feature declares an over-broad files list", () => {
+	const root = makeWaveRepo();
+	try {
+		const res = applyOp(
+			{
+				op: "features",
+				features: [
+					{
+						name: "broad-feature",
+						description: "d",
+						files: Array.from({ length: 9 }, (_, i) => `src/f${i}.ts`),
+					},
+				],
+			},
+			root,
+		);
+		assert.deepEqual(res.warnings.broadFiles, [
+			{ feature: "broad-feature", count: 9 },
 		]);
 		assert.equal(res.validation.ok, true);
 	} finally {
@@ -2295,7 +2382,13 @@ test("accept-commit honors explicit skip and lands pre-staged baselines as chore
 				.filter(Boolean),
 			["src/baseline.txt"],
 		);
-		git(root, "merge-base", "--is-ancestor", res.bootstrapCommit, res.committed[0].sha);
+		git(
+			root,
+			"merge-base",
+			"--is-ancestor",
+			res.bootstrapCommit,
+			res.committed[0].sha,
+		);
 		const feat = git(
 			root,
 			"show",
@@ -2340,7 +2433,8 @@ test("accept-commit accepts implemented features and gates deps via review_requi
 
 		// review_required on (default): the dependent cannot land first.
 		assert.throws(
-			() => applyOp({ op: "accept-commit", features: ["auth-middleware"] }, root),
+			() =>
+				applyOp({ op: "accept-commit", features: ["auth-middleware"] }, root),
 			/waiting on: config-module/,
 		);
 		// The implemented feature itself lands fine → done.
@@ -2855,7 +2949,9 @@ test("loadBundle re-roots every gather/write into the plan's worktree", async ()
 		// Writes follow: a feature written "from main" lands in the worktree.
 		applyOp(FEATURES_OP, root);
 		assert.ok(
-			existsSync(join(planRes.worktree, "memory", "features", "config-module.md")),
+			existsSync(
+				join(planRes.worktree, "memory", "features", "config-module.md"),
+			),
 			"feature file written to the worktree bundle",
 		);
 		assert.ok(

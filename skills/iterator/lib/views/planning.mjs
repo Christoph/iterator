@@ -303,7 +303,7 @@ function renderBacklog(w){
   if(goal){
     const handoff = document.createElement('button'); handoff.className = 'act primary-act'; handoff.type = 'button';
     handoff.textContent = D.plan ? 'Selected candidates saved' : 'Plan selected candidates';
-    handoff.title = D.plan ? 'Retire or finish the active plan before starting a new one.' : 'Start a new plan with the selected candidates as its initial goal.';
+    handoff.title = D.plan ? 'Retire or finish the active plan before starting a new one.' : 'Start a new plan with the selected candidates as its initial goal. They are removed from the backlog only after the plan is approved.';
     handoff.disabled = Boolean(D.plan);
     handoff.addEventListener('click', () => action('plan', null, 'Starting /iterator-plan from backlog', goal));
     section.appendChild(handoff);
