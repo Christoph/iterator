@@ -25,6 +25,7 @@ test('actionToCommand maps hub actions to skill commands', () => {
   assert.equal(actionToCommand({ type: 'action', action: 'test', feature: 'auth' }), '/skill:iterator-test auth');
   assert.equal(actionToCommand({ type: 'action', action: 'implement', feature: 'auth' }), '/skill:iterator-implement auth');
   assert.equal(actionToCommand({ type: 'action', action: 'review', feature: 'auth' }), '/skill:iterator-review auth');
+  assert.equal(actionToCommand({ type: 'action', action: 'review-all' }), '/skill:iterator-review --all');
 });
 
 test('actionToCommand returns null for cancel/timeout/garbage', () => {

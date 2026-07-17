@@ -287,6 +287,49 @@ test("focused review favors its feature over an earlier overlapping file owner",
 	}
 });
 
+test("consolidated review rebuilds each implemented feature from its own commits", () => {
+	const root = makeFixture();
+	try {
+		const config = join(root, "memory", "features", "config-module.md");
+		writeFileSync(
+			config,
+			readFileSync(config, "utf8").replace("status: done", "status: implemented"),
+		);
+		const auth = join(root, "memory", "features", "auth-middleware.md");
+		writeFileSync(
+			auth,
+			readFileSync(auth, "utf8").replace("status: pending", "status: implemented"),
+		);
+		git(root, "add", ".");
+		git(
+			root,
+			"commit",
+			"-q",
+			"-m",
+			"feature(auth-middleware): auth\n\nFeature: auth-middleware",
+		);
+
+		const p = gatherReview(root, { feature: "all" });
+		assert.equal(p.multiReview, true);
+		assert.equal(p.source, "commits");
+		assert.deepEqual(p.reviewScope, ["config-module", "auth-middleware"]);
+		assert.deepEqual(
+			p.features.map((feature) => feature.name),
+			["config-module", "auth-middleware"],
+		);
+		assert.deepEqual(
+			p.features[0].files.map((file) => file.path),
+			["src/config.ts"],
+		);
+		assert.deepEqual(
+			p.features[1].files.map((file) => file.path),
+			["src/auth/index.ts"],
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("review payload carries actual diff stats per feature", () => {
 	const root = makeFixture();
 	try {

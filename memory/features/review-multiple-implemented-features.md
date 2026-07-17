@@ -2,12 +2,12 @@
 type: Feature
 title: Review implemented features together
 description: A consolidated review lets users select an implemented feature and inspect only that feature’s diff and findings.
-status: pending
+status: implemented
 size: large
 depends_on: []
 files: ["lib/gather.mjs", "lib/views/hub.mjs", "lib/views/review.mjs", "lib/session-server.mjs", "extensions/iterator.js", "test/gather.test.mjs", "test/ui.test.mjs", "test/session-server.test.mjs"]
 memories: [pitfalls/cancel-now-after-grace-timer, pitfalls/client-js-template-literal-escaping, architecture/browser-server-contract, architecture/package-and-skill-layout, architecture/workflow-state-ownership, patterns/safe-browser-rendering, decisions/iterator-dashboard-feature-workflow, decisions/polish-dashboard-and-multi-agent-workflows]
-timestamp: "2026-07-17T14:11:42.933Z"
+timestamp: "2026-07-17T14:40:04.345Z"
 tags: []
 ---
 

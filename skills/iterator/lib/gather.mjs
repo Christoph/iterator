@@ -333,6 +333,7 @@ export function gather(startDir) {
 			progress: { done: 0, total: 0 },
 			features: [],
 			readyWave: [],
+			reviewWave: [],
 			// Tracked files for the goal box's @-mention suggestions (capped so
 			// the embedded payload stays small).
 			files: git(["ls-files"], b.root)
@@ -421,6 +422,9 @@ export function gather(startDir) {
 		// Readiness is server-derived above; the browser only renders this list.
 		readyWave: features
 			.filter((feature) => feature.status === "pending" && feature.ready)
+			.map((feature) => feature.name),
+		reviewWave: features
+			.filter((feature) => feature.status === "implemented" && feature.hasCommits)
 			.map((feature) => feature.name),
 		knowledgeInitialized: knowledgeReady(b.memDir),
 		settings: b.settings,
@@ -1124,7 +1128,9 @@ export function hydrateMemoryCards(data, startDir) {
 	if (!needy.length) return data;
 	const b = loadBundle(startDir);
 	for (const m of needy) {
-		const [area, slug] = m.id ? String(m.id).split("/") : [m.area, m.slug];
+		const [area, slug] = m.id
+			? String(m.id).split("/")
+			: [m.area, m.slug];
 		if (!SLUG.test(area || "") || !SLUG.test(slug || "")) continue;
 		const file = join(b.memDir, area, `${slug}.md`);
 		if (existsSync(file))
@@ -1384,6 +1390,50 @@ export function resolveFeatureCommits(root, c) {
 
 export function gatherReview(startDir, opts = {}) {
 	const b = loadBundle(startDir);
+
+	// Consolidated review is an explicit scope, never the old unscoped
+	// working-tree fallback. Reuse the focused commit-backed gather once per
+	// implemented feature, then combine the already-attributed payloads. This
+	// keeps overlapping files, incidental changes, stats, and pitfalls attached
+	// to the feature whose commits introduced them.
+	if (opts.feature === "all") {
+		const selected = b.features.filter(
+			(c) =>
+				c.fm.status === "implemented" &&
+				resolveFeatureCommits(b.root, c).length > 0,
+		);
+		const rounds = selected.map((c) =>
+			gatherReview(b.root, { feature: c.slug }),
+		);
+		const features = rounds.flatMap((round) => round.features);
+		return {
+			step: "review",
+			multiReview: true,
+			reviewScope: selected.map((c) => c.slug),
+			diffTruncated: rounds.some((round) => round.diffTruncated),
+			diffOmittedFiles: [
+				...new Set(rounds.flatMap((round) => round.diffOmittedFiles || [])),
+			],
+			branch: b.branch,
+			root: b.root,
+			commit: `${rounds.length} implemented feature${rounds.length === 1 ? "" : "s"}`,
+			plan: b.plan?.fm.title || "",
+			progress: progress(b.features),
+			hasFeaturesFile: b.features.length > 0,
+			hasChanges: features.some((feature) => feature.files.length > 0),
+			source: "commits",
+			uncommittedOverlap: [
+				...new Set(rounds.flatMap((round) => round.uncommittedOverlap || [])),
+			],
+			features,
+			activeFeature: selected[0]?.slug || null,
+			defaulted: [],
+			uncategorized: [],
+			pitfalls: [],
+			designFile: b.design ? join(b.memDir, "design.md") : null,
+		};
+	}
+
 	const hasHead = git(["rev-parse", "--verify", "HEAD"], b.root) !== "";
 
 	const selected = opts.feature
@@ -1609,7 +1659,10 @@ export function gatherReview(startDir, opts = {}) {
 	const diffOmittedFiles = [];
 	{
 		let budget = MAX_DIFF;
-		const allFiles = [...features.flatMap((c) => c.files), ...uncategorized];
+		const allFiles = [
+			...features.flatMap((c) => c.files),
+			...uncategorized,
+		];
 		for (const f of allFiles) {
 			const size = JSON.stringify(f.hunks || []).length;
 			if (size <= budget) {
