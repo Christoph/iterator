@@ -2,6 +2,8 @@
 
 ## 2026-07-17
 * **Implementation**: Committed feature(preserve-review-across-planning) on branch iterator/always-available-backlog; awaiting review.
+* **Review**: Reviewed [Preserve reviews across Planning navigation](/features/preserve-review-across-planning.md); changes (agent).
+* **Implementation**: Committed feature(preserve-review-across-planning) on branch iterator/always-available-backlog; awaiting review.
 * **Update**: Applied 3 feature adjustment(s).
 * **Creation**: 3 feature(s) written.
 * **Creation**: Plan "Keep active review stable and clarify Planning versus Work" approved on branch iterator/always-available-backlog. Consumed 4 selected backlog candidate(s).
