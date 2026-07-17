@@ -327,10 +327,10 @@ export default function iteratorExtension(pi) {
 		}
 	};
 
-	/** The pi model registry as settings-view dropdown entries (or null). */
-	const modelOptions = () => {
+	/** Models available to this Pi session as settings-view dropdown entries. */
+	const modelOptions = async () => {
 		try {
-			const models = lastCtx?.modelRegistry?.getAll?.() || [];
+			const models = (await lastCtx?.modelRegistry?.getAvailable?.()) || [];
 			const out = models.map((m) => ({
 				id: `${m.provider}/${m.id}`,
 				label: `${m.provider}/${m.id}`,
@@ -398,7 +398,7 @@ export default function iteratorExtension(pi) {
 		const cwd = ctxCwd();
 		try {
 			const payload = await gatherPayload(cwd, "settings");
-			const models = modelOptions();
+			const models = await modelOptions();
 			session.showView({
 				step: "settings",
 				render: () => VIEWS.settings(models ? { ...payload, models } : payload),

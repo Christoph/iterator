@@ -54,6 +54,24 @@ export const STATUS_PATH = '/__iterator/status';
 export const FORCE_PORT = REMOTE
   || ['1', 'true'].includes(String(process.env.ITERATOR_FORCE_PORT ?? '').toLowerCase());
 
+// Host-facing display URL. Through a sandbox publish the host-side port may
+// differ from the listen port (pisbx picks the next free host port per
+// sandbox and writes ITERATOR_DISPLAY_PORT into it); ITERATOR_DISPLAY_HOST
+// overrides the hostname. Display only — the bind address and listen port
+// are unaffected.
+export const DISPLAY_HOST = process.env.ITERATOR_DISPLAY_HOST || 'localhost';
+
+/** Host-side port for printed URLs: ITERATOR_DISPLAY_PORT, else the listen port. */
+export function displayPort(port) {
+  const p = parseInt(process.env.ITERATOR_DISPLAY_PORT || '', 10);
+  return Number.isInteger(p) && p > 0 ? p : port;
+}
+
+/** The URL the user should open on the host to reach a server on `port`. */
+export function displayUrl(port) {
+  return `http://${DISPLAY_HOST}:${displayPort(port)}/`;
+}
+
 /** Open the user's browser at url unless remote/suppressed. */
 export function openBrowser(url) {
   if (REMOTE || process.env.ITERATOR_NO_OPEN) return;

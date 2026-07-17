@@ -33,7 +33,9 @@ async function startSession(opts = {}) {
 		session,
 		port,
 		url,
-		origin: url.replace(/\/$/, ""),
+		// Connect over IPv4 explicitly: the display URL says localhost, but the
+		// server binds 127.0.0.1 and localhost may resolve to ::1 first.
+		origin: `http://127.0.0.1:${port}`,
 		registry: process.env.ITERATOR_REGISTRY,
 	};
 }

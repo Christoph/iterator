@@ -2,8 +2,8 @@
 type: Usage
 title: Token usage
 description: Per-step model/token ledger for the active plan — written only by the usage op.
-totals: "{\"steps\":{\"memory\":{\"openai-codex/gpt-5.6-terra\":{\"input\":44198,\"output\":3999,\"cacheRead\":403968,\"cacheWrite\":0,\"turns\":15}},\"plan\":{\"openai-codex/gpt-5.6-terra\":{\"input\":34390,\"output\":2701,\"cacheRead\":236544,\"cacheWrite\":0,\"turns\":13}},\"implement\":{\"openai-codex/gpt-5.6-terra\":{\"input\":157462,\"output\":11123,\"cacheRead\":2935296,\"cacheWrite\":0,\"turns\":62}},\"review\":{\"openai-codex/gpt-5.6-terra\":{\"input\":85394,\"output\":407,\"cacheRead\":164864,\"cacheWrite\":0,\"turns\":3}}},\"features\":{\"clarify-dashboard-identity\":{\"input\":145062,\"output\":6981,\"cacheRead\":2294272,\"cacheWrite\":0,\"turns\":41},\"bound-planning-archives\":{\"input\":97794,\"output\":4549,\"cacheRead\":805888,\"cacheWrite\":0,\"turns\":24}}}"
-timestamp: 2026-07-16T20:00:02.462Z
+totals: "{\"steps\":{\"memory\":{\"openai-codex/gpt-5.6-terra\":{\"input\":44198,\"output\":3999,\"cacheRead\":403968,\"cacheWrite\":0,\"turns\":15}},\"plan\":{\"openai-codex/gpt-5.6-terra\":{\"input\":34390,\"output\":2701,\"cacheRead\":236544,\"cacheWrite\":0,\"turns\":13}},\"implement\":{\"openai-codex/gpt-5.6-terra\":{\"input\":560424,\"output\":20931,\"cacheRead\":6945280,\"cacheWrite\":0,\"turns\":116}},\"review\":{\"openai-codex/gpt-5.6-terra\":{\"input\":167702,\"output\":971,\"cacheRead\":798720,\"cacheWrite\":0,\"turns\":12}}},\"features\":{\"clarify-dashboard-identity\":{\"input\":145062,\"output\":6981,\"cacheRead\":2294272,\"cacheWrite\":0,\"turns\":41},\"bound-planning-archives\":{\"input\":97794,\"output\":4549,\"cacheRead\":805888,\"cacheWrite\":0,\"turns\":24},\"scope-settings-model-options\":{\"input\":291218,\"output\":5385,\"cacheRead\":1864704,\"cacheWrite\":0,\"turns\":37},\"support-claude-code-feature-flow\":{\"input\":194052,\"output\":4987,\"cacheRead\":2779136,\"cacheWrite\":0,\"turns\":26}}}"
+timestamp: 2026-07-17T08:10:51.158Z
 ---
 
 # Usage
@@ -24,13 +24,13 @@ timestamp: 2026-07-16T20:00:02.462Z
 
 | model | input | output | cache read | cache write | turns |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| openai-codex/gpt-5.6-terra | 157462 | 11123 | 2935296 | 0 | 62 |
+| openai-codex/gpt-5.6-terra | 560424 | 20931 | 6945280 | 0 | 116 |
 
 ## review
 
 | model | input | output | cache read | cache write | turns |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| openai-codex/gpt-5.6-terra | 85394 | 407 | 164864 | 0 | 3 |
+| openai-codex/gpt-5.6-terra | 167702 | 971 | 798720 | 0 | 12 |
 
 ## Per feature
 
@@ -38,5 +38,7 @@ timestamp: 2026-07-16T20:00:02.462Z
 | --- | ---: | ---: | ---: | ---: | ---: |
 | clarify-dashboard-identity | 145062 | 6981 | 2294272 | 0 | 41 |
 | bound-planning-archives | 97794 | 4549 | 805888 | 0 | 24 |
+| scope-settings-model-options | 291218 | 5385 | 1864704 | 0 | 37 |
+| support-claude-code-feature-flow | 194052 | 4987 | 2779136 | 0 | 26 |
 
-Total: 321444 in / 18230 out / 3740672 cache-read / 0 cache-write over 93 turns.
+Total: 806714 in / 28602 out / 8384512 cache-read / 0 cache-write over 156 turns.

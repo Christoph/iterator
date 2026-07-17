@@ -5,7 +5,7 @@
     {
       "name": "iterator",
       "source": "./",
-      "description": "Iterate on code with AI in small, reviewable, dependency-ordered features. Guided flow: plan → feature → implement → review → test, with durable state in an OKF memory/ bundle."
+      "description": "Claude Code and Pi workflow for small, reviewable, dependency-ordered features. Guided flow: plan → feature → test → implement → user-approved review, backed by an OKF memory bundle."
     }
   ]
 }

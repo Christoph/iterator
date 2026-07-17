@@ -50,7 +50,11 @@ test("effectiveSettings overlays valid stored values and ignores mangled ones", 
 		type: "Settings", // non-setting frontmatter keys are ignored
 	});
 	assert.equal(eff.auto_mode, "on");
-	assert.equal(eff.max_review_iterations, 3, "mangled int falls back to default");
+	assert.equal(
+		eff.max_review_iterations,
+		3,
+		"mangled int falls back to default",
+	);
 	assert.equal(eff.testing_default, "off", "tests-by-default ships off");
 });
 
@@ -66,7 +70,11 @@ test("parseState normalizes state.md frontmatter with JSON strikes", () => {
 	assert.equal(s.paused, true);
 	assert.equal(s.phase, "implementing");
 	assert.equal(s.active_feature, "auth-middleware");
-	assert.deepEqual(s.strikes, { "auth-middleware": 2 }, "negative counters dropped");
+	assert.deepEqual(
+		s.strikes,
+		{ "auth-middleware": 2 },
+		"negative counters dropped",
+	);
 
 	const empty = parseState(null);
 	assert.deepEqual(empty, {
@@ -118,19 +126,40 @@ test("plan reviewer settings inherit from the feature reviewer unless set", () =
 	);
 });
 
-test("settings view renders a form over the defs (models free-text without a registry)", () => {
+test("settings view renders a form over the defs (models free-text without available choices)", () => {
 	const html = settingsView({
 		step: "settings",
 		branch: "main",
 		plan: "Add JWT auth",
 		settings: settingsDefaults(),
 		defined: false,
+		models: [],
 	});
 	assert.ok(html.includes("Project settings"));
 	assert.ok(html.includes("auto_mode"), "key names are shown");
 	assert.ok(html.includes("Reviewer model"));
 	assert.ok(html.includes("type:'settings'"), "submits a settings result");
 	assert.ok(html.includes("memory/settings.md"));
+	assert.ok(html.includes("free text otherwise"));
+});
+
+test("settings view limits model selectors to available choices and keeps saved unlisted values", () => {
+	const settings = {
+		...settingsDefaults(),
+		reviewer_model: "saved/retired-model",
+	};
+	const html = settingsView({
+		step: "settings",
+		branch: "main",
+		plan: "Add JWT auth",
+		settings,
+		defined: true,
+		models: [{ id: "openai/gpt-5.6", label: "openai/gpt-5.6" }],
+	});
+	assert.ok(html.includes("openai/gpt-5.6"));
+	assert.ok(html.includes("saved/retired-model"));
+	assert.ok(html.includes("' (unlisted)'"));
+	assert.ok(html.includes("active (session model)"));
 });
 
 test("question view renders options + free text and posts an answer", async () => {
@@ -156,16 +185,44 @@ test("usage and archive views render their payloads", async () => {
 	const { render: usageView } = await import("../lib/views/usage.mjs");
 	const { render: archiveView } = await import("../lib/views/archive.mjs");
 	const uhtml = usageView({
-		step: "usage", branch: "main", plan: "P", exists: true,
-		totals: { steps: { implement: { "openai/gpt-5.5": { input: 1, output: 2, cacheRead: 3, cacheWrite: 4, turns: 1 } } }, features: {} },
+		step: "usage",
+		branch: "main",
+		plan: "P",
+		exists: true,
+		totals: {
+			steps: {
+				implement: {
+					"openai/gpt-5.5": {
+						input: 1,
+						output: 2,
+						cacheRead: 3,
+						cacheWrite: 4,
+						turns: 1,
+					},
+				},
+			},
+			features: {},
+		},
 		grand: { input: 1, output: 2, cacheRead: 3, cacheWrite: 4, turns: 1 },
 	});
 	assert.ok(uhtml.includes("token usage"));
 	const ahtml = archiveView({
-		step: "archive", branch: "main", name: "2026-07-01-p", title: "P", created: "2026-07-01",
-		sections: { Goal: "g" }, features: [{ name: "c", title: "C", description: "d", status: "done", commits: [] }],
-		usage: { totals: { steps: {}, features: {} }, grand: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, turns: 0 } },
+		step: "archive",
+		branch: "main",
+		name: "2026-07-01-p",
+		title: "P",
+		created: "2026-07-01",
+		sections: { Goal: "g" },
+		features: [
+			{ name: "c", title: "C", description: "d", status: "done", commits: [] },
+		],
+		usage: {
+			totals: { steps: {}, features: {} },
+			grand: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, turns: 0 },
+		},
 	});
 	assert.ok(ahtml.includes("retired plan"));
-	assert.ok(ahtml.includes("view-archive") || ahtml.includes("Back to dashboard"));
+	assert.ok(
+		ahtml.includes("view-archive") || ahtml.includes("Back to dashboard"),
+	);
 });

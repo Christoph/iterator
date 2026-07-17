@@ -287,6 +287,11 @@ down and replaced, so back-to-back runs never drift to 7778.
 - `ITERATOR_MEMORY_DIR` — relocate the bundle (relative to the git root)
 - `ITERATOR_NO_OPEN=1` — print the URL without opening a browser
 - `ITERATOR_REMOTE=1` — force remote mode (see below)
+- `ITERATOR_DISPLAY_PORT` — host-side port shown in printed URLs when a
+  sandbox publish maps a different host port onto the listen port (display
+  only; pi-docker-sandbox-setup's `pisbx` sets this per sandbox)
+- `ITERATOR_DISPLAY_HOST` — hostname shown in printed URLs (default
+  `localhost`)
 
 The server rejects requests with a non-localhost `Host` header (DNS-rebinding
 protection). Reloading the tab is safe — only closing it cancels.
@@ -297,7 +302,7 @@ When the agent runs inside a container or SSH session but your browser is on
 the host, the server detects it (SSH/container markers, or explicit
 `ITERATOR_REMOTE=1`) and switches to remote mode: binds `0.0.0.0` (override
 with `ITERATOR_BIND_HOST`), skips the browser opener, and prints a
-`http://127.0.0.1:<port>/` URL to open on the host. The sandbox must publish
+`http://localhost:<port>/` URL to open on the host. The sandbox must publish
 the port:
 
 ```bash
@@ -305,6 +310,11 @@ sbx ports <sandbox> --publish 7777:7777   # Docker sandboxes (explicit host:cont
 docker run -p 127.0.0.1:7777:7777 …       # plain Docker — keep the host side on loopback
 ssh -L 7777:localhost:7777 host           # plain SSH
 ```
+
+With several sandboxes open at once, each needs its own host port mapped onto
+the sandbox's 7777 (e.g. `--publish 7778:7777` for the second one). Set
+`ITERATOR_DISPLAY_PORT=<host port>` inside that sandbox so the printed URL
+matches — `pisbx` does both automatically.
 
 MicroVM sandboxes have no container marker files, so set `ITERATOR_REMOTE=1`
 in the sandbox image (pi-docker-sandbox-setup's image already does). Binding

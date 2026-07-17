@@ -1,5 +1,12 @@
 # iterator update log
 
+## 2026-07-17
+* **Review**: Accepted [Support Claude Code feature flow](/features/support-claude-code-feature-flow.md) (committed as feature(support-claude-code-feature-flow)).
+* **Implementation**: Committed feature(support-claude-code-feature-flow) on branch iterator/scope-settings-model-options; awaiting review.
+* **Review**: Accepted [Scope settings model options](/features/scope-settings-model-options.md) (committed as feature(scope-settings-model-options)).
+* **Implementation**: Committed feature(scope-settings-model-options) on branch iterator/scope-settings-model-options; awaiting review.
+* **Settings**: Updated planner_model, reviewer_model, plan_reviewer_model.
+
 ## 2026-07-16
 * **Review**: Accepted [Bound planning archives](/features/bound-planning-archives.md) (committed as feature(bound-planning-archives)).
 * **Implementation**: Committed feature(bound-planning-archives) on branch iterator/clarify-dashboard-identity; awaiting review.

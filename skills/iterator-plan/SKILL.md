@@ -12,6 +12,10 @@ plan immediately continues into `/iterator-feature` in the same session.
 
 **pi mode:** see `<skill-dir>/../iterator/PI.md`.
 
+**Claude Code mode:** Use gather/write directly instead of the Pi dashboard.
+Draft the plan in chat and wait for explicit user approval before the plan
+writer runs; then continue only into `/iterator-feature`.
+
 ## When to use this skill
 
 When the user types `/iterator-plan`, wants to plan a piece of work, or is

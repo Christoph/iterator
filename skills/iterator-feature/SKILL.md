@@ -18,6 +18,10 @@ promotes every draft to `pending`.
 
 **pi mode:** see `<skill-dir>/../iterator/PI.md`.
 
+**Claude Code mode:** Use gather/write directly instead of the Pi dashboard.
+Present the proposed feature graph in chat, wait for explicit user approval,
+and only then promote drafts with the deterministic writer.
+
 ## When to use this skill
 
 When the user types `/iterator-feature`, right after `/iterator-plan` approves

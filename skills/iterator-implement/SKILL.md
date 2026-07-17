@@ -16,6 +16,11 @@ afterwards.
 
 **pi mode:** see `<skill-dir>/../iterator/PI.md`.
 
+**Claude Code mode:** Use gather/write directly instead of the Pi dashboard.
+Implement only `next`, commit it through `commit-feature`, and report it as
+`implemented`; never call `accept-commit` without an explicit user-approved
+review.
+
 ## When to use this skill
 
 When the user types `/iterator-implement`, wants to build the next feature,

@@ -54,10 +54,14 @@ function startServer(payload, extraEnv = {}) {
 		child.stdout.on("data", (d) => (stdout += d));
 		child.stderr.on("data", (d) => {
 			stderr += d;
-			const m = stderr.match(/listening on (http:\/\/127\.0\.0\.1:\d+\/)/);
+			const m = stderr.match(/listening on (http:\/\/(?:localhost|127\.0\.0\.1):\d+\/)/);
 			if (m && !io.url) {
 				try {
 					io.url = new URL(m[1]);
+					// Fetch over IPv4 explicitly: the printed URL says localhost,
+					// but node's fetch may resolve that to ::1 while the server
+					// binds 127.0.0.1.
+					io.url.hostname = "127.0.0.1";
 				} catch (err) {
 					reject(err);
 					return;
@@ -454,12 +458,25 @@ const reqStatus = (io, path, host) =>
 
 test("ITERATOR_REMOTE=1 binds all interfaces and prints a loopback URL", async () => {
 	const io = await startServer(PLAN_PAYLOAD, { ITERATOR_REMOTE: "1" });
-	// The printed URL must be clickable on the host: 127.0.0.1, never 0.0.0.0.
-	assert.ok(io.url.href.startsWith("http://127.0.0.1:"));
+	// The printed URL must be clickable on the host: localhost, never 0.0.0.0.
+	assert.match(io.stderr(), /listening on http:\/\/localhost:\d+\//);
 	await sleep(100); // the hint line lands right after the resolving "listening on" line
 	assert.match(io.stderr(), /remote session — bound to 0\.0\.0\.0/);
 	// Host browser reaching a container by IP/hostname: allowed when exposed.
 	assert.equal(await reqStatus(io, "/", "172.17.0.2:7777"), 200);
+	io.child.kill();
+	await waitExit(io.child);
+});
+
+test("ITERATOR_DISPLAY_PORT swaps the host-side port into the printed URL", async () => {
+	const io = await startServer(PLAN_PAYLOAD, {
+		ITERATOR_REMOTE: "1",
+		ITERATOR_DISPLAY_PORT: "9377",
+	});
+	assert.match(io.stderr(), /listening on http:\/\/localhost:9377\//);
+	await sleep(100);
+	// The publish hint pairs the host-side display port with the real listen port.
+	assert.match(io.stderr(), /--publish 9377:\d+/);
 	io.child.kill();
 	await waitExit(io.child);
 });
