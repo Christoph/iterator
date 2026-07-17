@@ -22,6 +22,10 @@ testable — they must be accepted (pending) first.
 
 **pi mode:** see `<skill-dir>/../iterator/PI.md`.
 
+**Claude Code mode:** Use gather/write directly instead of the Pi dashboard.
+Present the proposed cases in chat and wait for explicit approval before
+writing or committing the feature's tests.
+
 ## When to use this skill
 
 When the user types `/iterator-test`, asks to add or generate tests for a

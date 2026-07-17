@@ -253,7 +253,7 @@ export async function serve({ step = 'iterator', html, onSubmit, reports = {} })
       process.stderr.write(
         `iterator: WARNING — listening on ${BIND_HOST}: anyone who can reach this ` +
         `port can answer as the user. Keep the host-side publish on loopback ` +
-        `(127.0.0.1:${port}, not 0.0.0.0:${port}).\n`);
+        `(127.0.0.1:${displayPort(port)}, not 0.0.0.0:${displayPort(port)}).\n`);
     }
   };
 
@@ -268,7 +268,7 @@ export async function serve({ step = 'iterator', html, onSubmit, reports = {} })
       if (r.reason === 'session') {
         process.stderr.write(
           `iterator: session dashboard owns port ${port} — open ` +
-          `http://127.0.0.1:${port}/ on the host; this one-shot walks up\n`);
+          `${displayUrl(port)} on the host; this one-shot walks up\n`);
       } else {
         process.stderr.write(
           `iterator: could not reclaim port ${port} — walking up (the UI ` +

@@ -13,6 +13,11 @@ back to implementation (its status stays `implemented`).
 
 **pi mode:** see `<skill-dir>/../iterator/PI.md`.
 
+**Claude Code mode:** Use gather directly and present the feature-scoped diff
+and verdict in chat instead of opening the Pi dashboard. Run `accept-commit`
+only after the user explicitly accepts the review; otherwise record feedback
+or leave the feature implemented.
+
 ## When to use this skill
 
 When the user types `/iterator-review <slug>`, clicks Review on the dashboard,

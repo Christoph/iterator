@@ -35,6 +35,10 @@ the `/iterator-knowledge*` skills).
 
 **pi mode:** see `<skill-dir>/PI.md`.
 
+**Claude Code mode:** Do not open the Pi dashboard/server. Use the documented
+`gather.mjs` and `write.mjs` commands directly; dispatch only the skill named
+by the gathered action and return its outcome in chat.
+
 ## When to use this skill
 
 When the user types `/iterator`, asks for an iterator overview / dashboard, or

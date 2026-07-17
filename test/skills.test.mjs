@@ -52,6 +52,20 @@ test("every SKILL.md references the shared pi-mode doc exactly once", () => {
 	}
 });
 
+test("Claude Code flow documents direct deterministic steps and user approval", () => {
+	const claude = readFileSync(join(root, "CLAUDE.md"), "utf8");
+	assert.match(claude, /Claude Code feature flow/);
+	assert.match(claude, /commit-feature/);
+	assert.match(claude, /explicitly\s+accepts.*accept-commit/s);
+	for (const skill of ["iterator", "iterator-plan", "iterator-feature", "iterator-test", "iterator-implement", "iterator-review"]) {
+		const text = readFileSync(join(skillsDir, skill, "SKILL.md"), "utf8");
+		assert.match(text, /Claude Code mode/);
+		assert.match(text, /gather.*write/s);
+	}
+	const plugin = readFileSync(join(root, ".claude-plugin", "plugin.json"), "utf8");
+	assert.match(plugin, /Claude Code and Pi workflow/);
+});
+
 test("write.mjs ops named in the skill docs exist in the writer's schema table", () => {
 	const schemas = readFileSync(join(root, "lib", "write.mjs"), "utf8");
 	const ops = ["plan", "features", "update-feature", "apply-review", "retire-plan",

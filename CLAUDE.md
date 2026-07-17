@@ -54,6 +54,22 @@ it from raw statuses. The dashboard splits into Planning (backlog, plan
 lifecycle, dependency graph) and Work (test/implement/review) surfaces, both
 rendered from the same gather payload.
 
+## Claude Code feature flow
+
+Claude Code runs the same published `/iterator-*` skills as Pi, but has no
+persistent Iterator dashboard. Treat an explicit `/iterator-*` invocation as
+permission to run that skill's deterministic gather/write commands. Read the
+skill's `SKILL.md` before acting, gather its step payload, and use the returned
+feature contract and derived readiness rather than reading bundle state or
+choosing work yourself.
+
+Work exactly one ready feature per round. `/iterator-implement` may create the
+feature commit through `commit-feature`, leaving the feature `implemented`.
+Do not call `accept-commit` or flip it to `done` until the user explicitly
+accepts a `/iterator-review` result. In Claude Code, present review findings
+in chat instead of opening the Pi-only dashboard; preserve the same
+user-controlled acceptance gate.
+
 ## Development loop
 
 - Source of truth is repo-root `lib/`; run `npm run sync` after editing it
