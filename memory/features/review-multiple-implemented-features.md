@@ -2,12 +2,12 @@
 type: Feature
 title: Review all implemented features together
 description: Open one selectable, commit-backed review for every implemented feature that has recorded commits.
-status: implemented
+status: done
 size: medium
 depends_on: []
 files: ["lib/gather.mjs", "lib/views/hub.mjs", "lib/views/review.mjs", "extensions/iterator.js", "skills/iterator-review/SKILL.md", "test/gather.test.mjs", "test/ui.test.mjs", "test/session-server.test.mjs"]
 memories: [pitfalls/cancel-now-after-grace-timer, pitfalls/client-js-template-literal-escaping, architecture/package-and-skill-layout, architecture/workflow-state-ownership, patterns/safe-browser-rendering, decisions/iterator-dashboard-feature-workflow, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows]
-timestamp: "2026-07-17T15:23:57.765Z"
+timestamp: "2026-07-17T15:27:19.745Z"
 tags: []
 commits:
   - sha: e5853320eff434b2aaecca8069ceabceeecdffa3
@@ -17,6 +17,7 @@ commits:
     kind: implement
     date: 2026-07-17
 reviewed: 2026-07-17
+done: 2026-07-17
 ---
 
 # Implementation notes
