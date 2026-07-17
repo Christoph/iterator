@@ -1,6 +1,8 @@
 # iterator update log
 
 ## 2026-07-17
+* **Implementation**: Committed feature(show-active-work-in-work) on branch iterator/always-available-backlog; awaiting review.
+* **Review**: Reviewed [Preserve reviews across Planning navigation](/features/preserve-review-across-planning.md); approved (agent).
 * **Review**: Accepted [Preserve reviews across Planning navigation](/features/preserve-review-across-planning.md) (committed as feature(preserve-review-across-planning)).
 * **Implementation**: Committed feature(preserve-review-across-planning) on branch iterator/always-available-backlog; awaiting review.
 * **Review**: Reviewed [Preserve reviews across Planning navigation](/features/preserve-review-across-planning.md); changes (agent).

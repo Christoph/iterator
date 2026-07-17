@@ -413,6 +413,9 @@ test("hub gates Implement/Review on status and renders escalation + review-plan 
 	assert.match(html, /Review all/);
 	assert.match(html, /action\('review-all'/);
 	assert.match(html, /Array\.isArray\(D\.reviewWave\)/);
+	// Active feature context and management live on Work.
+	assert.match(html, /renderGraphInto/);
+	assert.match(html, /action\('cancel-feature'/);
 	// Plan-lifecycle controls live on the Planning surface, not Work.
 	assert.doesNotMatch(html, /action\('review-plan'/);
 	assert.doesNotMatch(html, /Retires the plan/);
@@ -465,12 +468,13 @@ test("planning drives plan-lifecycle controls from the server-derived stage", as
 	assert.match(html, /action\('review-plan'/);
 	assert.match(html, /Retires the plan/);
 	assert.match(html, /action\('cancel-plan'/);
-	assert.match(html, /action\('cancel-feature'/);
+	// Active features and their dependency graph live on Work, not Planning.
+	assert.doesNotMatch(html, /action\('cancel-feature'/);
+	assert.doesNotMatch(html, /renderGraphInto/);
 	// The execution controls live on Work, not here.
 	assert.doesNotMatch(html, /action\('implement'/);
 	assert.doesNotMatch(html, /auto-implement/);
-	// Dependency graph + retired-plan browser render here.
-	assert.match(html, /renderGraphInto/);
+	// Retired-plan browsing remains a planning concern.
 	assert.match(html, /view-archive/);
 });
 

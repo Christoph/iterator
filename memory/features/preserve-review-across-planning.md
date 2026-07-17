@@ -7,7 +7,7 @@ size: medium
 depends_on: []
 files: ["lib/session-server.mjs", "extensions/iterator.js", "test/session-server.test.mjs", "test/nonblocking-working-overlay.test.mjs"]
 memories: [pitfalls/cancel-now-after-grace-timer, architecture/browser-server-contract, architecture/package-and-skill-layout, decisions/backlog-planning-and-feature-waves, decisions/iterator-dashboard-feature-workflow, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows, decisions/powerline-shows-sandbox-ui-port]
-timestamp: "2026-07-17T16:23:12.103Z"
+timestamp: "2026-07-17T16:23:18.304Z"
 tags: []
 commits:
   - sha: 30c6a6b70a54d59a72a79ba2f864a9b993006262
@@ -37,4 +37,5 @@ The session shell's one-pending-round lifecycle, tab switching, backlog CRUD, an
 # Review
 
 ## 2026-07-17
+* **Approved** _(agent review: openai-codex/gpt-5.6-sol)_ — Approved: the persistent shell now deterministically owns unload cancellation, embedded view tab switches cannot abort the pending review, explicit cancel pre-empts grace timers, and the Review → Planning → Work regression plus full suite pass.
 * **Needs changes** _(agent review: openai-codex/gpt-5.6-sol)_ — The fix is race-prone and the tests do not exercise the behavior. `setTab()` queues a `postMessage({iterator:'navigate'})` and immediately replaces `frame.src`; delivery of that queued message is not guaranteed before the outgoing iframe's `pagehide`, so `sendCancel()` can still beacon `/cancel` and abort the pending review. Make cancellation ownership deterministic (for example, suppress iframe pagehide beacons in the persistent session and let the parent shell beacon `/cancel` when the whole dashboard unloads), then add a behavioral regression that performs review → Planning → Work and proves the original review round remains pending and can still submit.
