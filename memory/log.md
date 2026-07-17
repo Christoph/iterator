@@ -1,6 +1,9 @@
 # iterator update log
 
 ## 2026-07-17
+* **Retirement**: Plan "Keep active review stable and clarify Planning versus Work" condensed into [Review navigation and Work context](/decisions/review-navigation-and-work-context.md).
+* **Plan review**: Whole-plan review recorded (agent).
+* **Review**: Reviewed [Keep review controls fully readable](/features/streamline-review-interface.md); approved (agent).
 * **Review**: Accepted [Keep review controls fully readable](/features/streamline-review-interface.md) (committed as feature(streamline-review-interface)).
 * **Implementation**: Committed feature(streamline-review-interface) on branch iterator/always-available-backlog; awaiting review.
 * **Review**: Reviewed [Show active plan context on Work](/features/show-active-work-in-work.md); approved (agent).

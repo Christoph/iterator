@@ -7,13 +7,14 @@ size: medium
 depends_on: []
 files: ["lib/views/review.mjs", "test/ui.test.mjs", "test/client-js-parse.test.mjs"]
 memories: [pitfalls/client-js-template-literal-escaping, patterns/safe-browser-rendering, decisions/backlog-planning-and-feature-waves, decisions/iterator-dashboard-feature-workflow, decisions/parallel-feature-waves-and-consolidated-review]
-timestamp: "2026-07-17T16:29:22.606Z"
+timestamp: "2026-07-17T16:29:28.160Z"
 tags: []
 commits:
   - sha: e7d5824e2ac431640e6a1abc6169dfcc6121b43b
     kind: implement
     date: 2026-07-17
 done: 2026-07-17
+reviewed: 2026-07-17
 ---
 
 # Implementation notes
@@ -33,3 +34,8 @@ Replace sidebar title truncation with responsive wrapping or overflow that prese
 # Blast radius
 
 The review sidebar and narrow-screen review layout; reviewer feedback submission must continue to use the existing header controls and collected feature/line comments.
+
+# Review
+
+## 2026-07-17
+* **Approved** _(agent review: openai-codex/gpt-5.6-sol)_ — Approved: review sidebar and detail labels now wrap without truncation, the obsolete fixed Feedback panel and preview bookkeeping are removed, header submission still derives from feature and line-comment state, and UI/client-script/full-suite tests pass.

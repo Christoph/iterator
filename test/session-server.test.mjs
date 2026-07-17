@@ -567,7 +567,11 @@ test("review survives Planning navigation and can submit after returning to Work
 			await (await fetch(origin + "/view?tab=work")).text(),
 			/ACTIVE-REVIEW/,
 		);
-		assert.equal(srvMod.RUN_ID, reviewRun, "navigation preserves round identity");
+		assert.equal(
+			srvMod.RUN_ID,
+			reviewRun,
+			"navigation preserves round identity",
+		);
 		assert.equal(session.hasPending(), true, "review remains pending");
 
 		const response = await fetch(`${origin}/submit?r=${reviewRun}`, {

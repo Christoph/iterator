@@ -5,7 +5,8 @@ description: Preserve active reviews across Planning navigation, move active wor
 status: approved
 branch: iterator/always-available-backlog
 created: 2026-07-17
-timestamp: 2026-07-17T16:15:52.935Z
+timestamp: "2026-07-17T16:30:16.999Z"
+plan_reviewed: 2026-07-17
 ---
 
 # Goal
@@ -38,3 +39,19 @@ Prevent an in-progress review from being aborted when users visit Planning to ma
 * [Preserve reviews across Planning navigation](/features/preserve-review-across-planning.md) - Keep an active review open while users manage backlog items on the Planning tab and return to it.
 * [Show active plan context on Work](/features/show-active-work-in-work.md) - Make Work the home for the active plan, its feature set, and the dependency graph.
 * [Keep review controls fully readable](/features/streamline-review-interface.md) - Show complete feature titles in review and remove the unused Feedback panel.
+
+# Plan review
+
+## 2026-07-17 _(agent review: openai-codex/gpt-5.6-sol)_
+
+## Goal and architecture coverage
+
+The four requested outcomes are implemented: `preserve-review-across-planning` gives the persistent shell deterministic cancellation ownership and covers Review → Planning → Work; `show-active-work-in-work` places the server-derived feature graph and active feature controls on Work while Planning keeps backlog/lifecycle management; `streamline-review-interface` wraps long review labels and removes the lower-right Feedback panel while retaining header submission. Canonical `lib/` changes are synchronized to shipped copies, and all 348 tests pass.
+
+## Decisions and scope
+
+The implementation preserves the single pending review result, keeps backlog/model-flow guards intact, consumes the selected backlog candidates through plan approval, renders gathered state rather than deriving lifecycle rules in views, and retains responsive horizontal graph overflow and wrapped review labels. No unexplained functional scope drift or introduced TODO was found.
+
+## Loose end
+
+- **Working-tree cleanup — `preserve-review-across-planning`, `test/session-server.test.mjs`:** the accepted feature's navigation assertion has an uncommitted formatting-only change (the single-line `assert.equal` is expanded across lines). It does not alter behavior and the suite passes, but it is outside the recorded feature commits; discard or commit it before retiring the plan so the working tree is clean.
