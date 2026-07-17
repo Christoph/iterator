@@ -1,5 +1,5 @@
 # Features
 
-* [Keep the backlog available during active work](always-available-backlog.md) - ✅ done · medium · Planning continues to show and accept saved filesystem backlog candidates while a plan is active.
-* [Implement a dependency-ready feature wave](implement-ready-feature-wave.md) - ✅ done · large · A Work action launches implementation for every feature ready at the start of the wave and reports each result.
-* [Review implemented features together](review-multiple-implemented-features.md) - ✅ done · large · A consolidated review lets users select an implemented feature and inspect only that feature’s diff and findings.
+* [Keep the idea backlog editable during agent work](always-available-backlog.md) - ✅ done · medium · Let users create, edit, delete, and select backlog candidates while an implementation turn is running.
+* [Implement a fixed dependency-ready feature wave](implement-ready-feature-wave.md) - ✅ done · medium · Start and advance a snapshot of every pending feature that is ready when the user clicks Implement next wave.
+* [Review all implemented features together](review-multiple-implemented-features.md) - ✅ done · medium · Open one selectable, commit-backed review for every implemented feature that has recorded commits.

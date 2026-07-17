@@ -186,7 +186,7 @@ function primaryClick(){ if(typeof onPrimary==='function') onPrimary(); }
 async function post(payload, okMsg, options){
   if(document.body.classList.contains('iterator-ro') && !options?.allowWhileWorking){
     alert('Claude is working — actions are disabled until it finishes.');
-    return;
+    return false;
   }
   var btn=document.getElementById('primary');
   __submitted = true;
@@ -198,13 +198,15 @@ async function post(payload, okMsg, options){
       __submitted = false;
       if(btn){ btn.disabled=false; if(typeof refresh==='function') refresh(); else btn.textContent=btn.dataset.prev||'Accept'; }
       alert('Not sent — Claude is still working (or this view is stale). Try again when the dashboard refreshes.');
-      return;
+      return false;
     }
     if(btn) btn.textContent = '✓ ' + (okMsg||'Sent to Claude');
+    return true;
   }catch(e){
     __submitted=false;
     if(btn){ btn.disabled=false; if(typeof refresh==='function') refresh(); else btn.textContent=btn.dataset.prev||'Accept'; }
     alert('Could not reach local server: ' + e.message);
+    return false;
   }
 }
 

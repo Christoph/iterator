@@ -2,6 +2,26 @@
 
 ## 2026-07-17
 * **Plan review**: Whole-plan review recorded (agent).
+* **Review**: Reviewed [Review all implemented features together](/features/review-multiple-implemented-features.md); approved (agent).
+* **Review**: Accepted [Review all implemented features together](/features/review-multiple-implemented-features.md) (committed as feature(review-multiple-implemented-features)).
+* **Implementation**: Committed feature(review-multiple-implemented-features) on branch iterator/always-available-backlog; awaiting review.
+* **Review**: Reviewed [Review all implemented features together](/features/review-multiple-implemented-features.md); changes (agent).
+* Reconciled the pre-existing consolidated multi-feature review implementation.
+* **Review**: Reviewed [Implement a fixed dependency-ready feature wave](/features/implement-ready-feature-wave.md); approved (agent).
+* **Review**: Accepted [Implement a fixed dependency-ready feature wave](/features/implement-ready-feature-wave.md) (committed as feature(implement-ready-feature-wave)).
+* Recorded the pre-existing serialized wave-resume implementation.
+* Recorded the pre-existing wave pause/continue implementation.
+* Reconciled the pre-existing dependency-ready wave implementation.
+* **Review**: Reviewed [Keep the idea backlog editable during agent work](/features/always-available-backlog.md); approved (agent).
+* **Review**: Accepted [Keep the idea backlog editable during agent work](/features/always-available-backlog.md) (committed as feature(always-available-backlog)).
+* **Implementation**: Committed feature(always-available-backlog) on branch iterator/always-available-backlog; awaiting review.
+* **Review**: Reviewed [Keep the idea backlog editable during agent work](/features/always-available-backlog.md); changes (agent).
+* Reconciled pre-existing implementation commit for duplicate feature.
+* **Update**: Applied 3 feature adjustment(s).
+* **Creation**: 3 feature(s) written.
+* **Creation**: Plan "Keep backlog planning available and support parallel feature waves" approved on branch main. Consumed 2 selected backlog candidate(s).
+* **Retirement**: Plan "Keep backlog planning available and support parallel feature waves" condensed into [Parallel feature waves and consolidated review](/decisions/parallel-feature-waves-and-consolidated-review.md).
+* **Plan review**: Whole-plan review recorded (agent).
 * **Review**: Reviewed [Review implemented features together](/features/review-multiple-implemented-features.md); approved (agent).
 * **Review**: Accepted [Review implemented features together](/features/review-multiple-implemented-features.md) (committed as feature(review-multiple-implemented-features)).
 * **Implementation**: Committed feature(review-multiple-implemented-features) on branch iterator/consume-accepted-backlog-ideas; awaiting review.

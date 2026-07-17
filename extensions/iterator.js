@@ -382,7 +382,12 @@ export default function iteratorExtension(pi) {
 	/** Save one backlog mutation without spending a model turn. */
 	const saveBacklog = async (input) => {
 		const cwd = ctxCwd();
-		session?.showWorking?.("Saving backlog candidate…");
+		// Backlog writes are allowed during a model turn, but must not replace or
+		// clear that turn's working guard. The normal turn-end refresh will pick up
+		// the filesystem change; idle saves still refresh immediately.
+		const preserveAgentWorking = session?.isWorking?.() === true;
+		if (!preserveAgentWorking)
+			session?.showWorking?.("Saving backlog candidate…");
 		try {
 			const result = await runJson(scriptPath("write"), [], {
 				cwd,
@@ -401,8 +406,10 @@ export default function iteratorExtension(pi) {
 		} catch (e) {
 			notifyUi(`backlog not saved — ${e.message}`, "error");
 		} finally {
-			session?.clearWorking?.();
-			await refreshHub(cwd);
+			if (!preserveAgentWorking) {
+				session?.clearWorking?.();
+				await refreshHub(cwd);
+			}
 		}
 	};
 
