@@ -285,7 +285,11 @@ test("pushActivity keeps the last two lines newest-first and replays them", asyn
 		const sse = await firstSseEvent(origin);
 		assert.equal(sse.event, "working");
 		assert.deepEqual(sse.data.activity, ["third", "second"]);
-		assert.equal(sse.data.text, "Auto: implement auth…", "the step header survives");
+		assert.equal(
+			sse.data.text,
+			"Auto: implement auth…",
+			"the step header survives",
+		);
 	} finally {
 		await session.stop();
 	}

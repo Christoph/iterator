@@ -7,13 +7,14 @@ size: large
 depends_on: []
 files: ["lib/gather.mjs", "lib/views/hub.mjs", "lib/views/review.mjs", "lib/session-server.mjs", "extensions/iterator.js", "test/gather.test.mjs", "test/ui.test.mjs", "test/session-server.test.mjs"]
 memories: [pitfalls/cancel-now-after-grace-timer, pitfalls/client-js-template-literal-escaping, architecture/browser-server-contract, architecture/package-and-skill-layout, architecture/workflow-state-ownership, patterns/safe-browser-rendering, decisions/iterator-dashboard-feature-workflow, decisions/polish-dashboard-and-multi-agent-workflows]
-timestamp: "2026-07-17T14:41:15.578Z"
+timestamp: "2026-07-17T14:41:24.387Z"
 tags: []
 commits:
   - sha: e5853320eff434b2aaecca8069ceabceeecdffa3
     kind: implement
     date: 2026-07-17
 done: 2026-07-17
+reviewed: 2026-07-17
 ---
 
 # Implementation notes
@@ -29,3 +30,8 @@ const selected = opts.feature ? b.features.filter((c) => c.slug === opts.feature
 # Blast radius
 
 Review gather/render and commit acceptance interfaces; a multi-review must not blend unrelated diffs or silently mark any feature done.
+
+# Review
+
+## 2026-07-17
+* **Approved** _(agent review: openai-codex/gpt-5.6-sol)_ — Review all is explicitly scoped to implemented features with recorded commits, rebuilds and attributes each feature diff independently, preserves per-feature feedback and acceptance, and keeps the existing selector usable on desktop and mobile.

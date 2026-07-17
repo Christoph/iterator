@@ -293,12 +293,18 @@ test("consolidated review rebuilds each implemented feature from its own commits
 		const config = join(root, "memory", "features", "config-module.md");
 		writeFileSync(
 			config,
-			readFileSync(config, "utf8").replace("status: done", "status: implemented"),
+			readFileSync(config, "utf8").replace(
+				"status: done",
+				"status: implemented",
+			),
 		);
 		const auth = join(root, "memory", "features", "auth-middleware.md");
 		writeFileSync(
 			auth,
-			readFileSync(auth, "utf8").replace("status: pending", "status: implemented"),
+			readFileSync(auth, "utf8").replace(
+				"status: pending",
+				"status: implemented",
+			),
 		);
 		git(root, "add", ".");
 		git(
@@ -492,16 +498,20 @@ test("plan-review gathers the plan sections, features, and the whole-plan diff",
 		assert.equal(p.plan.title, "Add JWT auth");
 		assert.equal(p.plan.planReviewed, null);
 		assert.ok(p.plan.goal, "goal section rides along");
-		assert.deepEqual(
-			p.features.map((f) => f.name).sort(),
-			["auth-middleware", "config-module"],
-		);
+		assert.deepEqual(p.features.map((f) => f.name).sort(), [
+			"auth-middleware",
+			"config-module",
+		]);
 		const done = p.features.find((f) => f.name === "config-module");
 		assert.ok(done.commits.length >= 1, "feature commits resolved");
 		assert.ok(p.commits.length >= 1, "ordered commit list");
 		assert.equal(p.commits[0].feature, "config-module");
 		assert.ok(p.commits[0].sha && p.commits[0].subject);
-		assert.match(p.diff, /src\/config\.ts/, "the whole-plan diff covers the feature commit");
+		assert.match(
+			p.diff,
+			/src\/config\.ts/,
+			"the whole-plan diff covers the feature commit",
+		);
 		assert.ok(!p.diff.includes("memory/"), "bundle bookkeeping excluded");
 		assert.equal(p.diffTruncated, false);
 	} finally {
