@@ -1,6 +1,10 @@
 # iterator update log
 
 ## 2026-07-17
+* **Implementation**: Committed feature(review-multiple-implemented-features) on branch iterator/always-available-backlog; awaiting review.
+* **Review**: Reviewed [Review all implemented features together](/features/review-multiple-implemented-features.md); changes (agent).
+* Reconciled the pre-existing consolidated multi-feature review implementation.
+* **Review**: Reviewed [Implement a fixed dependency-ready feature wave](/features/implement-ready-feature-wave.md); approved (agent).
 * **Review**: Accepted [Implement a fixed dependency-ready feature wave](/features/implement-ready-feature-wave.md) (committed as feature(implement-ready-feature-wave)).
 * Recorded the pre-existing serialized wave-resume implementation.
 * Recorded the pre-existing wave pause/continue implementation.

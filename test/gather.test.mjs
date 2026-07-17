@@ -306,6 +306,10 @@ test("consolidated review rebuilds each implemented feature from its own commits
 				"status: implemented",
 			),
 		);
+		// The auth commit also changes a path declared only by config-module.
+		// Commit-backed review must keep it under auth as incidental rather than
+		// dropping it because another feature owns the path contract.
+		writeFileSync(join(root, "src", "config.ts"), "export const cfg = 2;\n");
 		git(root, "add", ".");
 		git(
 			root,
@@ -329,8 +333,9 @@ test("consolidated review rebuilds each implemented feature from its own commits
 		);
 		assert.deepEqual(
 			p.features[1].files.map((file) => file.path),
-			["src/auth/index.ts"],
+			["src/auth/index.ts", "src/config.ts"],
 		);
+		assert.equal(p.features[1].files[1].group, "incidental");
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}

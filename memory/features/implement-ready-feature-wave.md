@@ -7,7 +7,7 @@ size: medium
 depends_on: []
 files: ["lib/gather.mjs", "lib/views/hub.mjs", "lib/pi-tools.mjs", "extensions/iterator.js", "skills/iterator-implement/SKILL.md", "test/gather.test.mjs", "test/ui.test.mjs", "test/pi-tools.test.mjs"]
 memories: [pitfalls/client-js-template-literal-escaping, architecture/package-and-skill-layout, architecture/workflow-state-ownership, patterns/safe-browser-rendering, decisions/iterator-dashboard-feature-workflow, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows, decisions/powerline-shows-sandbox-ui-port]
-timestamp: "2026-07-17T15:17:38.309Z"
+timestamp: "2026-07-17T15:17:49.567Z"
 tags: []
 commits:
   - sha: 01e5a15cedfc71138680d73ed63276ba010eaca8
@@ -20,6 +20,7 @@ commits:
     kind: implement
     date: 2026-07-17
 done: 2026-07-17
+reviewed: 2026-07-17
 ---
 
 # Implementation notes
@@ -46,3 +47,8 @@ if (feature.status === "pending") {
 # Blast radius
 
 Feature lifecycle dispatch, automatic-flow controls, and the Work dashboard; readiness must remain server-derived by lib/status.mjs and lib/gather.mjs.
+
+# Review
+
+## 2026-07-17
+* **Approved** _(agent review: openai-codex/gpt-5.6-sol)_ — Approved: the server-derived ready set is snapshotted once, each queued feature dispatches independently and stops at implemented, failures/conflicts remain attributable, and pause/continue serialization prevents duplicate or skipped dispatches.
