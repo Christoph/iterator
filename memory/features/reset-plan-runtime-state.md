@@ -7,8 +7,12 @@ size: medium
 depends_on: []
 files: ["lib/write.mjs", "extensions/iterator.js", "test/write.test.mjs"]
 memories: [architecture/package-and-skill-layout, architecture/workflow-state-ownership, decisions/backlog-planning-and-feature-waves, decisions/consume-accepted-backlog-ideas, decisions/iterator-dashboard-feature-workflow, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows, decisions/powerline-shows-sandbox-ui-port]
-timestamp: "2026-07-17T17:41:11.507Z"
+timestamp: "2026-07-17T17:41:11.588Z"
 tags: []
+commits:
+  - sha: f4ecbdccab0d0109a8019cca9328f69a7066617e
+    kind: implement
+    date: 2026-07-17
 ---
 
 # Implementation notes
