@@ -1,6 +1,11 @@
 # iterator update log
 
 ## 2026-07-17
+* **Review**: Accepted [Implement a fixed dependency-ready feature wave](/features/implement-ready-feature-wave.md) (committed as feature(implement-ready-feature-wave)).
+* Recorded the pre-existing serialized wave-resume implementation.
+* Recorded the pre-existing wave pause/continue implementation.
+* Reconciled the pre-existing dependency-ready wave implementation.
+* **Review**: Reviewed [Keep the idea backlog editable during agent work](/features/always-available-backlog.md); approved (agent).
 * **Review**: Accepted [Keep the idea backlog editable during agent work](/features/always-available-backlog.md) (committed as feature(always-available-backlog)).
 * **Implementation**: Committed feature(always-available-backlog) on branch iterator/always-available-backlog; awaiting review.
 * **Review**: Reviewed [Keep the idea backlog editable during agent work](/features/always-available-backlog.md); changes (agent).

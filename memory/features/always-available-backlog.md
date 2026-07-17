@@ -7,7 +7,7 @@ size: medium
 depends_on: []
 files: ["lib/session-server.mjs", "lib/views/planning.mjs", "extensions/iterator.js", "test/session-server.test.mjs", "test/ui.test.mjs"]
 memories: [pitfalls/cancel-now-after-grace-timer, architecture/browser-server-contract, architecture/package-and-skill-layout, architecture/workflow-state-ownership, decisions/consume-accepted-backlog-ideas, decisions/iterator-dashboard-feature-workflow, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows]
-timestamp: "2026-07-17T15:14:04.177Z"
+timestamp: "2026-07-17T15:14:16.187Z"
 tags: []
 commits:
   - sha: f44d2f9e2da9ba16c40498873fadf4824c686891
@@ -45,4 +45,5 @@ The session dashboard's concurrency guard and Planning backlog controls; no seco
 # Review
 
 ## 2026-07-17
+* **Approved** _(agent review: openai-codex/gpt-5.6-sol)_ — Approved: backlog writes preserve the active model-working guard, unrelated submissions remain blocked, local controls are restored for further filesystem-only edits, and the regression/full test suites pass.
 * **Needs changes** _(agent review: openai-codex/gpt-5.6-sol)_ — Backlog CRUD clears the active agent-working guard: `saveBacklog()` in `extensions/iterator.js` calls `session.showWorking("Saving backlog candidate…")`, then `clearWorking()` and `refreshHub()`. When invoked during implementation, this overwrites and removes the model turn's working state, re-enabling unrelated dashboard actions while the agent is still running. Preserve/restore the existing working state (or make backlog saves use a separate non-destructive status path), and add an integration test proving a backlog save during active work leaves other `/submit` actions blocked with 409 until the model turn actually ends.
