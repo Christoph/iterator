@@ -5,7 +5,8 @@ description: Use configured role models for manual skill commands and prevent au
 status: approved
 branch: iterator/always-available-backlog
 created: 2026-07-17
-timestamp: 2026-07-17T17:33:52.057Z
+timestamp: "2026-07-17T17:50:46.427Z"
+plan_reviewed: 2026-07-17
 ---
 
 # Goal
@@ -29,3 +30,13 @@ Fix manual iterator skill turns so they temporarily use their configured planner
 
 * [Reset runtime state for approved plans](/features/reset-plan-runtime-state.md) - Start each approved plan in a manual, idle runtime state so stale auto mode cannot dispatch work.
 * [Apply configured models to manual turns](/features/apply-role-models-manual-turns.md) - Run manual iterator commands with their configured role model and restore the user's model afterward.
+
+# Plan review
+
+## 2026-07-17 _(agent review: openai-codex/gpt-5.6-sol)_
+
+## Finding
+
+- **Architecture — promised lifecycle coverage is incomplete.** The plan says the existing `node:test` suites will cover model routing and explicit auto-mode behavior, but `test/pi-tools.test.mjs` only exercises the pure `roleFromInput()` parser and `test/write.test.mjs` only exercises approved/draft plan resets. No test drives the `extensions/iterator.js` hooks to prove manual `before_agent_start` model application, `agent_end` restoration before `kickAuto()`, auto/feature-wave exclusion, or the terminal auto-run reset to `mode: manual`. The implementation delivers those paths, but this architectural verification commitment remains unfulfilled.
+
+Goal coverage otherwise appears complete: approved plans deterministically reset stale state, drafts preserve it, completed auto runs return to manual mode, exact manual commands select the configured role (including `plan_reviewer` precedence), and the previous model is restored before automatic dispatch resumes. No unexplained scope drift, TODOs, pending features, or unaccepted features were found.

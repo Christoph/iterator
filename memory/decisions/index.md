@@ -2,6 +2,7 @@
 
 Durable product and implementation choices agents should preserve.
 
+* [Apply role models to manual turns and reset stale runtime state](/decisions/manual-role-models-and-runtime-reset.md) - Manual Iterator role commands temporarily select configured models, while approved plans and terminal auto runs reset runtime state deterministically.
 * [Backlog planning and parallel feature waves](/decisions/backlog-planning-and-feature-waves.md) - Keep low-risk backlog editing available during active work while implementing a fixed ready-feature wave and reviewing its commit-backed results together.
 * [Consume selected backlog ideas on plan approval](/decisions/consume-accepted-backlog-ideas.md) - Selected idea or bug candidates leave the backlog only after deterministic plan approval.
 * [Parallel feature waves and consolidated review](/decisions/parallel-feature-waves-and-consolidated-review.md) - The dashboard supports fixed dependency-ready implementation waves and commit-backed multi-feature review without weakening explicit acceptance.

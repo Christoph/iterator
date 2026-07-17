@@ -1,6 +1,9 @@
 # iterator update log
 
 ## 2026-07-17
+* **Retirement**: Plan "Apply role models on manual turns and reset stale auto state" condensed into [Apply role models to manual turns and reset stale runtime state](/decisions/manual-role-models-and-runtime-reset.md).
+* **Plan review**: Whole-plan review recorded (agent).
+* **Review**: Reviewed [Apply configured models to manual turns](/features/apply-role-models-manual-turns.md); approved (agent).
 * **Review**: Accepted [Apply configured models to manual turns](/features/apply-role-models-manual-turns.md) (committed as feature(apply-role-models-manual-turns)).
 * **Implementation**: Committed feature(apply-role-models-manual-turns) on branch iterator/always-available-backlog; awaiting review.
 * **Backlog**: edit after-consolidating-the-memory-files-there-is-still-a-stale-memory.
