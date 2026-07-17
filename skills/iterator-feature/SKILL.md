@@ -78,7 +78,12 @@ Split the whole plan (using `ARCHITECTURE.md` for context):
   enough that an implementer can build from notes + snippets +
   `ARCHITECTURE.md`.
 - Assign the `files` each feature owns (paths or simple globs), including its
-  test files.
+  test files — but **only files the implementation will actually create or
+  change**. Never list generated or synced copies (a build/sync step owns
+  them) and never files that are merely read for context. `files` drives
+  review ownership and the memories anchor-match, so padding it degrades
+  both; a feature needing more than ~8 files usually means the slice is too
+  broad or the list is padded.
 - **Cut along the recorded architecture.** When `architecture` is non-empty,
   prefer feature boundaries that follow those subsystem seams (a feature inside
   one concept's territory beats one straddling two), and seed each feature's
@@ -114,8 +119,10 @@ FEATURES_WRITE
 
 The writer validates before writing (acyclic graph, existing `depends_on`
 targets, valid size, done features untouched) and on failure writes **nothing**
-— fix the breakdown and re-pipe. Watch `warnings.unmatchedGlobs` in its
-result: a feature glob matching no files usually means a typo'd path.
+— fix the breakdown and re-pipe. Watch the result's warnings:
+`warnings.unmatchedGlobs` (a glob matching no files usually means a typo'd
+path) and `warnings.broadFiles` (a feature declaring more than 8 files —
+tighten the list to what the feature changes, or split the feature).
 
 Then open the UI **from disk** — no hand-authored feature payload, ever:
 

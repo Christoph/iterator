@@ -1,6 +1,11 @@
 # iterator update log
 
 ## 2026-07-17
+* **Backlog**: delete remove-elements-from-idea-backlog-when-the-plan-and-feature-is-created.
+* **Backlog**: delete idea-backlog-layout.
+* **Backlog**: delete improve-the-interaction-with-claude-code.
+* **Backlog**: delete show-in-settings-for-models-only-the-scoped-models.
+* **Backlog**: delete improve-overall-styling.
 * **Retirement**: Plan "Remove accepted backlog ideas" condensed into [Consume selected backlog ideas on plan approval](/decisions/consume-accepted-backlog-ideas.md).
 * **Update**: Memorized [Unify Iterator dashboard and feature workflow](/decisions/iterator-dashboard-feature-workflow.md).
 * **Review**: Accepted [Consume accepted backlog ideas](/features/consume-accepted-backlog-ideas.md) (committed as feature(consume-accepted-backlog-ideas)).

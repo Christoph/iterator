@@ -2151,6 +2151,31 @@ test("features op warns about globs that match nothing in the repo", () => {
 	}
 });
 
+test("features op warns when a feature declares an over-broad files list", () => {
+	const root = makeWaveRepo();
+	try {
+		const res = applyOp(
+			{
+				op: "features",
+				features: [
+					{
+						name: "broad-feature",
+						description: "d",
+						files: Array.from({ length: 9 }, (_, i) => `src/f${i}.ts`),
+					},
+				],
+			},
+			root,
+		);
+		assert.deepEqual(res.warnings.broadFiles, [
+			{ feature: "broad-feature", count: 9 },
+		]);
+		assert.equal(res.validation.ok, true);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("plan op warns on todo-shaped dependencies and uninitialized knowledge", () => {
 	const root = makeRepo();
 	try {
