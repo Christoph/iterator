@@ -1,6 +1,29 @@
 # iterator update log
 
 ## 2026-07-17
+* **Plan review**: Whole-plan review recorded (agent).
+* **Review**: Reviewed [Review implemented features together](/features/review-multiple-implemented-features.md); approved (agent).
+* **Review**: Accepted [Review implemented features together](/features/review-multiple-implemented-features.md) (committed as feature(review-multiple-implemented-features)).
+* **Implementation**: Committed feature(review-multiple-implemented-features) on branch iterator/consume-accepted-backlog-ideas; awaiting review.
+* **Review**: Reviewed [Implement a dependency-ready feature wave](/features/implement-ready-feature-wave.md); approved (agent).
+* **Review**: Accepted [Implement a dependency-ready feature wave](/features/implement-ready-feature-wave.md) (committed as feature(implement-ready-feature-wave)).
+* **Implementation**: Committed feature(implement-ready-feature-wave) on branch iterator/consume-accepted-backlog-ideas; awaiting review.
+* **Review**: Reviewed [Implement a dependency-ready feature wave](/features/implement-ready-feature-wave.md); changes (agent).
+* **Implementation**: Committed feature(implement-ready-feature-wave) on branch iterator/consume-accepted-backlog-ideas; awaiting review.
+* **Review**: Reviewed [Implement a dependency-ready feature wave](/features/implement-ready-feature-wave.md); changes (agent).
+* **Implementation**: Committed feature(implement-ready-feature-wave) on branch iterator/consume-accepted-backlog-ideas; awaiting review.
+* **Review**: Reviewed [Keep the backlog available during active work](/features/always-available-backlog.md); approved (agent).
+* **Review**: Accepted [Keep the backlog available during active work](/features/always-available-backlog.md) (committed as feature(always-available-backlog)).
+* **Implementation**: Committed feature(always-available-backlog) on branch iterator/consume-accepted-backlog-ideas; awaiting review.
+* **Update**: Applied 3 feature adjustment(s).
+* **Update**: 2 feature(s) written.
+* **Creation**: 3 feature(s) written.
+* **Creation**: Plan "Keep backlog planning available and support parallel feature waves" approved on branch iterator/consume-accepted-backlog-ideas.
+* **Backlog**: select parallel-features-implement (selected).
+* **Backlog**: select idea-backlog-always-active (selected).
+* **Backlog**: edit parallel-features-implement.
+* **Backlog**: create parallel-features-implement.
+* **Backlog**: create idea-backlog-always-active.
 * **Backlog**: delete remove-elements-from-idea-backlog-when-the-plan-and-feature-is-created.
 * **Backlog**: delete idea-backlog-layout.
 * **Backlog**: delete improve-the-interaction-with-claude-code.

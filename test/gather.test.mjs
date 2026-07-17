@@ -164,6 +164,11 @@ test("gather builds the hub payload from bundle + git state", () => {
 		assert.equal(auth.status, "pending");
 		assert.deepEqual(auth.dependsOn, ["config-module"]);
 		assert.equal(auth.ready, true, "done dependency satisfies");
+		assert.deepEqual(
+			p.readyWave,
+			["auth-middleware"],
+			"hub carries the server-derived ready-wave snapshot candidates",
+		);
 		assert.deepEqual(auth.waitingOn, []);
 		assert.equal(
 			auth.hasDiff,
@@ -275,6 +280,55 @@ test("focused review favors its feature over an earlier overlapping file owner",
 		const p = gatherReview(root, { feature: "auth-middleware" });
 		assert.deepEqual(
 			p.features[0].files.map((file) => file.path),
+			["src/auth/index.ts"],
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("consolidated review rebuilds each implemented feature from its own commits", () => {
+	const root = makeFixture();
+	try {
+		const config = join(root, "memory", "features", "config-module.md");
+		writeFileSync(
+			config,
+			readFileSync(config, "utf8").replace(
+				"status: done",
+				"status: implemented",
+			),
+		);
+		const auth = join(root, "memory", "features", "auth-middleware.md");
+		writeFileSync(
+			auth,
+			readFileSync(auth, "utf8").replace(
+				"status: pending",
+				"status: implemented",
+			),
+		);
+		git(root, "add", ".");
+		git(
+			root,
+			"commit",
+			"-q",
+			"-m",
+			"feature(auth-middleware): auth\n\nFeature: auth-middleware",
+		);
+
+		const p = gatherReview(root, { feature: "all" });
+		assert.equal(p.multiReview, true);
+		assert.equal(p.source, "commits");
+		assert.deepEqual(p.reviewScope, ["config-module", "auth-middleware"]);
+		assert.deepEqual(
+			p.features.map((feature) => feature.name),
+			["config-module", "auth-middleware"],
+		);
+		assert.deepEqual(
+			p.features[0].files.map((file) => file.path),
+			["src/config.ts"],
+		);
+		assert.deepEqual(
+			p.features[1].files.map((file) => file.path),
 			["src/auth/index.ts"],
 		);
 	} finally {
@@ -444,16 +498,20 @@ test("plan-review gathers the plan sections, features, and the whole-plan diff",
 		assert.equal(p.plan.title, "Add JWT auth");
 		assert.equal(p.plan.planReviewed, null);
 		assert.ok(p.plan.goal, "goal section rides along");
-		assert.deepEqual(
-			p.features.map((f) => f.name).sort(),
-			["auth-middleware", "config-module"],
-		);
+		assert.deepEqual(p.features.map((f) => f.name).sort(), [
+			"auth-middleware",
+			"config-module",
+		]);
 		const done = p.features.find((f) => f.name === "config-module");
 		assert.ok(done.commits.length >= 1, "feature commits resolved");
 		assert.ok(p.commits.length >= 1, "ordered commit list");
 		assert.equal(p.commits[0].feature, "config-module");
 		assert.ok(p.commits[0].sha && p.commits[0].subject);
-		assert.match(p.diff, /src\/config\.ts/, "the whole-plan diff covers the feature commit");
+		assert.match(
+			p.diff,
+			/src\/config\.ts/,
+			"the whole-plan diff covers the feature commit",
+		);
 		assert.ok(!p.diff.includes("memory/"), "bundle bookkeeping excluded");
 		assert.equal(p.diffTruncated, false);
 	} finally {

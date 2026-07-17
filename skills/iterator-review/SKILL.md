@@ -1,15 +1,18 @@
 ---
 name: iterator-review
-description: Review one implemented feature from the memory/ bundle — the diff is rebuilt from the feature's feature(<slug>) commits (working tree only as fallback for uncommitted rounds), shown in the review UI in the browser (or reviewed non-interactively with --agent in auto mode); the verdict lands in the feature's Review section, and approval runs the deterministic accept-commit (status flip to done). Use when the user types /iterator-review, clicks Review on the dashboard, or wants to review a specific feature.
+description: Review one implemented feature, or all implemented features together, from the memory/ bundle — diffs are rebuilt from feature commits, shown in the browser review UI (or reviewed non-interactively with --agent), and approval runs deterministic accept-commit. Use for /iterator-review, per-feature Review, or Review all.
 ---
 
 # iterator-review
 
 The review step of the iterator flow: **plan → feature → implement → review**.
-Reviews **one feature per round** — normally the feature that was just flipped
-to `implemented` by `/iterator-implement`. Approval runs the deterministic
-accept-commit; a needs-work verdict records the notes and sends the feature
-back to implementation (its status stays `implemented`).
+Reviews **one feature per round** by default — normally the feature that was
+just flipped to `implemented` by `/iterator-implement`. **Review all** is the
+explicit exception: it combines every implemented feature's commit-backed diff
+in one selectable review while preserving per-feature verdicts. Approval runs
+the deterministic accept-commit; a needs-work verdict records the notes and
+sends the affected feature back to implementation (its status stays
+`implemented`).
 
 **pi mode:** see `<skill-dir>/../iterator/PI.md`.
 
@@ -21,7 +24,9 @@ or leave the feature implemented.
 ## When to use this skill
 
 When the user types `/iterator-review <slug>`, clicks Review on the dashboard,
-or the auto-mode driver dispatches `/skill:iterator-review <slug> --agent`.
+clicks **Review all**, or the auto-mode driver dispatches
+`/skill:iterator-review <slug> --agent`. For `--all`, gather with feature scope
+`all`; only implemented features with recorded commits belong to that scope.
 If no feature is named, gather the hub payload and pick the `implemented`
 feature; if none exists, say there is nothing to review and stop.
 
@@ -31,6 +36,8 @@ feature; if none exists, say there is nothing to review and stop.
 
 ```sh
 node <skill-dir>/../iterator/gather.mjs --step review --feature <slug>
+# consolidated dashboard action:
+node <skill-dir>/../iterator/gather.mjs --step review --feature all
 ```
 
 Do **not** diff by hand. An `implemented` or `done` feature with commits is
@@ -51,13 +58,13 @@ files whose hunks were stripped from the payload — read those with `git show`
 
 ### 2a. Human review (default): open the review UI
 
-Set `"mode": "commit"` on the payload (plus `"tests": {…}` per the feature's
+Set `"mode": "commit"` on the payload (plus `"tests": {…}` per feature's
 recorded `tests_status` when it has tests) and pipe it into
 `node <skill-dir>/../iterator/server.mjs` via a heredoc. Then process the
 result exactly like `/iterator-implement` step 5:
 
-- `accept-commit` → pipe into `write.mjs` (`op: accept-commit`, the single
-  feature, dispositions verbatim). For an already-committed feature it just
+- `accept-commit` → pipe into `write.mjs` (`op: accept-commit`, every returned
+  feature, dispositions verbatim). For already-committed features it just
   flips `status: done` and records the verdict (`accepted` in the result);
   a commit-less feature still gets the full staging + `feature(<slug>)`
   commit path. Report `accepted` / `committed`, plus `defaulted` /

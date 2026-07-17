@@ -320,6 +320,16 @@ test("planning backlog submits scoped CRUD actions and hands selected candidates
 	);
 	assert.match(
 		html,
+		/allowWhileWorking:true/,
+		"backlog CRUD stays available while the agent implements",
+	);
+	assert.match(
+		html,
+		/backlog backlog-active/,
+		"the read-only shell exempts only backlog controls",
+	);
+	assert.match(
+		html,
 		/action:'select'/,
 		"selection is persisted through the writer",
 	);
@@ -390,6 +400,15 @@ test("hub gates Implement/Review on status and renders escalation + review-plan 
 	assert.match(html, /escalation-restart/);
 	assert.match(html, /escalation-guide/);
 	assert.match(html, /Guide the agent/);
+	// The ready wave comes from the server payload and remains distinct from
+	// full auto mode (which also reviews and accepts).
+	assert.match(html, /Implement next wave/);
+	assert.match(html, /action\('implement-wave'/);
+	assert.match(html, /Implement all \(auto\)/);
+	assert.match(html, /Array\.isArray\(D\.readyWave\)/);
+	assert.match(html, /Review all/);
+	assert.match(html, /action\('review-all'/);
+	assert.match(html, /Array\.isArray\(D\.reviewWave\)/);
 	// Plan-lifecycle controls live on the Planning surface, not Work.
 	assert.doesNotMatch(html, /action\('review-plan'/);
 	assert.doesNotMatch(html, /Retires the plan/);
@@ -457,6 +476,7 @@ test("review view groups files by Declared/Tests/Incidental with pre-seeded disp
 		step: "review",
 		branch: "b",
 		mode: "commit",
+		multiReview: true,
 		hasFeaturesFile: true,
 		hasChanges: true,
 		activeFeature: "a",
@@ -489,6 +509,9 @@ test("review view groups files by Declared/Tests/Incidental with pre-seeded disp
 	assert.match(html, /leave uncommitted \(skip\)/);
 	// Dispositions are pre-seeded from the gather defaults — never undisposed.
 	assert.match(html, /file\.defaulted && file\.disposition/);
+	assert.match(html, /review all/);
+	assert.match(html, /@media\(max-width:640px\)/);
+	assert.match(html, /\.main\{flex-direction:column\}/);
 });
 
 test("planning hero goal box persists an unsent draft and clears it on plan start", async () => {

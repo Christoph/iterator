@@ -2,13 +2,13 @@
 type: State
 title: Runtime state
 description: Machine-owned iterator flow state — never hand-edited.
-mode: manual
+mode: auto
 paused: false
-phase: idle
+phase: done
 active_feature: null
-strikes: "{}"
+strikes: "{\"implement-ready-feature-wave\":2}"
 escalation: null
-timestamp: 2026-07-16T11:26:26.735Z
+timestamp: 2026-07-17T14:42:34.686Z
 ---
 
 Runtime flow state; read via gather, written only by the state op.

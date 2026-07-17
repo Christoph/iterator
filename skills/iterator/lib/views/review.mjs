@@ -154,6 +154,11 @@ button.cs{background:var(--accent);border-color:var(--accent);color:var(--accent
 .fbhint{margin-top:8px;font-size:var(--fs-xs);color:var(--text-muted)}
 .sdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:0}
 .sdot.g{background:var(--dot-green)}.sdot.r{background:var(--dot-red)}
+@media(max-width:640px){
+  .main{flex-direction:column}.sidebar{width:100%;max-height:34vh;border-right:0;border-bottom:1px solid var(--border)}
+  .detail{padding:var(--sp-3);padding-bottom:130px}.fb{width:100%;border-left:0;border-radius:0}
+  .fi{min-height:44px}.sbtns{display:flex}.sbtns .sb{min-height:44px;flex:1}
+}
 `;
 
 const BODY = `
@@ -573,9 +578,12 @@ refresh();
 
 export function render(data) {
 	const commitMode = data.mode === "commit";
+	let subtitle = "/ review";
+	if (commitMode) subtitle = "/ implement";
+	if (data.multiReview) subtitle = "/ review all";
 	return renderPage({
 		step: "review",
-		subtitle: commitMode ? "/ implement" : "/ review",
+		subtitle,
 		branch: data.branch,
 		title: data.plan,
 		data,

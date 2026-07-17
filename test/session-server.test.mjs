@@ -227,6 +227,30 @@ test("unsolicited /submit while working is rejected with 409 busy", async () => 
 	}
 });
 
+test("backlog writes remain available while an agent is working", async () => {
+	let unsolicited = null;
+	const { session, origin } = await startSession({
+		onUnsolicited: (r) => (unsolicited = r),
+	});
+	try {
+		session.showView({ step: "planning", render: () => viewHtml("PLANNING") });
+		session.showWorking("Auto: implementing…");
+		const res = await fetch(`${origin}/submit?r=${srvMod.RUN_ID}`, {
+			method: "POST",
+			body: '{"type":"backlog","action":"create","title":"Next idea"}',
+		});
+		assert.equal(res.status, 200);
+		await sleep(20);
+		assert.deepEqual(unsolicited, {
+			type: "backlog",
+			action: "create",
+			title: "Next idea",
+		});
+	} finally {
+		await session.stop();
+	}
+});
+
 test("showWorking accepts a structured payload and replays it to new SSE clients", async () => {
 	const { session, origin } = await startSession();
 	try {
@@ -261,7 +285,11 @@ test("pushActivity keeps the last two lines newest-first and replays them", asyn
 		const sse = await firstSseEvent(origin);
 		assert.equal(sse.event, "working");
 		assert.deepEqual(sse.data.activity, ["third", "second"]);
-		assert.equal(sse.data.text, "Auto: implement auth…", "the step header survives");
+		assert.equal(
+			sse.data.text,
+			"Auto: implement auth…",
+			"the step header survives",
+		);
 	} finally {
 		await session.stop();
 	}

@@ -229,6 +229,23 @@ where the accept decision happens.
   commits (and any uncommitted rework) remain for the user to inspect —
   `status: done` is never set without an accept.
 
+## Ready-wave dashboard action
+
+The Work dashboard's **Implement next wave** action snapshots every pending
+feature reported dependency-ready by gather at click time, then dispatches one
+`/skill:iterator-implement <feature> --auto` turn for each snapshot member.
+Each turn still implements and commits exactly one named feature under this
+skill's normal quality gates. Features unblocked later do not join the running
+wave. Failed rounds are reported per feature and do not prevent the remaining
+snapshot members from running. Pausing requeues the interrupted feature;
+Continue waits for the aborted turn's lifecycle to finish, then retries it
+before advancing the snapshot. The wave stops with
+successful features at `implemented`; it never opens, accepts, or substitutes
+for review.
+
+This is distinct from **Implement all (auto)**, whose driver performs the full
+test → implement → agent-review loop across the plan.
+
 ## Auto mode (`--auto`)
 
 When invoked as `/skill:iterator-implement <feature> --auto` (dispatched by
