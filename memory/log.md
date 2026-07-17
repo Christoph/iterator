@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-17
+* **Review**: Accepted [Keep the idea backlog editable during agent work](/features/always-available-backlog.md) (committed as feature(always-available-backlog)).
 * **Implementation**: Committed feature(always-available-backlog) on branch iterator/always-available-backlog; awaiting review.
 * **Review**: Reviewed [Keep the idea backlog editable during agent work](/features/always-available-backlog.md); changes (agent).
 * Reconciled pre-existing implementation commit for duplicate feature.
