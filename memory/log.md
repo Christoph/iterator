@@ -1,6 +1,9 @@
 # iterator update log
 
 ## 2026-07-17
+* **Memorize**: Set last_memorized_commit to c5b75e3e4b03.
+* **Update**: Memorized [Explicit cancel must pre-empt pagehide grace](/pitfalls/cancel-now-after-grace-timer.md).
+* **Update**: Memorized [Browser server contract](/architecture/browser-server-contract.md).
 * **Retirement**: Plan "Keep active review stable and clarify Planning versus Work" condensed into [Review navigation and Work context](/decisions/review-navigation-and-work-context.md).
 * **Plan review**: Whole-plan review recorded (agent).
 * **Review**: Reviewed [Keep review controls fully readable](/features/streamline-review-interface.md); approved (agent).
