@@ -2,12 +2,12 @@
 type: Feature
 title: Onboard plan-less projects
 description: Ensure Planning always offers a working goal, plan, and memory-initialization path in a new project.
-status: pending
+status: implemented
 size: medium
 depends_on: []
 files: ["lib/views/planning.mjs", "lib/pi-tools.mjs", "extensions/iterator.js", "test/ui.test.mjs", "test/pi-tools.test.mjs"]
 memories: [architecture/package-and-skill-layout, architecture/workflow-state-ownership, decisions/backlog-planning-and-feature-waves, decisions/consume-accepted-backlog-ideas, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows]
-timestamp: "2026-07-18T06:54:30.534Z"
+timestamp: "2026-07-18T07:32:00.167Z"
 tags: []
 ---
 

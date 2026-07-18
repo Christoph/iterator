@@ -315,11 +315,12 @@ export default function iteratorExtension(pi) {
 	};
 
 	/** Refresh the idle dashboard tabs (no pending round). */
-	const refreshHub = async (cwd) => {
+	const refreshHub = async (cwd, { preferPlanning = false } = {}) => {
 		if (!session || !session.isRunning() || session.hasPending()) return;
 		try {
-			// Inactive tabs first: their refreshes are stored silently, so the
-			// hub view stays what the user ends up watching.
+			// Inactive tabs first: their refreshes are stored silently. On first
+			// startup only, a plan-less project deliberately lands on Planning so
+			// the goal and initialization controls are the first useful surface.
 			const knowledge = await gatherPayload(cwd, "knowledge");
 			session.showView({
 				step: "knowledge",
@@ -328,11 +329,13 @@ export default function iteratorExtension(pi) {
 			const usage = await gatherPayload(cwd, "usage");
 			session.showView({ step: "usage", render: () => VIEWS.usage(usage) });
 			const { hub } = await gatherSession(cwd);
+			const landOnPlanning = preferPlanning && !hub.plan;
 			// Planning renders from the same snapshot as the hub — the two
 			// surfaces can never disagree about state.
 			session.showView({
 				step: "planning",
 				render: () => VIEWS.planning({ ...hub, step: "planning" }),
+				activate: landOnPlanning,
 			});
 			session.showView({ step: "hub", render: () => VIEWS.hub(hub) });
 			await pushStatus(cwd);
@@ -1540,8 +1543,8 @@ export default function iteratorExtension(pi) {
 
 	// ---------------------------------------------------------------------
 	// Session lifecycle: dashboard up for every project, down with pi. A
-	// bundle-less project renders the hub's Create-plan hero rather than an
-	// empty Work tab.
+	// plan-less project lands on Planning's goal/init hero rather than an empty
+	// Work tab.
 
 	pi.on("session_start", async (_event, ctx) => {
 		rememberCtx(ctx);
@@ -1563,7 +1566,7 @@ export default function iteratorExtension(pi) {
 						"info",
 					);
 			}
-			await refreshHub(ctx.cwd);
+			await refreshHub(ctx.cwd, { preferPlanning: true });
 		} catch (e) {
 			if (ctx.hasUI)
 				ctx.ui.notify(

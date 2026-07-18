@@ -295,6 +295,39 @@ test("semantic fg/bg pairs meet AA contrast (4.5:1) in both themes", () => {
 	}
 });
 
+test("plan-less Planning exposes init and plan actions without losing the goal", async () => {
+	const { render: planning } = await import("../lib/views/planning.mjs");
+	const html = planning({
+		step: "planning",
+		branch: "main",
+		plan: null,
+		progress: { done: 0, total: 0 },
+		knowledgeInitialized: false,
+		dirty: { count: 0, files: [] },
+		features: [],
+		retired: [],
+		backlog: [],
+		files: ["src/main.ts"],
+	});
+	assert.match(html, /No plan yet/);
+	assert.match(html, /Initialize memory/);
+	assert.match(html, /Create plan/);
+	assert.match(html, /action:'iterator-init'/);
+	assert.match(html, /action:'plan'/);
+	assert.match(html, /prompt: goal\.value\.trim\(\) \|\| null/);
+	assert.match(html, /PLAN_DRAFT_KEY/);
+	assert.match(html, /if\(D\.plan\) clearPlanDraft\(\)/);
+	const initHandler = html.slice(
+		html.indexOf("init.addEventListener"),
+		html.indexOf("b.addEventListener"),
+	);
+	assert.doesNotMatch(
+		initHandler,
+		/clearPlanDraft/,
+		"initialization keeps the goal until a plan actually exists",
+	);
+});
+
 test("planning backlog submits scoped CRUD actions and hands selected candidates to planning", async () => {
 	const { render: planning } = await import("../lib/views/planning.mjs");
 	const html = planning({
@@ -545,10 +578,12 @@ test("planning hero goal box persists an unsent draft and clears it on plan star
 	// Draft restore + save wiring lives in the view (the Work iframe is
 	// recreated on every tab switch, so the value must survive in storage).
 	assert.match(html, /iterator:plan-goal-draft/);
-	assert.match(html, /localStorage\.getItem\(DRAFT_KEY\)/);
+	assert.match(html, /localStorage\.getItem\(PLAN_DRAFT_KEY\)/);
 	assert.match(html, /goal\.addEventListener\('input', saveDraft\)/);
-	// Clearing happens only once the plan/init action was actually accepted.
-	assert.match(html, /if\(__submitted\) clearDraft\(\)/);
+	// Direct planning clears on accepted submit; initialization retains the goal
+	// until the continued plan actually appears.
+	assert.match(html, /if\(__submitted\) clearPlanDraft\(\)/);
+	assert.match(html, /if\(D\.plan\) clearPlanDraft\(\)/);
 	// The larger input within the saved design parameters.
 	assert.match(html, /textarea\.goal\{[^}]*min-height:132px/);
 });

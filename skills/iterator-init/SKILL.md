@@ -54,3 +54,10 @@ contract notes beyond the standard boilerplate.
 Report created/accepted/rejected counts from `applied` (`applied.summary` is
 a ready-made line) and mention that `memory/EXTENSIONS.md` was created for
 other extensions.
+
+When the invocation carries the Planning hero's continuation instruction and
+saved goal (`when initialization finishes, continue into /skill:iterator-plan
+— <goal>`), continue immediately into `/iterator-plan` with that exact goal
+after successful initialization. Do not ask for the goal again. A cancelled,
+timed-out, or failed initialization never continues; the Planning browser
+retains the draft so the user can retry.

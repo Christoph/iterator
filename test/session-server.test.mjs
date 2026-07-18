@@ -486,6 +486,28 @@ test("stop() resolves a pending round, frees the port, and removes the registry 
 	);
 });
 
+test("showView can intentionally activate Planning for the startup landing page", async () => {
+	const { session, origin } = await startSession();
+	try {
+		session.showView({
+			step: "planning",
+			render: () => viewHtml("PLANLESS-PLANNING"),
+			activate: true,
+		});
+		const sse = await firstSseEvent(origin);
+		assert.equal(sse.event, "view");
+		assert.equal(sse.data.tab, "planning");
+		assert.ok(
+			(await (await fetch(origin + "/view?tab=planning")).text()).includes(
+				"PLANLESS-PLANNING",
+			),
+		);
+		assert.ok((await (await fetch(origin + "/")).text()).includes('let tab = "planning"'));
+	} finally {
+		await session.stop();
+	}
+});
+
 test("tabs: steps render into their tab; inactive-tab refreshes are stored silently", async () => {
 	const { session, origin } = await startSession();
 	try {
