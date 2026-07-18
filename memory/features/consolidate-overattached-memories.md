@@ -2,12 +2,12 @@
 type: Feature
 title: Consolidate over-attached memories
 description: Have knowledge consolidation identify stale, duplicate, and disproportionately attached concepts before proposing reviewed repairs.
-status: pending
+status: implemented
 size: medium
 depends_on: [bound-feature-memories]
 files: ["lib/gather.mjs", "skills/iterator-consolidate/SKILL.md", "test/gather.test.mjs"]
 memories: [architecture/knowledge-lifecycle, architecture/workflow-state-ownership, patterns/agent-reviewed-memory-writes, decisions/backlog-planning-and-feature-waves, decisions/iterator-dashboard-feature-workflow, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows]
-timestamp: "2026-07-18T06:54:30.534Z"
+timestamp: "2026-07-18T07:02:50.549Z"
 tags: []
 ---
 

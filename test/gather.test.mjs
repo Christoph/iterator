@@ -797,6 +797,43 @@ test("gather knowledge reports areas, concepts, staleness, and the design card",
 	}
 });
 
+test("gather knowledge reports feature memory pressure and dangling references", () => {
+	const root = makeKnowledgeFixture();
+	try {
+		mkdirSync(join(root, "memory", "patterns"), { recursive: true });
+		for (let i = 0; i < 9; i += 1) {
+			writeFileSync(
+				join(root, "memory", "patterns", `auth-${i}.md`),
+				`---\ntype: Pattern\ntitle: Auth ${i}\ndescription: d\nfiles: ["src/auth/*.ts"]\n---\nbody\n`,
+			);
+		}
+		writeFileSync(
+			join(root, "memory", "features", "auth-middleware.md"),
+			'---\ntype: Feature\ntitle: Auth middleware\ndescription: JWT middleware\nstatus: pending\ndepends_on: [config-module]\nfiles: ["src/auth/*.ts"]\nmemories: [patterns/auth-0, patterns/missing]\n---\n',
+		);
+
+		const payload = gatherKnowledge(root);
+		assert.equal(payload.memory.overloadedFeatureCount, 1);
+		assert.equal(payload.memory.danglingReferenceCount, 1);
+		assert.deepEqual(payload.consolidation.danglingReferences, [
+			{ feature: "auth-middleware", id: "patterns/missing" },
+		]);
+		const usage = payload.consolidation.overloadedFeatures[0];
+		assert.equal(usage.feature, "auth-middleware");
+		assert.equal(usage.candidateCount, 9);
+		assert.equal(usage.overLimit, true);
+		assert.equal(payload.consolidation.overlapCandidates.length, 1);
+		assert.equal(payload.consolidation.overlapCandidates[0].memories.length, 9);
+		const auth0 = payload.memories.find((memory) => memory.id === "patterns/auth-0");
+		assert.deepEqual(auth0.referencedByFeatures, ["auth-middleware"]);
+		assert.deepEqual(auth0.matchedByFeatures, ["auth-middleware"]);
+		assert.match(payload.advice, /dangling feature reference/);
+		assert.match(payload.advice, /over-limit feature/);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("gather knowledge flags a stale format.md and an uninitialized bundle", () => {
 	const root = makeKnowledgeFixture();
 	try {
