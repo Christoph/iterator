@@ -1892,6 +1892,13 @@ export function gatherRetire(startDir) {
 		files: listy(c.fm.files),
 		review: c.sections["Review"] || "",
 	}));
+	const memorizeEnabled = b.settings.memorize_on_retire === "on";
+	const memorizeRange = memorizeEnabled ? gatherRange(b.root) : null;
+	const memorizeRequired =
+		memorizeEnabled &&
+		(!memorizeRange.initialized ||
+			!memorizeRange.effectiveBase ||
+			memorizeRange.commitCount > 0);
 	return {
 		step: "retire",
 		branch: b.branch,
@@ -1908,6 +1915,11 @@ export function gatherRetire(startDir) {
 		// The default `files:` anchor set for the condensed decision concept.
 		filesUnion: [...new Set(feats.flatMap((f) => f.files))],
 		allDone: feats.length > 0 && feats.every((f) => f.status === "done"),
+		memorize: {
+			enabled: memorizeEnabled,
+			required: memorizeRequired,
+			range: memorizeRange,
+		},
 	};
 }
 

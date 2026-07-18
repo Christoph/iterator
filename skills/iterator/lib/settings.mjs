@@ -162,6 +162,13 @@ export const SETTINGS_DEFS = {
 		label: "Retire prompt",
 		help: "Offer retiring the plan once every feature is done.",
 	},
+	memorize_on_retire: {
+		kind: "enum",
+		values: ["on", "off"],
+		default: "off",
+		label: "Memorize on retire",
+		help: "Before retirement, require a reviewed /iterator-memorize pass over every commit since last_memorized_commit. Off keeps the current direct retirement flow.",
+	},
 };
 
 export const SETTINGS_KEYS = Object.keys(SETTINGS_DEFS);

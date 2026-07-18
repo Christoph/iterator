@@ -12,7 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve as resolvePath } from "node:path";
 import { applyOp, topoSort, setFmKeys } from "../lib/write.mjs";
-import { frontmatter, gather } from "../lib/gather.mjs";
+import { frontmatter, gather, gatherRetire } from "../lib/gather.mjs";
 import { backlogItems } from "../lib/bundle.mjs";
 
 process.env.ITERATOR_NOW = "2026-07-06T12:00:00Z";
@@ -1613,6 +1613,63 @@ test("refresh-format copies the current template over the bundle copy", () => {
 // ---------------------------------------------------------------------------
 // op: retire-plan
 
+test("retire-plan requires reviewed memorization only when enabled", () => {
+	const root = makeRepo();
+	try {
+		writeFileSync(join(root, ".keep"), "base\n");
+		git(root, "add", ".keep");
+		git(root, "commit", "-qm", "base");
+		const base = git(root, "rev-parse", "HEAD");
+		applyOp(
+			{
+				op: "settings",
+				values: { branch_per_plan: "off", memorize_on_retire: "on" },
+			},
+			root,
+		);
+		applyOp(PLAN_OP, root);
+		applyOp(FEATURES_OP, root);
+		applyOp({ op: "memorize", advanceTo: base }, root);
+		mkdirSync(join(root, "src"), { recursive: true });
+		writeFileSync(join(root, "src", "auth.ts"), "export const auth = true;\n");
+		git(root, "add", "src/auth.ts");
+		git(root, "commit", "-qm", "feature: auth");
+
+		const before = gatherRetire(root);
+		assert.equal(before.memorize.enabled, true);
+		assert.equal(before.memorize.required, true);
+		assert.equal(before.memorize.range.commitCount, 1);
+		assert.throws(
+			() =>
+				applyOp(
+					{
+						op: "retire-plan",
+						force: true,
+						concept: { slug: "jwt", title: "JWT", description: "d", body: "b" },
+					},
+					root,
+				),
+			/requires reviewing 1 unmemorized commit/,
+		);
+
+		// Simulate the approved /iterator-memorize review advancing to its
+		// reviewed head. Only then may retirement proceed.
+		applyOp({ op: "memorize", advanceTo: "HEAD" }, root);
+		assert.equal(gatherRetire(root).memorize.required, false);
+		const retired = applyOp(
+			{
+				op: "retire-plan",
+				force: true,
+				concept: { slug: "jwt", title: "JWT", description: "d", body: "b" },
+			},
+			root,
+		);
+		assert.equal(retired.concept, "decisions/jwt");
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("retire-plan condenses a finished plan into a decision and archives the work", () => {
 	const root = makeRepo();
 	try {
@@ -2717,8 +2774,9 @@ test("features op caps the stored anchor-matched memory list", () => {
 			},
 			root,
 		);
-		const memories = frontmatter(read(root, "features", "auth-middleware.md"))
-			.memories;
+		const memories = frontmatter(
+			read(root, "features", "auth-middleware.md"),
+		).memories;
 		assert.equal(memories.length, 8);
 		assert.deepEqual(
 			memories,

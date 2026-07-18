@@ -2,12 +2,12 @@
 type: Feature
 title: Memorize retired plan commits
 description: "Optionally route a completed plan's commits through the existing knowledge lifecycle when it is retired."
-status: pending
+status: implemented
 size: large
 depends_on: []
 files: ["lib/settings.mjs", "lib/gather.mjs", "lib/write.mjs", "skills/iterator/SKILL.md", "test/settings.test.mjs", "test/write.test.mjs"]
 memories: [architecture/workflow-state-ownership, decisions/backlog-planning-and-feature-waves, decisions/consume-accepted-backlog-ideas, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows]
-timestamp: "2026-07-18T06:54:30.534Z"
+timestamp: "2026-07-18T07:09:22.130Z"
 tags: []
 ---
 

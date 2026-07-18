@@ -1,6 +1,8 @@
 # iterator update log
 
 ## 2026-07-18
+* **Implementation**: Committed feature(memorize-on-retirement) on branch iterator/always-available-backlog; awaiting review.
+* **Review**: Reviewed [Consolidate over-attached memories](/features/consolidate-overattached-memories.md); approved (agent).
 * **Review**: Accepted [Consolidate over-attached memories](/features/consolidate-overattached-memories.md) (committed as feature(consolidate-overattached-memories)).
 * **Implementation**: Committed feature(consolidate-overattached-memories) on branch iterator/always-available-backlog; awaiting review.
 * **Review**: Reviewed [Bound feature memory context](/features/bound-feature-memories.md); approved (agent).

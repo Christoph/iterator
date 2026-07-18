@@ -17,6 +17,7 @@ test("settingsDefaults covers every defined key", () => {
 	assert.equal(d.branch_per_plan, "on");
 	assert.equal(d.max_review_iterations, 3);
 	assert.equal(d.reviewer_model, "active");
+	assert.equal(d.memorize_on_retire, "off");
 });
 
 test("validateSettings accepts valid entries and rejects unknown/invalid ones", () => {
@@ -24,12 +25,14 @@ test("validateSettings accepts valid entries and rejects unknown/invalid ones", 
 		auto_mode: "on",
 		max_review_iterations: "5",
 		reviewer_model: "anthropic/claude-opus-4-8",
+		memorize_on_retire: "on",
 	});
 	assert.equal(ok.ok, true);
 	assert.deepEqual(ok.values, {
 		auto_mode: "on",
 		max_review_iterations: 5,
 		reviewer_model: "anthropic/claude-opus-4-8",
+		memorize_on_retire: "on",
 	});
 
 	const bad = validateSettings({

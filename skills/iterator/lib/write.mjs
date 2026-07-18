@@ -70,6 +70,7 @@ import {
 	resolve,
 } from "node:path";
 import {
+	gatherRange,
 	gatherReview,
 	loadBundle,
 	loadConcepts,
@@ -2621,6 +2622,19 @@ function retirePlan(payload, root) {
 		fail(
 			`retire-plan: features not done: ${notDone.join(", ")} (pass force:true to retire anyway)`,
 		);
+	}
+	if (b.settings.memorize_on_retire === "on") {
+		const range = gatherRange(b.root);
+		if (!range.initialized || !range.effectiveBase) {
+			fail(
+				`retire-plan: memorize_on_retire is on but the memory pointer is not ready — ${range.advice}`,
+			);
+		}
+		if (range.commitCount > 0) {
+			fail(
+				`retire-plan: memorize_on_retire requires reviewing ${range.commitCount} unmemorized commit(s) through /iterator-memorize before retirement`,
+			);
+		}
 	}
 
 	// 1. The condensed decision concept, through the memorize machinery
