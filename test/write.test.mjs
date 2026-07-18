@@ -2693,6 +2693,42 @@ test("features op stores writer-computed memories and model-flagged conflicts", 
 	}
 });
 
+test("features op caps the stored anchor-matched memory list", () => {
+	const root = makeRepo();
+	try {
+		applyOp(PLAN_OP, root);
+		mkdirSync(join(root, "memory", "patterns"), { recursive: true });
+		for (let i = 0; i < 9; i += 1) {
+			writeFileSync(
+				join(root, "memory", "patterns", `memory-${i}.md`),
+				`---\ntype: Pattern\ntitle: Memory ${i}\ndescription: d\nfiles: ["src/auth/*.ts"]\n---\nbody\n`,
+			);
+		}
+		applyOp(
+			{
+				op: "features",
+				features: [
+					{
+						name: "auth-middleware",
+						description: "JWT middleware",
+						files: ["src/auth/*.ts"],
+					},
+				],
+			},
+			root,
+		);
+		const memories = frontmatter(read(root, "features", "auth-middleware.md"))
+			.memories;
+		assert.equal(memories.length, 8);
+		assert.deepEqual(
+			memories,
+			Array.from({ length: 8 }, (_, i) => `patterns/memory-${i}`),
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("usage op merges increment rows into per-step × model aggregates", () => {
 	const root = makeRepo();
 	try {

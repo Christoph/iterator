@@ -304,19 +304,42 @@ const AREA_PRIORITY = [
 ];
 const MAX_RELEVANT_MEMORIES = 8;
 
+const areaRank = (area) => {
+	const rank = AREA_PRIORITY.indexOf(area);
+	return rank === -1 ? AREA_PRIORITY.length : rank;
+};
+
+/**
+ * Rank the complete implementation-reading set. Stored feature references are
+ * a snapshot from feature slicing; fresh anchor matches can add newer context.
+ * Both sources share one cap so a feature never grows an unbounded contract.
+ */
+function rankedMemories(concepts, fileGlobs, storedIds = []) {
+	const byId = new Map();
+	for (const concept of matchConcepts(concepts, fileGlobs)) {
+		byId.set(concept.id, { ...concept, stored: false });
+	}
+	for (const id of storedIds) {
+		const concept = concepts.find((candidate) => candidate.id === id);
+		if (!concept) continue;
+		const existing = byId.get(id);
+		byId.set(id, { ...concept, ...existing, stored: true });
+	}
+	return [...byId.values()]
+		.sort(
+			(a, b) =>
+				areaRank(a.area) - areaRank(b.area) ||
+				Number(b.stored) - Number(a.stored) ||
+				a.id.localeCompare(b.id),
+		)
+		.slice(0, MAX_RELEVANT_MEMORIES);
+}
+
 /** The concepts an implementer should read before touching these files. */
 export function relevantMemories(concepts, fileGlobs) {
-	return matchConcepts(concepts, fileGlobs)
-		.sort(
-			(a, b) => AREA_PRIORITY.indexOf(a.area) - AREA_PRIORITY.indexOf(b.area),
-		)
-		.slice(0, MAX_RELEVANT_MEMORIES)
-		.map(({ id, title, description, path }) => ({
-			id,
-			title,
-			description,
-			path,
-		}));
+	return rankedMemories(concepts, fileGlobs).map(
+		({ id, title, description, path }) => ({ id, title, description, path }),
+	);
 }
 
 // ---------------------------------------------------------------------------
@@ -568,23 +591,20 @@ function memoryBody(path) {
 }
 
 function unionMemories(c, concepts) {
-	const dynamic = relevantMemories(concepts, listy(c.fm.files));
-	const byId = new Map();
-	for (const id of listy(c.fm.memories)) {
-		const m = concepts.find((x) => x.id === id);
-		if (m) {
-			byId.set(id, {
-				id,
-				title: m.title,
-				description: m.description,
-				path: m.path,
-			});
-		}
-	}
-	for (const m of dynamic) if (!byId.has(m.id)) byId.set(m.id, m);
+	const memories = rankedMemories(
+		concepts,
+		listy(c.fm.files),
+		listy(c.fm.memories),
+	);
 	// Inline the stripped body so the implementer reads knowledge straight from
 	// the contract instead of round-tripping Read calls over raw files.
-	return [...byId.values()].map((m) => ({ ...m, body: memoryBody(m.path) }));
+	return memories.map(({ id, title, description, path }) => ({
+		id,
+		title,
+		description,
+		path,
+		body: memoryBody(path),
+	}));
 }
 
 export function gatherImplement(startDir) {

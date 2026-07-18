@@ -889,6 +889,48 @@ test("implement contracts carry relevantMemories anchored to each feature, pitfa
 	}
 });
 
+test("implement contracts cap stored and fresh memories together", () => {
+	const root = makeKnowledgeFixture();
+	try {
+		mkdirSync(join(root, "memory", "architecture"), { recursive: true });
+		mkdirSync(join(root, "memory", "decisions"), { recursive: true });
+		writeFileSync(
+			join(root, "memory", "architecture", "auth-shape.md"),
+			'---\ntype: Architecture\ntitle: Auth shape\ndescription: d\nfiles: ["src/auth/*.ts"]\n---\nbody\n',
+		);
+		writeFileSync(
+			join(root, "memory", "pitfalls", "auth-sharp-edge.md"),
+			'---\ntype: Pitfall\ntitle: Auth sharp edge\ndescription: d\nfiles: ["src/auth/*.ts"]\n---\nbody\n',
+		);
+		const stored = Array.from({ length: 8 }, (_, i) => `decisions/direct-${i}`);
+		for (const id of stored) {
+			const slug = id.split("/")[1];
+			writeFileSync(
+				join(root, "memory", "decisions", `${slug}.md`),
+				`---\ntype: Decision\ntitle: ${slug}\ndescription: d\n---\nbody\n`,
+			);
+		}
+		writeFileSync(
+			join(root, "memory", "features", "auth-middleware.md"),
+			`---\ntype: Feature\ntitle: Auth middleware\ndescription: JWT middleware\nstatus: pending\ndepends_on: [config-module]\nfiles: ["src/auth/*.ts"]\nmemories: [${stored.join(", ")}]\n---\n`,
+		);
+
+		const memories = gatherImplement(root).next.relevantMemories;
+		assert.equal(memories.length, 8, "the final contract is capped");
+		assert.deepEqual(
+			memories.map((memory) => memory.id),
+			[
+				"pitfalls/auth-sharp-edge",
+				"architecture/auth-shape",
+				...stored.slice(0, 6),
+			],
+			"area priority wins, then stored references break ties deterministically",
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("feature payload lists architecture concepts with their anchors", () => {
 	const root = makeKnowledgeFixture();
 	try {
