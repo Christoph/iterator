@@ -200,7 +200,7 @@ test("unsolicited /submit while working is rejected with 409 busy", async () => 
 	});
 	try {
 		session.showView({ step: "hub", render: () => viewHtml("HUB") });
-		session.showWorking("Auto: implementing…");
+		const owner = session.showWorking("Auto: implementing…");
 		const res = await fetch(`${origin}/submit?r=${srvMod.RUN_ID}`, {
 			method: "POST",
 			body: '{"type":"action","action":"implement","feature":"auth"}',
@@ -209,8 +209,15 @@ test("unsolicited /submit while working is rejected with 409 busy", async () => 
 		assert.deepEqual(await res.json(), { busy: true });
 		await sleep(20);
 		assert.equal(unsolicited, null, "busy dashboard must not dispatch");
-		// A fresh view clears the working state; the same click now dispatches.
+		// An idle refresh updates underneath the overlay but cannot unblock Work.
 		session.showView({ step: "hub", render: () => viewHtml("HUB2") });
+		assert.equal(session.isWorking(), true);
+		const stillBlocked = await fetch(`${origin}/submit?r=${srvMod.RUN_ID}`, {
+			method: "POST",
+			body: '{"type":"action","action":"implement","feature":"auth"}',
+		});
+		assert.equal(stillBlocked.status, 409);
+		assert.equal(session.clearWorking(owner), true);
 		const ok = await fetch(`${origin}/submit?r=${srvMod.RUN_ID}`, {
 			method: "POST",
 			body: '{"type":"action","action":"implement","feature":"auth"}',
@@ -272,12 +279,37 @@ test("showWorking accepts a structured payload and replays it to new SSE clients
 			progress: { done: 1, total: 3 },
 			activity: ["Reading lib/status.mjs…"],
 		});
+		session.showView({ step: "hub", render: () => viewHtml("LATEST HUB") });
 		const sse = await firstSseEvent(origin);
 		assert.equal(sse.event, "working");
 		assert.equal(sse.data.step, "implement");
 		assert.equal(sse.data.feature, "auth");
 		assert.deepEqual(sse.data.progress, { done: 1, total: 3 });
 		assert.equal(sse.data.activity[0], "Reading lib/status.mjs…");
+		assert.match(
+			await (await fetch(`${origin}/view?tab=work`)).text(),
+			/LATEST HUB/,
+			"the newest view waits underneath the replayed overlay",
+		);
+	} finally {
+		await session.stop();
+	}
+});
+
+test("a stale work owner cannot clear a newer agent overlay", async () => {
+	const { session, origin } = await startSession();
+	try {
+		const first = session.showWorking({ text: "first agent", feature: "a" });
+		assert.equal(session.ensureWorking(), first, "the active agent keeps its claim");
+		const second = session.showWorking({ text: "second agent", feature: "b" });
+		assert.notEqual(second, first);
+		assert.equal(session.clearWorking(first), false);
+		assert.equal(session.isWorking(), true);
+		const sse = await firstSseEvent(origin);
+		assert.equal(sse.event, "working");
+		assert.equal(sse.data.feature, "b");
+		assert.equal(session.clearWorking(second), true);
+		assert.equal(session.isWorking(), false);
 	} finally {
 		await session.stop();
 	}

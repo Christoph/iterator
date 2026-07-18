@@ -7,7 +7,7 @@ size: large
 depends_on: []
 files: ["lib/gather.mjs", "lib/write.mjs", "lib/views/usage.mjs", "extensions/iterator.js", "test/write.test.mjs", "test/settings.test.mjs"]
 memories: [architecture/package-and-skill-layout, architecture/workflow-state-ownership, decisions/backlog-planning-and-feature-waves, decisions/consume-accepted-backlog-ideas, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows]
-timestamp: "2026-07-18T07:48:46.110Z"
+timestamp: "2026-07-18T07:48:51.746Z"
 tags: []
 tests_status: green
 commits:
@@ -15,6 +15,7 @@ commits:
     kind: implement
     date: 2026-07-18
 done: 2026-07-18
+reviewed: 2026-07-18
 ---
 
 # Implementation notes
@@ -38,3 +39,8 @@ totals.steps[step][model] = addUsage(totals.steps[step][model] || {}, norm);
 # Blast radius
 
 Usage persistence, payloads, dashboard submission handling, and archived ledgers must agree on rates and computed USD costs.
+
+# Review
+
+## 2026-07-18
+* **Approved** _(agent review: openai-codex/gpt-5.6-sol)_ — Validated project-owned rates, complete-only cost rollups, editable Usage controls, and archived-ledger output are consistent and covered by passing tests.

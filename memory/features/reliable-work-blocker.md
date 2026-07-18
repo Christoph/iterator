@@ -2,12 +2,12 @@
 type: Feature
 title: Keep Work blocked while agents run
 description: Make the Work overlay accurately follow an active agent through dispatch, navigation, reconnects, and cleanup.
-status: pending
+status: implemented
 size: medium
 depends_on: []
 files: ["lib/session-server.mjs", "extensions/iterator.js", "test/session-server.test.mjs"]
 memories: [pitfalls/cancel-now-after-grace-timer, architecture/browser-server-contract, architecture/package-and-skill-layout, decisions/backlog-planning-and-feature-waves, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows]
-timestamp: "2026-07-18T06:54:30.534Z"
+timestamp: "2026-07-18T07:54:05.078Z"
 tags: []
 ---
 
