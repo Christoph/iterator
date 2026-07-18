@@ -4,5 +4,5 @@
 * [Consolidate over-attached memories](consolidate-overattached-memories.md) - ✅ done · medium · depends: bound-feature-memories · Have knowledge consolidation identify stale, duplicate, and disproportionately attached concepts before proposing reviewed repairs.
 * [Memorize retired plan commits](memorize-on-retirement.md) - ✅ done · large · Optionally route a completed plan's commits through the existing knowledge lifecycle when it is retired.
 * [Onboard plan-less projects](onboard-planless-projects.md) - ✅ done · medium · Ensure Planning always offers a working goal, plan, and memory-initialization path in a new project.
-* [Price model usage](price-model-usage.md) - ⬜ pending · 🟢 tests green · large · Let projects optionally configure token prices per model and show calculated row and aggregate costs in Usage.
+* [Price model usage](price-model-usage.md) - ✅ done · 🟢 tests green · large · Let projects optionally configure token prices per model and show calculated row and aggregate costs in Usage.
 * [Keep Work blocked while agents run](reliable-work-blocker.md) - ⬜ pending · medium · Make the Work overlay accurately follow an active agent through dispatch, navigation, reconnects, and cleanup.
