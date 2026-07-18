@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-18
+* **Review**: Accepted [Memorize retired plan commits](/features/memorize-on-retirement.md) (committed as feature(memorize-on-retirement)).
 * **Implementation**: Committed feature(memorize-on-retirement) on branch iterator/always-available-backlog; awaiting review.
 * **Review**: Reviewed [Consolidate over-attached memories](/features/consolidate-overattached-memories.md); approved (agent).
 * **Review**: Accepted [Consolidate over-attached memories](/features/consolidate-overattached-memories.md) (committed as feature(consolidate-overattached-memories)).

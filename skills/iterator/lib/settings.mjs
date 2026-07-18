@@ -203,14 +203,18 @@ export function validateSettings(partial) {
 		} else if (def.kind === "int") {
 			const n = Number(raw);
 			if (!Number.isInteger(n) || n < def.min || n > def.max) {
-				errors.push(`${key}: '${raw}' must be an integer in [${def.min}, ${def.max}]`);
+				errors.push(
+					`${key}: '${raw}' must be an integer in [${def.min}, ${def.max}]`,
+				);
 				continue;
 			}
 			values[key] = n;
 		} else if (def.kind === "model") {
 			const s = String(raw).trim();
 			if (!s || /\s/.test(s)) {
-				errors.push(`${key}: '${raw}' must be 'active' or '<provider>/<model-id>'`);
+				errors.push(
+					`${key}: '${raw}' must be 'active' or '<provider>/<model-id>'`,
+				);
 				continue;
 			}
 			values[key] = s;
