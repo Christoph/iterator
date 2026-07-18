@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-18
+* **Review**: Accepted [Consolidate over-attached memories](/features/consolidate-overattached-memories.md) (committed as feature(consolidate-overattached-memories)).
 * **Implementation**: Committed feature(consolidate-overattached-memories) on branch iterator/always-available-backlog; awaiting review.
 * **Review**: Reviewed [Bound feature memory context](/features/bound-feature-memories.md); approved (agent).
 * **Review**: Accepted [Bound feature memory context](/features/bound-feature-memories.md) (committed as feature(bound-feature-memories)).

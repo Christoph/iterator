@@ -1059,7 +1059,9 @@ export function gatherKnowledge(startDir) {
 		const files = listy(feature.fm.files);
 		const stored = listy(feature.fm.memories);
 		const matched = matchConcepts(memories, files).map((memory) => memory.id);
-		const candidates = [...new Set([...stored.filter((id) => conceptIds.has(id)), ...matched])];
+		const candidates = [
+			...new Set([...stored.filter((id) => conceptIds.has(id)), ...matched]),
+		];
 		const dangling = stored.filter((id) => !conceptIds.has(id));
 		return {
 			feature: feature.slug,
@@ -1084,7 +1086,9 @@ export function gatherKnowledge(startDir) {
 			...memory.matchedByFeatures,
 		]).size;
 	}
-	const overloadedFeatures = featureAttachments.filter((usage) => usage.overLimit);
+	const overloadedFeatures = featureAttachments.filter(
+		(usage) => usage.overLimit,
+	);
 	const danglingReferences = featureAttachments.flatMap((usage) =>
 		usage.dangling.map((id) => ({ feature: usage.feature, id })),
 	);
@@ -1141,7 +1145,9 @@ export function gatherKnowledge(startDir) {
 		const findings = [];
 		if (staleCount) findings.push(`${staleCount} stale concept(s)`);
 		if (danglingReferences.length)
-			findings.push(`${danglingReferences.length} dangling feature reference(s)`);
+			findings.push(
+				`${danglingReferences.length} dangling feature reference(s)`,
+			);
 		if (overloadedFeatures.length)
 			findings.push(`${overloadedFeatures.length} over-limit feature(s)`);
 		if (overlapCandidates.length)
