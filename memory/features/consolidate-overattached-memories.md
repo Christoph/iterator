@@ -7,8 +7,12 @@ size: medium
 depends_on: [bound-feature-memories]
 files: ["lib/gather.mjs", "skills/iterator-consolidate/SKILL.md", "test/gather.test.mjs"]
 memories: [architecture/knowledge-lifecycle, architecture/workflow-state-ownership, patterns/agent-reviewed-memory-writes, decisions/backlog-planning-and-feature-waves, decisions/iterator-dashboard-feature-workflow, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows]
-timestamp: "2026-07-18T07:02:50.549Z"
+timestamp: "2026-07-18T07:02:50.624Z"
 tags: []
+commits:
+  - sha: 4bbc80d4ce89652faf183a7db688994f8865f17b
+    kind: implement
+    date: 2026-07-18
 ---
 
 # Implementation notes
