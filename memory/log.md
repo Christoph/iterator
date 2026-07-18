@@ -1,6 +1,8 @@
 # iterator update log
 
 ## 2026-07-18
+* **Implementation**: Committed feature(price-model-usage) on branch iterator/always-available-backlog; awaiting review.
+* **Review**: Reviewed [Onboard plan-less projects](/features/onboard-planless-projects.md); approved (agent).
 * **Review**: Accepted [Onboard plan-less projects](/features/onboard-planless-projects.md) (committed as feature(onboard-planless-projects)).
 * **Implementation**: Committed feature(onboard-planless-projects) on branch iterator/always-available-backlog; awaiting review.
 * **Review**: Reviewed [Onboard plan-less projects](/features/onboard-planless-projects.md); changes (agent).

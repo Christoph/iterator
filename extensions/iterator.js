@@ -417,6 +417,22 @@ export default function iteratorExtension(pi) {
 		}
 	};
 
+	/** Persist the Usage tab's complete optional model-price table. */
+	const saveUsagePrices = async (prices) => {
+		const cwd = ctxCwd();
+		try {
+			const result = await runJson(scriptPath("write"), [], {
+				cwd,
+				stdin: JSON.stringify({ op: "usage", prices }),
+			});
+			invalidateSession();
+			notifyUi(`usage prices saved (${result.prices} model(s))`, "info");
+			await refreshHub(cwd);
+		} catch (e) {
+			notifyUi(`usage prices not saved — ${e.message}`, "error");
+		}
+	};
+
 	/** Show the settings view as an idle dashboard page (unsolicited round). */
 	const openSettings = async () => {
 		const cwd = ctxCwd();
@@ -947,6 +963,10 @@ export default function iteratorExtension(pi) {
 					}
 					if (result?.type === "backlog") {
 						void saveBacklog(result);
+						return;
+					}
+					if (result?.type === "usage-prices" && result.prices) {
+						void saveUsagePrices(result.prices);
 						return;
 					}
 					// Settings is an idle page: its Close button emits cancel, which

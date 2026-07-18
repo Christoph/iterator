@@ -76,6 +76,7 @@ import {
 	loadConcepts,
 	relevantMemories,
 	resolveFeatureCommits,
+	usageCosts,
 } from "./gather.mjs";
 import { git as gitSoft, gitOrFail as gitW, hasStaged } from "./git.mjs";
 import {
@@ -1153,9 +1154,22 @@ function parseUsageTotals(fm) {
 		return {
 			steps: v.steps && typeof v.steps === "object" ? v.steps : {},
 			features: v.features && typeof v.features === "object" ? v.features : {},
+			featureModels:
+				v.featureModels && typeof v.featureModels === "object"
+					? v.featureModels
+					: {},
 		};
 	} catch {
-		return { steps: {}, features: {} };
+		return { steps: {}, features: {}, featureModels: {} };
+	}
+}
+
+function parseUsagePrices(fm) {
+	try {
+		const value = JSON.parse(String(fm?.prices || "{}"));
+		return value && typeof value === "object" ? value : {};
+	} catch {
+		return {};
 	}
 }
 
@@ -1176,17 +1190,36 @@ export function usageGrandTotal(totals) {
 	return grand;
 }
 
-function usageBody(totals) {
+function costCell(value) {
+	return value === null ? "—" : `$${value.toFixed(6)}`;
+}
+
+function usageBody(totals, prices) {
 	const lines = ["", "# Usage", ""];
+	const priceEntries = Object.entries(prices);
+	if (priceEntries.length) {
+		lines.push("## Model prices (USD per 1M tokens)", "");
+		lines.push("| model | input | output | cache read | cache write |");
+		lines.push("| --- | ---: | ---: | ---: | ---: |");
+		for (const [model, rates] of priceEntries) {
+			lines.push(
+				`| ${model} | ${rates.input ?? "—"} | ${rates.output ?? "—"} | ${rates.cacheRead ?? "—"} | ${rates.cacheWrite ?? "—"} |`,
+			);
+		}
+		lines.push("");
+	}
+	const costs = usageCosts(totals, prices);
 	const steps = Object.keys(totals.steps);
 	if (!steps.length) lines.push("No usage recorded yet.", "");
 	for (const step of steps) {
 		lines.push(`## ${step}`, "");
-		lines.push("| model | input | output | cache read | cache write | turns |");
-		lines.push("| --- | ---: | ---: | ---: | ---: | ---: |");
+		lines.push(
+			"| model | input | output | cache read | cache write | turns | cost |",
+		);
+		lines.push("| --- | ---: | ---: | ---: | ---: | ---: | ---: |");
 		for (const [model, u] of Object.entries(totals.steps[step])) {
 			lines.push(
-				`| ${model} | ${u.input || 0} | ${u.output || 0} | ${u.cacheRead || 0} | ${u.cacheWrite || 0} | ${u.turns || 0} |`,
+				`| ${model} | ${u.input || 0} | ${u.output || 0} | ${u.cacheRead || 0} | ${u.cacheWrite || 0} | ${u.turns || 0} | ${costCell(costs.steps[step][model])} |`,
 			);
 		}
 		lines.push("");
@@ -1195,28 +1228,62 @@ function usageBody(totals) {
 	if (features.length) {
 		lines.push("## Per feature", "");
 		lines.push(
-			"| feature | input | output | cache read | cache write | turns |",
+			"| feature | input | output | cache read | cache write | turns | cost |",
 		);
-		lines.push("| --- | ---: | ---: | ---: | ---: | ---: |");
+		lines.push("| --- | ---: | ---: | ---: | ---: | ---: | ---: |");
 		for (const [slug, u] of Object.entries(totals.features)) {
 			lines.push(
-				`| ${slug} | ${u.input || 0} | ${u.output || 0} | ${u.cacheRead || 0} | ${u.cacheWrite || 0} | ${u.turns || 0} |`,
+				`| ${slug} | ${u.input || 0} | ${u.output || 0} | ${u.cacheRead || 0} | ${u.cacheWrite || 0} | ${u.turns || 0} | ${costCell(costs.features[slug])} |`,
 			);
 		}
 		lines.push("");
 	}
 	const g = usageGrandTotal(totals);
+	const costText =
+		costs.grand === null
+			? " Cost unavailable: add every used model rate."
+			: ` Estimated cost: ${costCell(costs.grand)}.`;
 	lines.push(
-		`Total: ${g.input} in / ${g.output} out / ${g.cacheRead} cache-read / ${g.cacheWrite} cache-write over ${g.turns} turns.`,
+		`Total: ${g.input} in / ${g.output} out / ${g.cacheRead} cache-read / ${g.cacheWrite} cache-write over ${g.turns} turns.${costText}`,
 		"",
 	);
 	return lines.join("\n");
 }
 
+function normalizeUsagePrices(value) {
+	if (!value || typeof value !== "object" || Array.isArray(value))
+		fail("usage prices must be an object keyed by provider/model");
+	const out = {};
+	for (const [rawModel, rawRates] of Object.entries(value)) {
+		const model = String(rawModel).trim();
+		if (!model || !model.includes("/") || model.length > 200 || /\s/.test(model))
+			fail(
+				`usage price model '${rawModel}' must be a non-empty provider/model without whitespace`,
+			);
+		if (!rawRates || typeof rawRates !== "object" || Array.isArray(rawRates))
+			fail(`usage prices for ${model} must be an object`);
+		const rates = {};
+		for (const [field, rawRate] of Object.entries(rawRates)) {
+			if (!USAGE_FIELDS.includes(field))
+				fail(`usage prices for ${model}: unknown token field '${field}'`);
+			const rate = Number(rawRate);
+			if (!Number.isFinite(rate) || rate < 0)
+				fail(
+					`usage prices for ${model}: ${field} must be a non-negative number`,
+				);
+			rates[field] = rate;
+		}
+		if (Object.keys(rates).length) out[model] = rates;
+	}
+	return out;
+}
+
 function writeUsage(payload, root) {
 	const b = loadBundle(root);
 	const rows = listy(payload.rows);
-	if (!rows.length) fail("usage op needs a non-empty rows list");
+	const hasPrices = Object.hasOwn(payload, "prices");
+	if (!rows.length && !hasPrices)
+		fail("usage op needs non-empty rows and/or a complete prices object");
 	for (const r of rows) {
 		if (!r || typeof r.step !== "string" || !r.step.trim())
 			fail(
@@ -1229,9 +1296,13 @@ function writeUsage(payload, root) {
 	}
 
 	const file = join(b.memDir, "usage.md");
-	const totals = parseUsageTotals(
-		existsSync(file) ? frontmatter(readFileSync(file, "utf8")) : null,
-	);
+	const existingFm = existsSync(file)
+		? frontmatter(readFileSync(file, "utf8"))
+		: null;
+	const totals = parseUsageTotals(existingFm);
+	const prices = hasPrices
+		? normalizeUsagePrices(payload.prices)
+		: parseUsagePrices(existingFm);
 	for (const r of rows) {
 		const model = `${r.provider || "unknown"}/${r.model || "unknown"}`;
 		const step = r.step.trim();
@@ -1245,6 +1316,11 @@ function writeUsage(payload, root) {
 				totals.features[r.feature] || {},
 				norm,
 			);
+			totals.featureModels[r.feature] = totals.featureModels[r.feature] || {};
+			totals.featureModels[r.feature][model] = addUsage(
+				totals.featureModels[r.feature][model] || {},
+				norm,
+			);
 		}
 	}
 
@@ -1252,16 +1328,19 @@ function writeUsage(payload, root) {
 	const fm = [
 		"type: Usage",
 		"title: Token usage",
-		"description: Per-step model/token ledger for the active plan — written only by the usage op.",
+		"description: Per-step model/token ledger and optional project-owned pricing for the active plan — written only by the usage op.",
 		`totals: ${fmScalar(JSON.stringify(totals))}`,
+		`prices: ${fmScalar(JSON.stringify(prices))}`,
 		`timestamp: ${nowIso()}`,
 	].join("\n");
-	writeFileSync(file, joinDoc(fm, usageBody(totals)));
+	writeFileSync(file, joinDoc(fm, usageBody(totals, prices)));
 	return {
 		op: "usage",
 		written: ["usage.md"],
 		rows: rows.length,
+		prices: Object.keys(prices).length,
 		grand: usageGrandTotal(totals),
+		costs: usageCosts(totals, prices),
 		memoryDir: b.memDir,
 	};
 }
@@ -3132,7 +3211,7 @@ const SCHEMAS = {
 	},
 	usage: {
 		op: "usage",
-		rows: [
+		"rows?": [
 			{
 				step: "plan|feature|test|implement|review|memory|hub|other",
 				"feature?": "slug (adds to the per-feature rollup)",
@@ -3144,6 +3223,14 @@ const SCHEMAS = {
 				"cacheWrite?": "tokens",
 			},
 		],
+		"prices?": {
+			"provider/model": {
+				"input?": "USD per 1M tokens",
+				"output?": "USD per 1M tokens",
+				"cacheRead?": "USD per 1M tokens",
+				"cacheWrite?": "USD per 1M tokens",
+			},
+		},
 	},
 	state: {
 		op: "state",

@@ -7,7 +7,7 @@ size: medium
 depends_on: []
 files: ["lib/views/planning.mjs", "lib/pi-tools.mjs", "extensions/iterator.js", "test/ui.test.mjs", "test/pi-tools.test.mjs"]
 memories: [architecture/package-and-skill-layout, architecture/workflow-state-ownership, decisions/backlog-planning-and-feature-waves, decisions/consume-accepted-backlog-ideas, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows]
-timestamp: "2026-07-18T07:36:05.936Z"
+timestamp: "2026-07-18T07:36:13.965Z"
 tags: []
 commits:
   - sha: 6f5126e5bfd940fff2e2e2c5cb581f2367e93ad2
@@ -46,4 +46,5 @@ No-plan startup, Planning actions, and initialization-to-plan handoff must remai
 # Review
 
 ## 2026-07-18
+* **Approved** _(agent review: openai-codex/gpt-5.6-sol)_ — Approved after rework: the initialization note now targets the direct goalWrap child, and the executing client test enforces valid DOM insertion while verifying both onboarding actions render.
 * **Needs changes** _(agent review: openai-codex/gpt-5.6-sol)_ — Plan-less uninitialized rendering still throws in lib/views/planning.mjs: `hero.insertBefore(note, goal)` uses `goal`, which is nested inside `goalWrap` and is not a direct child of `hero`. Insert before `goalWrap` (and add an executing DOM/client regression) so the Initialize memory and Create plan controls actually render.

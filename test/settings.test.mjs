@@ -206,9 +206,20 @@ test("usage and archive views render their payloads", async () => {
 			},
 			features: {},
 		},
+		prices: {
+			"openai/gpt-5.5": { input: 2, output: 8, cacheRead: 0.2 },
+		},
+		costs: {
+			steps: { implement: { "openai/gpt-5.5": 0.000019 } },
+			features: {},
+			grand: 0.000019,
+		},
 		grand: { input: 1, output: 2, cacheRead: 3, cacheWrite: 4, turns: 1 },
 	});
 	assert.ok(uhtml.includes("token usage"));
+	assert.ok(uhtml.includes("USD per one million tokens"));
+	assert.ok(uhtml.includes("usage-prices"));
+	assert.ok(uhtml.includes("Save prices"));
 	const ahtml = archiveView({
 		step: "archive",
 		branch: "main",

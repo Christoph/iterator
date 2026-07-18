@@ -2,13 +2,14 @@
 type: Feature
 title: Price model usage
 description: Let projects optionally configure token prices per model and show calculated row and aggregate costs in Usage.
-status: pending
+status: implemented
 size: large
 depends_on: []
 files: ["lib/gather.mjs", "lib/write.mjs", "lib/views/usage.mjs", "extensions/iterator.js", "test/write.test.mjs", "test/settings.test.mjs"]
 memories: [architecture/package-and-skill-layout, architecture/workflow-state-ownership, decisions/backlog-planning-and-feature-waves, decisions/consume-accepted-backlog-ideas, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows]
-timestamp: "2026-07-18T06:54:30.534Z"
+timestamp: "2026-07-18T07:47:26.342Z"
 tags: []
+tests_status: green
 ---
 
 # Implementation notes

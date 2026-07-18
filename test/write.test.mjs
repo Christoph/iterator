@@ -12,7 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve as resolvePath } from "node:path";
 import { applyOp, topoSort, setFmKeys } from "../lib/write.mjs";
-import { frontmatter, gather, gatherRetire } from "../lib/gather.mjs";
+import { frontmatter, gather, gatherRetire, gatherUsage } from "../lib/gather.mjs";
 import { backlogItems } from "../lib/bundle.mjs";
 
 process.env.ITERATOR_NOW = "2026-07-06T12:00:00Z";
@@ -2847,6 +2847,11 @@ test("usage op merges increment rows into per-step × model aggregates", () => {
 		assert.equal(totals.steps.implement["openai/gpt-5.5"].turns, 2);
 		assert.equal(totals.steps.review["anthropic/claude-opus-4-8"].output, 3);
 		assert.equal(totals.features.auth.input, 107, "feature rollup spans steps");
+		assert.equal(
+			totals.featureModels.auth["openai/gpt-5.5"].input,
+			100,
+			"per-model feature usage supports honest pricing",
+		);
 		assert.match(raw, /\| openai\/gpt-5\.5 \| 110 \| 55 \| 20 \| 5 \| 2 \|/);
 
 		assert.throws(
@@ -2856,6 +2861,88 @@ test("usage op merges increment rows into per-step × model aggregates", () => {
 		assert.throws(
 			() => applyOp({ op: "usage", rows: [{ step: "x", input: -1 }] }, root),
 			/non-negative/,
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("usage prices persist and calculate complete row, feature, and grand costs", () => {
+	const root = makeRepo();
+	try {
+		applyOp(
+			{
+				op: "usage",
+				rows: [
+					{
+						step: "implement",
+						feature: "auth",
+						provider: "openai",
+						model: "gpt",
+						input: 100,
+						output: 50,
+						cacheRead: 20,
+						cacheWrite: 5,
+					},
+					{
+						step: "review",
+						feature: "auth",
+						provider: "anthropic",
+						model: "claude",
+						input: 10,
+						output: 4,
+					},
+				],
+			},
+			root,
+		);
+		const priced = applyOp(
+			{
+				op: "usage",
+				prices: {
+					"openai/gpt": { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2 },
+					"anthropic/claude": { input: 3, output: 15 },
+				},
+			},
+			root,
+		);
+		assert.equal(priced.rows, 0);
+		assert.equal(priced.prices, 2);
+		assert.ok(
+			Math.abs(priced.costs.steps.implement["openai/gpt"] - 0.000714) < 1e-12,
+		);
+		assert.ok(Math.abs(priced.costs.features.auth - 0.000804) < 1e-12);
+		assert.ok(Math.abs(priced.costs.grand - 0.000804) < 1e-12);
+		const gathered = gatherUsage(root);
+		assert.deepEqual(gathered.prices, {
+			"openai/gpt": { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2 },
+			"anthropic/claude": { input: 3, output: 15 },
+		});
+		assert.ok(Math.abs(gathered.costs.grand - 0.000804) < 1e-12);
+		const raw = read(root, "usage.md");
+		assert.equal(JSON.parse(frontmatter(raw).prices)["openai/gpt"].output, 10);
+		assert.match(raw, /Model prices \(USD per 1M tokens\)/);
+		assert.match(raw, /Estimated cost: \$0\.000804/);
+
+		const incomplete = applyOp(
+			{ op: "usage", prices: { "openai/gpt": { input: 2 } } },
+			root,
+		);
+		assert.equal(incomplete.costs.steps.implement["openai/gpt"], null);
+		assert.equal(incomplete.costs.features.auth, null);
+		assert.equal(incomplete.costs.grand, null);
+		assert.throws(
+			() =>
+				applyOp(
+					{ op: "usage", prices: { "openai/gpt": { output: -1 } } },
+					root,
+				),
+			/non-negative/,
+		);
+		assert.throws(
+			() =>
+				applyOp({ op: "usage", prices: { "openai/gpt": { typo: 1 } } }, root),
+			/unknown token field/,
 		);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
@@ -2898,6 +2985,13 @@ test("retire-plan archives the usage ledger and keeps totals in the decision", (
 			},
 			root,
 		);
+		applyOp(
+			{
+				op: "usage",
+				prices: { "openai/gpt-5.5": { input: 2, output: 10 } },
+			},
+			root,
+		);
 		const res = applyOp(
 			{
 				op: "retire-plan",
@@ -2923,6 +3017,8 @@ test("retire-plan archives the usage ledger and keeps totals in the decision", (
 			"utf8",
 		);
 		assert.match(archived, /500/);
+		assert.match(archived, /Model prices \(USD per 1M tokens\)/);
+		assert.match(archived, /Estimated cost: \$0\.003000/);
 		assert.match(
 			read(root, "decisions", "jwt-auth.md"),
 			/Token usage: 500 in \/ 200 out/,
