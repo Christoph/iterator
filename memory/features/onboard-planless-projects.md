@@ -7,8 +7,12 @@ size: medium
 depends_on: []
 files: ["lib/views/planning.mjs", "lib/pi-tools.mjs", "extensions/iterator.js", "test/ui.test.mjs", "test/pi-tools.test.mjs"]
 memories: [architecture/package-and-skill-layout, architecture/workflow-state-ownership, decisions/backlog-planning-and-feature-waves, decisions/consume-accepted-backlog-ideas, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows]
-timestamp: "2026-07-18T07:32:00.167Z"
+timestamp: "2026-07-18T07:32:00.244Z"
 tags: []
+commits:
+  - sha: 6f5126e5bfd940fff2e2e2c5cb581f2367e93ad2
+    kind: implement
+    date: 2026-07-18
 ---
 
 # Implementation notes
