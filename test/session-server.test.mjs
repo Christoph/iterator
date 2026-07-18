@@ -128,6 +128,32 @@ test("showStep pushes an SSE view event, serves the html, and resolves on /submi
 	}
 });
 
+test("interactive submit resumes the same agent work owner", async () => {
+	const { session, origin } = await startSession();
+	try {
+		const owner = session.ensureWorking({ text: "agent work", feature: "auth" });
+		const round = session.showStep({
+			step: "review",
+			render: () => viewHtml("REVIEW"),
+		});
+		assert.equal(session.isWorking(), false, "the interactive view is usable");
+		const res = await fetch(`${origin}/submit?r=${srvMod.RUN_ID}`, {
+			method: "POST",
+			body: '{"type":"accept-commit"}',
+		});
+		assert.equal(res.status, 200);
+		assert.deepEqual(await round, { type: "accept-commit" });
+		assert.equal(session.isWorking(), true, "work resumes after the answer");
+		assert.equal(
+			session.clearWorking(owner),
+			true,
+			"the original agent_end can release the resumed overlay",
+		);
+	} finally {
+		await session.stop();
+	}
+});
+
 test("a /submit with a stale run id is rejected and the round stays pending", async () => {
 	const { session, origin } = await startSession();
 	try {

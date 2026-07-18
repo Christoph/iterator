@@ -7,12 +7,13 @@ size: medium
 depends_on: []
 files: ["lib/session-server.mjs", "extensions/iterator.js", "test/session-server.test.mjs"]
 memories: [pitfalls/cancel-now-after-grace-timer, architecture/browser-server-contract, architecture/package-and-skill-layout, decisions/backlog-planning-and-feature-waves, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows]
-timestamp: "2026-07-18T07:54:05.149Z"
+timestamp: "2026-07-18T07:56:40.549Z"
 tags: []
 commits:
   - sha: e5fc53effde7812b416f07f26a33204f4b2aea75
     kind: implement
     date: 2026-07-18
+reviewed: 2026-07-18
 ---
 
 # Implementation notes
@@ -34,3 +35,8 @@ session?.showWorking({ text, step, feature, progress });
 # Blast radius
 
 The persistent browser shell and extension dispatch lifecycle must agree; regressions can make a running agent look idle or leave a wedged overlay.
+
+# Review
+
+## 2026-07-18
+* **Needs changes** _(agent review: openai-codex/gpt-5.6-sol)_ — Interactive rounds can wedge the overlay: before_agent_start queues owner A, showStep clears A, /submit creates a new owner B, and the same agent_end only attempts clearWorking(A), so B remains forever. Preserve/reuse the active owner across showStep → pending /submit (or otherwise associate the resumed overlay with that same agent), and add a regression covering ensureWorking → showStep → submit → clear by the original owner.

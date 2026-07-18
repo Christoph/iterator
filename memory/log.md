@@ -2,6 +2,8 @@
 
 ## 2026-07-18
 * **Implementation**: Committed feature(reliable-work-blocker) on branch iterator/always-available-backlog; awaiting review.
+* **Review**: Reviewed [Keep Work blocked while agents run](/features/reliable-work-blocker.md); changes (agent).
+* **Implementation**: Committed feature(reliable-work-blocker) on branch iterator/always-available-backlog; awaiting review.
 * **Review**: Reviewed [Price model usage](/features/price-model-usage.md); approved (agent).
 * **Review**: Accepted [Price model usage](/features/price-model-usage.md) (committed as feature(price-model-usage)).
 * **Implementation**: Committed feature(price-model-usage) on branch iterator/always-available-backlog; awaiting review.
