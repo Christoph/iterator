@@ -161,7 +161,7 @@ function render(){
       const note = document.createElement('div');
       note.className = 'initnote';
       note.textContent = '\\u26a0 Project memory is not initialized yet \\u2014 initialize it first so plans and features can load relevant knowledge.';
-      hero.insertBefore(note, goal);
+      hero.insertBefore(note, goalWrap);
       const init = document.createElement('button');
       init.className = 'act primary-act'; init.textContent = 'Initialize memory';
       // Keep the draft until a plan actually exists: init may be cancelled or

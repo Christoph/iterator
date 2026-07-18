@@ -2,6 +2,8 @@
 
 ## 2026-07-18
 * **Implementation**: Committed feature(onboard-planless-projects) on branch iterator/always-available-backlog; awaiting review.
+* **Review**: Reviewed [Onboard plan-less projects](/features/onboard-planless-projects.md); changes (agent).
+* **Implementation**: Committed feature(onboard-planless-projects) on branch iterator/always-available-backlog; awaiting review.
 * **Review**: Reviewed [Memorize retired plan commits](/features/memorize-on-retirement.md); approved (agent).
 * **Review**: Accepted [Memorize retired plan commits](/features/memorize-on-retirement.md) (committed as feature(memorize-on-retirement)).
 * **Implementation**: Committed feature(memorize-on-retirement) on branch iterator/always-available-backlog; awaiting review.
