@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-18
+* **Review**: Accepted [Keep Work blocked while agents run](/features/reliable-work-blocker.md) (committed as feature(reliable-work-blocker)).
 * **Implementation**: Committed feature(reliable-work-blocker) on branch iterator/always-available-backlog; awaiting review.
 * **Review**: Reviewed [Keep Work blocked while agents run](/features/reliable-work-blocker.md); changes (agent).
 * **Implementation**: Committed feature(reliable-work-blocker) on branch iterator/always-available-backlog; awaiting review.
