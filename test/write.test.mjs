@@ -12,7 +12,12 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve as resolvePath } from "node:path";
 import { applyOp, topoSort, setFmKeys } from "../lib/write.mjs";
-import { frontmatter, gather, gatherRetire, gatherUsage } from "../lib/gather.mjs";
+import {
+	frontmatter,
+	gather,
+	gatherRetire,
+	gatherUsage,
+} from "../lib/gather.mjs";
 import { backlogItems } from "../lib/bundle.mjs";
 
 process.env.ITERATOR_NOW = "2026-07-06T12:00:00Z";

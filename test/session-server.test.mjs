@@ -131,7 +131,10 @@ test("showStep pushes an SSE view event, serves the html, and resolves on /submi
 test("interactive submit resumes the same agent work owner", async () => {
 	const { session, origin } = await startSession();
 	try {
-		const owner = session.ensureWorking({ text: "agent work", feature: "auth" });
+		const owner = session.ensureWorking({
+			text: "agent work",
+			feature: "auth",
+		});
 		const round = session.showStep({
 			step: "review",
 			render: () => viewHtml("REVIEW"),
@@ -326,7 +329,11 @@ test("a stale work owner cannot clear a newer agent overlay", async () => {
 	const { session, origin } = await startSession();
 	try {
 		const first = session.showWorking({ text: "first agent", feature: "a" });
-		assert.equal(session.ensureWorking(), first, "the active agent keeps its claim");
+		assert.equal(
+			session.ensureWorking(),
+			first,
+			"the active agent keeps its claim",
+		);
 		const second = session.showWorking({ text: "second agent", feature: "b" });
 		assert.notEqual(second, first);
 		assert.equal(session.clearWorking(first), false);
@@ -560,7 +567,11 @@ test("showView can intentionally activate Planning for the startup landing page"
 				"PLANLESS-PLANNING",
 			),
 		);
-		assert.ok((await (await fetch(origin + "/")).text()).includes('let tab = "planning"'));
+		assert.ok(
+			(await (await fetch(origin + "/")).text()).includes(
+				'let tab = "planning"',
+			),
+		);
 	} finally {
 		await session.stop();
 	}

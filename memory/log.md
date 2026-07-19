@@ -1,6 +1,11 @@
 # iterator update log
 
+## 2026-07-19
+* **Retirement**: Plan "Improve memory relevance, usage costs, and dashboard recovery" condensed into [Memory relevance, usage costs, and dashboard recovery](/decisions/memory-relevance-usage-and-dashboard-recovery.md).
+
 ## 2026-07-18
+* **Plan review**: Whole-plan review recorded (agent).
+* **Review**: Reviewed [Keep Work blocked while agents run](/features/reliable-work-blocker.md); approved (agent).
 * **Review**: Accepted [Keep Work blocked while agents run](/features/reliable-work-blocker.md) (committed as feature(reliable-work-blocker)).
 * **Implementation**: Committed feature(reliable-work-blocker) on branch iterator/always-available-backlog; awaiting review.
 * **Review**: Reviewed [Keep Work blocked while agents run](/features/reliable-work-blocker.md); changes (agent).

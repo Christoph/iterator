@@ -5,7 +5,8 @@ description: "Make Iterator's planning, knowledge, usage, retirement, and active
 status: approved
 branch: iterator/always-available-backlog
 created: 2026-07-18
-timestamp: 2026-07-18T06:52:21.216Z
+timestamp: "2026-07-18T07:57:55.602Z"
+plan_reviewed: 2026-07-18
 ---
 
 # Goal
@@ -43,3 +44,17 @@ Deliver the supplied backlog improvements: keep feature implementation context l
 * [Onboard plan-less projects](/features/onboard-planless-projects.md) - Ensure Planning always offers a working goal, plan, and memory-initialization path in a new project.
 * [Price model usage](/features/price-model-usage.md) - Let projects optionally configure token prices per model and show calculated row and aggregate costs in Usage.
 * [Keep Work blocked while agents run](/features/reliable-work-blocker.md) - Make the Work overlay accurately follow an active agent through dispatch, navigation, reconnects, and cleanup.
+
+# Plan review
+
+## 2026-07-18 _(agent review: openai-codex/gpt-5.6-sol)_
+
+## Result
+
+Clean bill of health. All six goals are covered by reviewed feature commits: final memory context is deterministically capped at eight; consolidation exposes uncapped attachment, dangling, overlap, and stale evidence without bypassing reviewed writes; optional project-owned model rates produce complete-only costs while preserving raw and archived ledgers; retirement memorization is default-off and enforced through the existing reviewed pointer lifecycle; plan-less Planning preserves goals and exposes initialization/creation actions; and owned session work state survives refreshes, navigation, reconnects, stale endings, and interactive submissions.
+
+The implementation follows the planned architecture: derived knowledge and retirement state remains gather-owned, mutations remain deterministic writer operations, session-server owns overlay state, canonical shared libraries are synchronized, and no provider pricing or alternate memory-write path was introduced. No unexplained scope drift or unaccepted features remain. The full suite passed with 360 tests.
+
+## Loose end
+
+The working tree still contains non-semantic formatter-only drift in `lib/settings.mjs`, `lib/write.mjs`, `test/client-js-parse.test.mjs`, `test/gather.test.mjs`, `test/session-server.test.mjs`, and `test/write.test.mjs`; it is outside the reviewed feature commits and does not change behavior, but should be either committed separately or discarded before integration.

@@ -10,8 +10,6 @@ last_memorized_commit: c5b75e3e4b034bc80a1600e57249e162639d32a8
 * [Design](design.md) - A compact dark developer control plane with clear workflow state.
 * [Backlog](backlog/index.md) - Saved ideas and bugs outside active plan features.
 * [Settings](settings.md) - Project settings (auto mode, models, git flow).
-* [Features](features/) - One document per implementation feature.
-* [Plan](plan.md) - Make Iterator's planning, knowledge, usage, retirement, and active-work surfaces more reliable and less noisy.
 * [Architecture](/architecture/) - How the system is structured.
 * [Decisions](/decisions/) - Durable product and implementation choices agents should preserve.
 * [Patterns & Conventions](/patterns/) - How code and workflows are written in this repo.

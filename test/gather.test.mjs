@@ -824,7 +824,9 @@ test("gather knowledge reports feature memory pressure and dangling references",
 		assert.equal(usage.overLimit, true);
 		assert.equal(payload.consolidation.overlapCandidates.length, 1);
 		assert.equal(payload.consolidation.overlapCandidates[0].memories.length, 9);
-		const auth0 = payload.memories.find((memory) => memory.id === "patterns/auth-0");
+		const auth0 = payload.memories.find(
+			(memory) => memory.id === "patterns/auth-0",
+		);
 		assert.deepEqual(auth0.referencedByFeatures, ["auth-middleware"]);
 		assert.deepEqual(auth0.matchedByFeatures, ["auth-middleware"]);
 		assert.match(payload.advice, /dangling feature reference/);

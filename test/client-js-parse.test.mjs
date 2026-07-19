@@ -140,8 +140,13 @@ test("plan-less Planning client renders initialization controls without a DOM in
 		addEventListener() {}
 		querySelectorAll(selector) {
 			if (selector === "select,input,textarea")
-				return [new Element("select"), new Element("input"), new Element("textarea")];
-			if (selector === "button") return [new Element("button"), new Element("button")];
+				return [
+					new Element("select"),
+					new Element("input"),
+					new Element("textarea"),
+				];
+			if (selector === "button")
+				return [new Element("button"), new Element("button")];
 			return [];
 		}
 		querySelector(selector) {
@@ -188,10 +193,14 @@ test("plan-less Planning client renders initialization controls without a DOM in
 	const hero = wrap.children[0];
 	assert.ok(hero, "the plan-less hero rendered");
 	assert.ok(
-		hero.children.some((child) => child.textContent.includes("not initialized")),
+		hero.children.some((child) =>
+			child.textContent.includes("not initialized"),
+		),
 		"the initialization guidance is visible",
 	);
-	const buttons = hero.children.find((child) => child.className === "btns-center");
+	const buttons = hero.children.find(
+		(child) => child.className === "btns-center",
+	);
 	assert.deepEqual(
 		buttons.children.map((button) => button.textContent),
 		["Initialize memory", "Create plan"],
