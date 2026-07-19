@@ -95,16 +95,26 @@ condense it:
 
 1. Run `node <skill-dir>/gather.mjs --step retire` — it returns the plan's
    sections plus condensed per-feature summaries (title, description, status,
-   files, review notes) and `filesUnion`; that payload is your whole context —
-   do not read the plan or feature files wholesale. Write the **semantic**
-   condensation yourself: what was built, why, and the key trade-offs — a
-   durable `decisions/` concept, not a play-by-play.
-2. Pipe `{ "op": "retire-plan", "concept": { slug, title, description, body,
-   tags, files } }` into `node <skill-dir>/write.mjs`. Everything mechanical
-   (the decisions concept, archiving `plan.md` + `features/*.md`, root-index
-   cleanup, log, validation) happens in the writer. `files` defaults to the
-   union of the features' files. The op refuses when features are not all done
-   (`force: true` overrides, e.g. abandoning a plan).
+   files, review notes), `filesUnion`, and the `memorize` retirement gate; that
+   payload is your whole context — do not read the plan or feature files
+   wholesale.
+2. When `memorize.enabled` and `memorize.required` are both true, complete the
+   existing `/iterator-memorize` skill before retirement, using
+   `memorize.range` as its already-gathered range payload. This is a normal
+   reviewed memory round: show draft cards, honor feedback/approval, and advance
+   only to the reviewed `range.head`. Cancel/timeout stops retirement and leaves
+   the plan intact. Afterwards gather `retire` again; continue only when
+   `memorize.required` is false. Never bypass the gate or advance the pointer
+   without review. When the setting is off, skip this step exactly as today.
+3. Write the **semantic** condensation yourself from the gathered plan: what was
+   built, why, and the key trade-offs — a durable `decisions/` concept, not a
+   play-by-play. Pipe `{ "op": "retire-plan", "concept": { slug, title,
+   description, body, tags, files } }` into `node <skill-dir>/write.mjs`.
+   Everything mechanical (the decisions concept, archiving `plan.md` +
+   `features/*.md`, root-index cleanup, log, validation) happens in the writer.
+   `files` defaults to the union of the features' files. The op refuses when
+   features are not all done (`force: true` overrides, e.g. abandoning a plan)
+   or when the enabled memorize gate still has unreviewed commits.
 
 The dashboard's Retire click (a two-step armed button) IS the confirmation —
 proceed directly to the condensation and the retire-plan write; **never ask

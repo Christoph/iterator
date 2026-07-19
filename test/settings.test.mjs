@@ -17,6 +17,7 @@ test("settingsDefaults covers every defined key", () => {
 	assert.equal(d.branch_per_plan, "on");
 	assert.equal(d.max_review_iterations, 3);
 	assert.equal(d.reviewer_model, "active");
+	assert.equal(d.memorize_on_retire, "off");
 });
 
 test("validateSettings accepts valid entries and rejects unknown/invalid ones", () => {
@@ -24,12 +25,14 @@ test("validateSettings accepts valid entries and rejects unknown/invalid ones", 
 		auto_mode: "on",
 		max_review_iterations: "5",
 		reviewer_model: "anthropic/claude-opus-4-8",
+		memorize_on_retire: "on",
 	});
 	assert.equal(ok.ok, true);
 	assert.deepEqual(ok.values, {
 		auto_mode: "on",
 		max_review_iterations: 5,
 		reviewer_model: "anthropic/claude-opus-4-8",
+		memorize_on_retire: "on",
 	});
 
 	const bad = validateSettings({
@@ -203,9 +206,20 @@ test("usage and archive views render their payloads", async () => {
 			},
 			features: {},
 		},
+		prices: {
+			"openai/gpt-5.5": { input: 2, output: 8, cacheRead: 0.2 },
+		},
+		costs: {
+			steps: { implement: { "openai/gpt-5.5": 0.000019 } },
+			features: {},
+			grand: 0.000019,
+		},
 		grand: { input: 1, output: 2, cacheRead: 3, cacheWrite: 4, turns: 1 },
 	});
 	assert.ok(uhtml.includes("token usage"));
+	assert.ok(uhtml.includes("USD per one million tokens"));
+	assert.ok(uhtml.includes("usage-prices"));
+	assert.ok(uhtml.includes("Save prices"));
 	const ahtml = archiveView({
 		step: "archive",
 		branch: "main",

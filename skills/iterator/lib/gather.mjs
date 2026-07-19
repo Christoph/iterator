@@ -304,19 +304,42 @@ const AREA_PRIORITY = [
 ];
 const MAX_RELEVANT_MEMORIES = 8;
 
+const areaRank = (area) => {
+	const rank = AREA_PRIORITY.indexOf(area);
+	return rank === -1 ? AREA_PRIORITY.length : rank;
+};
+
+/**
+ * Rank the complete implementation-reading set. Stored feature references are
+ * a snapshot from feature slicing; fresh anchor matches can add newer context.
+ * Both sources share one cap so a feature never grows an unbounded contract.
+ */
+function rankedMemories(concepts, fileGlobs, storedIds = []) {
+	const byId = new Map();
+	for (const concept of matchConcepts(concepts, fileGlobs)) {
+		byId.set(concept.id, { ...concept, stored: false });
+	}
+	for (const id of storedIds) {
+		const concept = concepts.find((candidate) => candidate.id === id);
+		if (!concept) continue;
+		const existing = byId.get(id);
+		byId.set(id, { ...concept, ...existing, stored: true });
+	}
+	return [...byId.values()]
+		.sort(
+			(a, b) =>
+				areaRank(a.area) - areaRank(b.area) ||
+				Number(b.stored) - Number(a.stored) ||
+				a.id.localeCompare(b.id),
+		)
+		.slice(0, MAX_RELEVANT_MEMORIES);
+}
+
 /** The concepts an implementer should read before touching these files. */
 export function relevantMemories(concepts, fileGlobs) {
-	return matchConcepts(concepts, fileGlobs)
-		.sort(
-			(a, b) => AREA_PRIORITY.indexOf(a.area) - AREA_PRIORITY.indexOf(b.area),
-		)
-		.slice(0, MAX_RELEVANT_MEMORIES)
-		.map(({ id, title, description, path }) => ({
-			id,
-			title,
-			description,
-			path,
-		}));
+	return rankedMemories(concepts, fileGlobs).map(
+		({ id, title, description, path }) => ({ id, title, description, path }),
+	);
 }
 
 // ---------------------------------------------------------------------------
@@ -568,23 +591,20 @@ function memoryBody(path) {
 }
 
 function unionMemories(c, concepts) {
-	const dynamic = relevantMemories(concepts, listy(c.fm.files));
-	const byId = new Map();
-	for (const id of listy(c.fm.memories)) {
-		const m = concepts.find((x) => x.id === id);
-		if (m) {
-			byId.set(id, {
-				id,
-				title: m.title,
-				description: m.description,
-				path: m.path,
-			});
-		}
-	}
-	for (const m of dynamic) if (!byId.has(m.id)) byId.set(m.id, m);
+	const memories = rankedMemories(
+		concepts,
+		listy(c.fm.files),
+		listy(c.fm.memories),
+	);
 	// Inline the stripped body so the implementer reads knowledge straight from
 	// the contract instead of round-tripping Read calls over raw files.
-	return [...byId.values()].map((m) => ({ ...m, body: memoryBody(m.path) }));
+	return memories.map(({ id, title, description, path }) => ({
+		id,
+		title,
+		description,
+		path,
+		body: memoryBody(path),
+	}));
 }
 
 export function gatherImplement(startDir) {
@@ -802,43 +822,113 @@ export function gatherSession(startDir) {
 // ---------------------------------------------------------------------------
 // usage (the Usage tab payload) + archive (retired-plan browsing)
 
-/** Parse usage.md's totals JSON scalar (mirrors write.mjs's writer shape). */
-function usageTotalsAt(file) {
+const USAGE_TOKEN_FIELDS = ["input", "output", "cacheRead", "cacheWrite"];
+
+/** Parse usage.md's totals/prices JSON scalars (mirrors write.mjs's shape). */
+function usageDataAt(file) {
 	if (!existsSync(file)) return null;
+	const fm = frontmatter(readFileSync(file, "utf8"));
+	let totals;
+	let prices;
 	try {
-		const v = JSON.parse(
-			String(frontmatter(readFileSync(file, "utf8")).totals || "{}"),
-		);
-		return {
-			steps: v.steps && typeof v.steps === "object" ? v.steps : {},
-			features: v.features && typeof v.features === "object" ? v.features : {},
+		const value = JSON.parse(String(fm.totals || "{}"));
+		totals = {
+			steps: value.steps && typeof value.steps === "object" ? value.steps : {},
+			features:
+				value.features && typeof value.features === "object"
+					? value.features
+					: {},
+			featureModels:
+				value.featureModels && typeof value.featureModels === "object"
+					? value.featureModels
+					: {},
 		};
 	} catch {
-		return { steps: {}, features: {} };
+		totals = { steps: {}, features: {}, featureModels: {} };
 	}
+	try {
+		const value = JSON.parse(String(fm.prices || "{}"));
+		prices = value && typeof value === "object" ? value : {};
+	} catch {
+		prices = {};
+	}
+	return { totals, prices };
+}
+
+function usageTotalsAt(file) {
+	return usageDataAt(file)?.totals || null;
 }
 
 function usageGrand(totals) {
 	const g = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, turns: 0 };
 	for (const models of Object.values(totals?.steps || {})) {
 		for (const u of Object.values(models)) {
-			for (const f of ["input", "output", "cacheRead", "cacheWrite"])
-				g[f] += u[f] || 0;
+			for (const f of USAGE_TOKEN_FIELDS) g[f] += u[f] || 0;
 			g.turns += u.turns || 0;
 		}
 	}
 	return g;
 }
 
+function rowCost(usage, rates) {
+	if (!rates || typeof rates !== "object") return null;
+	let cost = 0;
+	for (const field of USAGE_TOKEN_FIELDS) {
+		const tokens = Number(usage?.[field] || 0);
+		if (!tokens) continue;
+		const rate = Number(rates[field]);
+		if (!Number.isFinite(rate) || rate < 0) return null;
+		cost += (tokens / 1_000_000) * rate;
+	}
+	return cost;
+}
+
+/** Cost rollups from raw usage and project-owned USD-per-million rates. */
+export function usageCosts(totals, prices) {
+	const steps = {};
+	let grand = 0;
+	let grandComplete = true;
+	for (const [step, models] of Object.entries(totals?.steps || {})) {
+		steps[step] = {};
+		for (const [model, usage] of Object.entries(models)) {
+			const cost = rowCost(usage, prices?.[model]);
+			steps[step][model] = cost;
+			if (cost === null) grandComplete = false;
+			else grand += cost;
+		}
+	}
+	const features = {};
+	for (const slug of Object.keys(totals?.features || {})) {
+		const models = totals?.featureModels?.[slug];
+		if (!models) {
+			features[slug] = null;
+			continue;
+		}
+		let cost = 0;
+		let complete = true;
+		for (const [model, usage] of Object.entries(models)) {
+			const part = rowCost(usage, prices?.[model]);
+			if (part === null) complete = false;
+			else cost += part;
+		}
+		features[slug] = complete ? cost : null;
+	}
+	return { steps, features, grand: grandComplete ? grand : null };
+}
+
 export function gatherUsage(startDir) {
 	const b = loadBundle(startDir);
-	const totals = usageTotalsAt(join(b.memDir, "usage.md"));
+	const data = usageDataAt(join(b.memDir, "usage.md"));
+	const totals = data?.totals || { steps: {}, features: {}, featureModels: {} };
+	const prices = data?.prices || {};
 	return {
 		step: "usage",
 		branch: b.branch,
 		plan: b.plan?.fm.title || null,
-		exists: totals !== null,
-		totals: totals || { steps: {}, features: {} },
+		exists: data !== null,
+		totals,
+		prices,
+		costs: usageCosts(totals, prices),
 		grand: usageGrand(totals),
 	};
 }
@@ -876,12 +966,18 @@ export function gatherArchive(startDir, target) {
 						f.endsWith(".md") &&
 						!["plan.md", "usage.md", "index.md"].includes(f),
 				).length;
+				const usageData = usageDataAt(join(dir, "usage.md"));
 				return {
 					name,
 					title: fm.title || name,
 					created: fm.created || null,
 					features: featureCount,
-					usage: usageGrand(usageTotalsAt(join(dir, "usage.md"))),
+					usage: {
+						...usageGrand(usageData?.totals),
+						cost: usageData
+							? usageCosts(usageData.totals, usageData.prices).grand
+							: null,
+					},
 				};
 			}),
 		};
@@ -922,7 +1018,13 @@ export function gatherArchive(startDir, target) {
 				commits: Array.isArray(fm.commits) ? fm.commits : [],
 			};
 		});
-	const totals = usageTotalsAt(join(entry.dir, "usage.md"));
+	const usageData = usageDataAt(join(entry.dir, "usage.md"));
+	const totals = usageData?.totals || {
+		steps: {},
+		features: {},
+		featureModels: {},
+	};
+	const prices = usageData?.prices || {};
 	return {
 		step: "archive",
 		branch: b.branch,
@@ -933,7 +1035,9 @@ export function gatherArchive(startDir, target) {
 		sections: sections(planRaw),
 		features,
 		usage: {
-			totals: totals || { steps: {}, features: {} },
+			totals,
+			prices,
+			costs: usageCosts(totals, prices),
 			grand: usageGrand(totals),
 		},
 	};
@@ -1029,6 +1133,64 @@ export function gatherKnowledge(startDir) {
 		});
 	}
 
+	// Feature-aware consolidation evidence. Stored references reveal what a
+	// feature was sliced with; anchor matches reveal what would be selected now.
+	// Keep the raw candidate set here (rather than the capped implementation
+	// contract) so consolidation can see pressure that the cap intentionally
+	// hides from implementers.
+	const conceptIds = new Set(memories.map((memory) => memory.id));
+	const featureAttachments = b.features.map((feature) => {
+		const files = listy(feature.fm.files);
+		const stored = listy(feature.fm.memories);
+		const matched = matchConcepts(memories, files).map((memory) => memory.id);
+		const candidates = [
+			...new Set([...stored.filter((id) => conceptIds.has(id)), ...matched]),
+		];
+		const dangling = stored.filter((id) => !conceptIds.has(id));
+		return {
+			feature: feature.slug,
+			files,
+			stored,
+			matched,
+			candidates,
+			candidateCount: candidates.length,
+			overLimit: candidates.length > MAX_RELEVANT_MEMORIES,
+			dangling,
+		};
+	});
+	for (const memory of memories) {
+		memory.referencedByFeatures = featureAttachments
+			.filter((usage) => usage.stored.includes(memory.id))
+			.map((usage) => usage.feature);
+		memory.matchedByFeatures = featureAttachments
+			.filter((usage) => usage.matched.includes(memory.id))
+			.map((usage) => usage.feature);
+		memory.candidateFeatureCount = new Set([
+			...memory.referencedByFeatures,
+			...memory.matchedByFeatures,
+		]).size;
+	}
+	const overloadedFeatures = featureAttachments.filter(
+		(usage) => usage.overLimit,
+	);
+	const danglingReferences = featureAttachments.flatMap((usage) =>
+		usage.dangling.map((id) => ({ feature: usage.feature, id })),
+	);
+	const byAnchors = new Map();
+	for (const memory of memories) {
+		if (!memory.files.length) continue;
+		const signature = [...memory.files].map(String).sort().join("\n");
+		const group = byAnchors.get(signature) || [];
+		group.push(memory.id);
+		byAnchors.set(signature, group);
+	}
+	const overlapCandidates = [...byAnchors.entries()]
+		.filter(([, ids]) => ids.length > 1)
+		.map(([signature, ids]) => ({
+			files: signature.split("\n"),
+			memories: ids.sort(),
+		}));
+
 	let unmemorized = "?";
 	if (lastCommit) {
 		if (git(["rev-parse", "--verify", `${lastCommit}^{commit}`], b.root)) {
@@ -1057,13 +1219,27 @@ export function gatherKnowledge(startDir) {
 	// The forcing sentence consolidate follows: the review round ALWAYS opens
 	// (even all-keep) so the run produces a visible outcome — the model must
 	// never conclude "nothing to do" from this inventory alone.
-	const advice = !initialized
-		? "No memory/index.md — run /iterator-init first."
-		: memories.length === 0
-			? "No knowledge concepts yet — nothing to consolidate; run /iterator-memorize (or /iterator-init) to create concepts first."
-			: staleCount > 0
-				? `${staleCount} stale concept(s) found — verify their anchors, draft update/delete verdicts, and open the review round.`
-				: "No stale anchors detected — still open the review round with keep verdicts so the user sees and confirms the result.";
+	let advice;
+	if (!initialized) {
+		advice = "No memory/index.md — run /iterator-init first.";
+	} else if (memories.length === 0) {
+		advice =
+			"No knowledge concepts yet — nothing to consolidate; run /iterator-memorize (or /iterator-init) to create concepts first.";
+	} else {
+		const findings = [];
+		if (staleCount) findings.push(`${staleCount} stale concept(s)`);
+		if (danglingReferences.length)
+			findings.push(
+				`${danglingReferences.length} dangling feature reference(s)`,
+			);
+		if (overloadedFeatures.length)
+			findings.push(`${overloadedFeatures.length} over-limit feature(s)`);
+		if (overlapCandidates.length)
+			findings.push(`${overlapCandidates.length} shared-anchor group(s)`);
+		advice = findings.length
+			? `${findings.join(", ")} found — inspect feature attachment evidence, draft reviewed keep/update/delete or merge repairs, and open the review round.`
+			: "No stale anchors or feature-attachment pressure detected — still open the review round with keep verdicts so the user sees and confirms the result.";
+	}
 
 	return {
 		step: "knowledge",
@@ -1076,12 +1252,21 @@ export function gatherKnowledge(startDir) {
 			lastMemorizedCommit: lastCommit,
 			conceptCount: memories.length,
 			staleCount,
+			danglingReferenceCount: danglingReferences.length,
+			overloadedFeatureCount: overloadedFeatures.length,
 			unmemorizedCommitCount: unmemorized,
 		},
 		hasStale: staleCount > 0,
 		advice,
 		areas,
 		memories,
+		consolidation: {
+			memoryLimit: MAX_RELEVANT_MEMORIES,
+			featureAttachments,
+			overloadedFeatures,
+			danglingReferences,
+			overlapCandidates,
+		},
 		design: b.design
 			? {
 					title: b.design.fm.title || "Design parameters",
@@ -1791,6 +1976,13 @@ export function gatherRetire(startDir) {
 		files: listy(c.fm.files),
 		review: c.sections["Review"] || "",
 	}));
+	const memorizeEnabled = b.settings.memorize_on_retire === "on";
+	const memorizeRange = memorizeEnabled ? gatherRange(b.root) : null;
+	const memorizeRequired =
+		memorizeEnabled &&
+		(!memorizeRange.initialized ||
+			!memorizeRange.effectiveBase ||
+			memorizeRange.commitCount > 0);
 	return {
 		step: "retire",
 		branch: b.branch,
@@ -1807,6 +1999,11 @@ export function gatherRetire(startDir) {
 		// The default `files:` anchor set for the condensed decision concept.
 		filesUnion: [...new Set(feats.flatMap((f) => f.files))],
 		allDone: feats.length > 0 && feats.every((f) => f.status === "done"),
+		memorize: {
+			enabled: memorizeEnabled,
+			required: memorizeRequired,
+			range: memorizeRange,
+		},
 	};
 }
 

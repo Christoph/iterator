@@ -202,6 +202,9 @@ const asError = (msg) => ({
 
 export default function iteratorExtension(pi) {
 	let session = null;
+	// before_agent_start/agent_end can overlap around abort + follow-up dispatch.
+	// FIFO ownership lets a stale end clear only the overlay its own start claimed.
+	const agentWorkOwners = [];
 
 	// Latest lifecycle ctx — server callbacks (control strip, unsolicited
 	// settings saves) run outside a tool call and need cwd/ui/abort from it.
@@ -315,11 +318,12 @@ export default function iteratorExtension(pi) {
 	};
 
 	/** Refresh the idle dashboard tabs (no pending round). */
-	const refreshHub = async (cwd) => {
+	const refreshHub = async (cwd, { preferPlanning = false } = {}) => {
 		if (!session || !session.isRunning() || session.hasPending()) return;
 		try {
-			// Inactive tabs first: their refreshes are stored silently, so the
-			// hub view stays what the user ends up watching.
+			// Inactive tabs first: their refreshes are stored silently. On first
+			// startup only, a plan-less project deliberately lands on Planning so
+			// the goal and initialization controls are the first useful surface.
 			const knowledge = await gatherPayload(cwd, "knowledge");
 			session.showView({
 				step: "knowledge",
@@ -328,11 +332,13 @@ export default function iteratorExtension(pi) {
 			const usage = await gatherPayload(cwd, "usage");
 			session.showView({ step: "usage", render: () => VIEWS.usage(usage) });
 			const { hub } = await gatherSession(cwd);
+			const landOnPlanning = preferPlanning && !hub.plan;
 			// Planning renders from the same snapshot as the hub — the two
 			// surfaces can never disagree about state.
 			session.showView({
 				step: "planning",
 				render: () => VIEWS.planning({ ...hub, step: "planning" }),
+				activate: landOnPlanning,
 			});
 			session.showView({ step: "hub", render: () => VIEWS.hub(hub) });
 			await pushStatus(cwd);
@@ -411,6 +417,22 @@ export default function iteratorExtension(pi) {
 				session?.clearWorking?.();
 				await refreshHub(cwd);
 			}
+		}
+	};
+
+	/** Persist the Usage tab's complete optional model-price table. */
+	const saveUsagePrices = async (prices) => {
+		const cwd = ctxCwd();
+		try {
+			const result = await runJson(scriptPath("write"), [], {
+				cwd,
+				stdin: JSON.stringify({ op: "usage", prices }),
+			});
+			invalidateSession();
+			notifyUi(`usage prices saved (${result.prices} model(s))`, "info");
+			await refreshHub(cwd);
+		} catch (e) {
+			notifyUi(`usage prices not saved — ${e.message}`, "error");
 		}
 	};
 
@@ -946,6 +968,10 @@ export default function iteratorExtension(pi) {
 						void saveBacklog(result);
 						return;
 					}
+					if (result?.type === "usage-prices" && result.prices) {
+						void saveUsagePrices(result.prices);
+						return;
+					}
 					// Settings is an idle page: its Close button emits cancel, which
 					// must restore the dashboard rather than leave its view in place.
 					if (result?.type === "cancel") {
@@ -1456,6 +1482,8 @@ export default function iteratorExtension(pi) {
 
 	pi.on("before_agent_start", async (_event, ctx) => {
 		rememberCtx(ctx);
+		const workOwner = session?.ensureWorking?.("AI is working…") ?? null;
+		agentWorkOwners.push(workOwner);
 		try {
 			const { hub, implement, settings, state } = await gatherSession(ctx.cwd);
 			if (pendingRole && state?.mode !== "auto" && !featureWave) {
@@ -1540,8 +1568,8 @@ export default function iteratorExtension(pi) {
 
 	// ---------------------------------------------------------------------
 	// Session lifecycle: dashboard up for every project, down with pi. A
-	// bundle-less project renders the hub's Create-plan hero rather than an
-	// empty Work tab.
+	// plan-less project lands on Planning's goal/init hero rather than an empty
+	// Work tab.
 
 	pi.on("session_start", async (_event, ctx) => {
 		rememberCtx(ctx);
@@ -1563,7 +1591,7 @@ export default function iteratorExtension(pi) {
 						"info",
 					);
 			}
-			await refreshHub(ctx.cwd);
+			await refreshHub(ctx.cwd, { preferPlanning: true });
 		} catch (e) {
 			if (ctx.hasUI)
 				ctx.ui.notify(
@@ -1580,28 +1608,36 @@ export default function iteratorExtension(pi) {
 	// Keep the idle dashboard + footer current so they reflect reality.
 	pi.on("agent_end", async (_event, ctx) => {
 		rememberCtx(ctx);
-		invalidateSession(); // the turn may have changed files/commits
-		await flushUsage(ctx.cwd);
-		if (manualRoleActive) {
-			manualRoleActive = false;
-			await restoreModel();
-		}
-		await refreshHub(ctx.cwd);
-		await refreshStatus(ctx);
-		// Keep abortPending set until this stale agent_end reaches its final
-		// decision. Continue sees the flag and waits; once we clear it, exactly one
-		// side owns resumption: this callback when already unpaused, or a later
-		// Continue click when still paused.
-		if (featureWave?.abortPending) {
-			const { state } = await gatherSession(ctx.cwd);
-			featureWave = completeFeatureWaveAbort(featureWave);
-			if (!state?.paused) await advanceFeatureWave(ctx.cwd);
-		} else if (featureWave) {
-			// A ready-wave snapshot advances before auto mode. Wave implementation
-			// intentionally stops at implemented; review remains a separate action.
-			await advanceFeatureWave(ctx.cwd);
-		} else {
-			await kickAuto(ctx.cwd);
+		const endedWorkOwner = agentWorkOwners.shift() ?? null;
+		try {
+			invalidateSession(); // the turn may have changed files/commits
+			await flushUsage(ctx.cwd);
+			if (manualRoleActive) {
+				manualRoleActive = false;
+				await restoreModel();
+			}
+			await refreshHub(ctx.cwd);
+			await refreshStatus(ctx);
+			// Keep abortPending set until this stale agent_end reaches its final
+			// decision. Continue sees the flag and waits; once we clear it, exactly one
+			// side owns resumption: this callback when already unpaused, or a later
+			// Continue click when still paused.
+			if (featureWave?.abortPending) {
+				const { state } = await gatherSession(ctx.cwd);
+				featureWave = completeFeatureWaveAbort(featureWave);
+				if (!state?.paused) await advanceFeatureWave(ctx.cwd);
+			} else if (featureWave) {
+				// A ready-wave snapshot advances before auto mode. Wave implementation
+				// intentionally stops at implemented; review remains a separate action.
+				await advanceFeatureWave(ctx.cwd);
+			} else {
+				await kickAuto(ctx.cwd);
+			}
+		} finally {
+			// If auto/wave dispatch claimed a newer overlay above, this stale owner is
+			// ignored. Otherwise the completed or aborted agent reveals the latest
+			// dashboard view that refreshHub stored underneath it.
+			if (endedWorkOwner !== null) session?.clearWorking?.(endedWorkOwner);
 		}
 	});
 

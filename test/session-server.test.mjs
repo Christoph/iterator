@@ -128,6 +128,35 @@ test("showStep pushes an SSE view event, serves the html, and resolves on /submi
 	}
 });
 
+test("interactive submit resumes the same agent work owner", async () => {
+	const { session, origin } = await startSession();
+	try {
+		const owner = session.ensureWorking({
+			text: "agent work",
+			feature: "auth",
+		});
+		const round = session.showStep({
+			step: "review",
+			render: () => viewHtml("REVIEW"),
+		});
+		assert.equal(session.isWorking(), false, "the interactive view is usable");
+		const res = await fetch(`${origin}/submit?r=${srvMod.RUN_ID}`, {
+			method: "POST",
+			body: '{"type":"accept-commit"}',
+		});
+		assert.equal(res.status, 200);
+		assert.deepEqual(await round, { type: "accept-commit" });
+		assert.equal(session.isWorking(), true, "work resumes after the answer");
+		assert.equal(
+			session.clearWorking(owner),
+			true,
+			"the original agent_end can release the resumed overlay",
+		);
+	} finally {
+		await session.stop();
+	}
+});
+
 test("a /submit with a stale run id is rejected and the round stays pending", async () => {
 	const { session, origin } = await startSession();
 	try {
@@ -200,7 +229,7 @@ test("unsolicited /submit while working is rejected with 409 busy", async () => 
 	});
 	try {
 		session.showView({ step: "hub", render: () => viewHtml("HUB") });
-		session.showWorking("Auto: implementing…");
+		const owner = session.showWorking("Auto: implementing…");
 		const res = await fetch(`${origin}/submit?r=${srvMod.RUN_ID}`, {
 			method: "POST",
 			body: '{"type":"action","action":"implement","feature":"auth"}',
@@ -209,8 +238,15 @@ test("unsolicited /submit while working is rejected with 409 busy", async () => 
 		assert.deepEqual(await res.json(), { busy: true });
 		await sleep(20);
 		assert.equal(unsolicited, null, "busy dashboard must not dispatch");
-		// A fresh view clears the working state; the same click now dispatches.
+		// An idle refresh updates underneath the overlay but cannot unblock Work.
 		session.showView({ step: "hub", render: () => viewHtml("HUB2") });
+		assert.equal(session.isWorking(), true);
+		const stillBlocked = await fetch(`${origin}/submit?r=${srvMod.RUN_ID}`, {
+			method: "POST",
+			body: '{"type":"action","action":"implement","feature":"auth"}',
+		});
+		assert.equal(stillBlocked.status, 409);
+		assert.equal(session.clearWorking(owner), true);
 		const ok = await fetch(`${origin}/submit?r=${srvMod.RUN_ID}`, {
 			method: "POST",
 			body: '{"type":"action","action":"implement","feature":"auth"}',
@@ -272,12 +308,41 @@ test("showWorking accepts a structured payload and replays it to new SSE clients
 			progress: { done: 1, total: 3 },
 			activity: ["Reading lib/status.mjs…"],
 		});
+		session.showView({ step: "hub", render: () => viewHtml("LATEST HUB") });
 		const sse = await firstSseEvent(origin);
 		assert.equal(sse.event, "working");
 		assert.equal(sse.data.step, "implement");
 		assert.equal(sse.data.feature, "auth");
 		assert.deepEqual(sse.data.progress, { done: 1, total: 3 });
 		assert.equal(sse.data.activity[0], "Reading lib/status.mjs…");
+		assert.match(
+			await (await fetch(`${origin}/view?tab=work`)).text(),
+			/LATEST HUB/,
+			"the newest view waits underneath the replayed overlay",
+		);
+	} finally {
+		await session.stop();
+	}
+});
+
+test("a stale work owner cannot clear a newer agent overlay", async () => {
+	const { session, origin } = await startSession();
+	try {
+		const first = session.showWorking({ text: "first agent", feature: "a" });
+		assert.equal(
+			session.ensureWorking(),
+			first,
+			"the active agent keeps its claim",
+		);
+		const second = session.showWorking({ text: "second agent", feature: "b" });
+		assert.notEqual(second, first);
+		assert.equal(session.clearWorking(first), false);
+		assert.equal(session.isWorking(), true);
+		const sse = await firstSseEvent(origin);
+		assert.equal(sse.event, "working");
+		assert.equal(sse.data.feature, "b");
+		assert.equal(session.clearWorking(second), true);
+		assert.equal(session.isWorking(), false);
 	} finally {
 		await session.stop();
 	}
@@ -484,6 +549,32 @@ test("stop() resolves a pending round, frees the port, and removes the registry 
 		undefined,
 		`port ${port} must be free`,
 	);
+});
+
+test("showView can intentionally activate Planning for the startup landing page", async () => {
+	const { session, origin } = await startSession();
+	try {
+		session.showView({
+			step: "planning",
+			render: () => viewHtml("PLANLESS-PLANNING"),
+			activate: true,
+		});
+		const sse = await firstSseEvent(origin);
+		assert.equal(sse.event, "view");
+		assert.equal(sse.data.tab, "planning");
+		assert.ok(
+			(await (await fetch(origin + "/view?tab=planning")).text()).includes(
+				"PLANLESS-PLANNING",
+			),
+		);
+		assert.ok(
+			(await (await fetch(origin + "/")).text()).includes(
+				'let tab = "planning"',
+			),
+		);
+	} finally {
+		await session.stop();
+	}
 });
 
 test("tabs: steps render into their tab; inactive-tab refreshes are stored silently", async () => {

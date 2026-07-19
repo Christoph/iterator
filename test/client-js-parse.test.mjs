@@ -101,6 +101,112 @@ for (const [name, data] of Object.entries(MIN_DATA)) {
 	});
 }
 
+test("plan-less Planning client renders initialization controls without a DOM insertion error", async () => {
+	const { render } = await import("../lib/views/planning.mjs");
+	class Element {
+		constructor(tag = "div") {
+			this.tagName = tag.toUpperCase();
+			this.children = [];
+			this.parentNode = null;
+			this.dataset = {};
+			this.style = {};
+			this.classList = { contains: () => false, toggle: () => {} };
+			this.value = "";
+			this.textContent = "";
+			this.hidden = false;
+		}
+		set innerHTML(value) {
+			this.html = String(value);
+			this.children = [];
+		}
+		get innerHTML() {
+			return this.html || "";
+		}
+		appendChild(child) {
+			child.parentNode = this;
+			this.children.push(child);
+			return child;
+		}
+		append(...children) {
+			for (const child of children) this.appendChild(child);
+		}
+		insertBefore(child, reference) {
+			const index = this.children.indexOf(reference);
+			if (index < 0) throw new Error("reference node is not a child");
+			child.parentNode = this;
+			this.children.splice(index, 0, child);
+			return child;
+		}
+		addEventListener() {}
+		querySelectorAll(selector) {
+			if (selector === "select,input,textarea")
+				return [
+					new Element("select"),
+					new Element("input"),
+					new Element("textarea"),
+				];
+			if (selector === "button")
+				return [new Element("button"), new Element("button")];
+			return [];
+		}
+		querySelector(selector) {
+			return this.querySelectorAll(selector)[0] || new Element();
+		}
+		reset() {}
+		focus() {}
+		setSelectionRange() {}
+	}
+	const wrap = new Element("div");
+	const branch = new Element("span");
+	const body = new Element("body");
+	const document = {
+		body,
+		documentElement: new Element("html"),
+		createElement: (tag) => new Element(tag),
+		getElementById: (id) => ({ wrap, branch })[id] || null,
+	};
+	const window = { addEventListener() {}, close() {} };
+	window.parent = window;
+	const context = vm.createContext({
+		document,
+		window,
+		navigator: { sendBeacon() {} },
+		localStorage: { getItem: () => "", setItem() {}, removeItem() {} },
+		fetch: async () => ({ status: 200 }),
+		alert() {},
+		setTimeout,
+		clearTimeout,
+		console,
+	});
+	const html = render({
+		step: "planning",
+		branch: "main",
+		plan: null,
+		progress: { done: 0, total: 0 },
+		knowledgeInitialized: false,
+		features: [],
+		backlog: [],
+		retired: [],
+		files: [],
+	});
+	assert.doesNotThrow(() => vm.runInContext(inlineScript(html), context));
+	const hero = wrap.children[0];
+	assert.ok(hero, "the plan-less hero rendered");
+	assert.ok(
+		hero.children.some((child) =>
+			child.textContent.includes("not initialized"),
+		),
+		"the initialization guidance is visible",
+	);
+	const buttons = hero.children.find(
+		(child) => child.className === "btns-center",
+	);
+	assert.deepEqual(
+		buttons.children.map((button) => button.textContent),
+		["Initialize memory", "Create plan"],
+	);
+});
+
 test("knowledge view declares DESIGN_SECS before the render bootstrap runs", async () => {
 	const { render } = await import("../lib/views/knowledge.mjs");
 	const src = inlineScript(render(MIN_DATA.knowledge));

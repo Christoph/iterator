@@ -797,6 +797,45 @@ test("gather knowledge reports areas, concepts, staleness, and the design card",
 	}
 });
 
+test("gather knowledge reports feature memory pressure and dangling references", () => {
+	const root = makeKnowledgeFixture();
+	try {
+		mkdirSync(join(root, "memory", "patterns"), { recursive: true });
+		for (let i = 0; i < 9; i += 1) {
+			writeFileSync(
+				join(root, "memory", "patterns", `auth-${i}.md`),
+				`---\ntype: Pattern\ntitle: Auth ${i}\ndescription: d\nfiles: ["src/auth/*.ts"]\n---\nbody\n`,
+			);
+		}
+		writeFileSync(
+			join(root, "memory", "features", "auth-middleware.md"),
+			'---\ntype: Feature\ntitle: Auth middleware\ndescription: JWT middleware\nstatus: pending\ndepends_on: [config-module]\nfiles: ["src/auth/*.ts"]\nmemories: [patterns/auth-0, patterns/missing]\n---\n',
+		);
+
+		const payload = gatherKnowledge(root);
+		assert.equal(payload.memory.overloadedFeatureCount, 1);
+		assert.equal(payload.memory.danglingReferenceCount, 1);
+		assert.deepEqual(payload.consolidation.danglingReferences, [
+			{ feature: "auth-middleware", id: "patterns/missing" },
+		]);
+		const usage = payload.consolidation.overloadedFeatures[0];
+		assert.equal(usage.feature, "auth-middleware");
+		assert.equal(usage.candidateCount, 9);
+		assert.equal(usage.overLimit, true);
+		assert.equal(payload.consolidation.overlapCandidates.length, 1);
+		assert.equal(payload.consolidation.overlapCandidates[0].memories.length, 9);
+		const auth0 = payload.memories.find(
+			(memory) => memory.id === "patterns/auth-0",
+		);
+		assert.deepEqual(auth0.referencedByFeatures, ["auth-middleware"]);
+		assert.deepEqual(auth0.matchedByFeatures, ["auth-middleware"]);
+		assert.match(payload.advice, /dangling feature reference/);
+		assert.match(payload.advice, /over-limit feature/);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("gather knowledge flags a stale format.md and an uninitialized bundle", () => {
 	const root = makeKnowledgeFixture();
 	try {
@@ -883,6 +922,48 @@ test("implement contracts carry relevantMemories anchored to each feature, pitfa
 		assert.deepEqual(
 			again.next.relevantMemories.map((m) => m.id),
 			["pitfalls/auth-sharp-edge", "architecture/auth-shape"],
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("implement contracts cap stored and fresh memories together", () => {
+	const root = makeKnowledgeFixture();
+	try {
+		mkdirSync(join(root, "memory", "architecture"), { recursive: true });
+		mkdirSync(join(root, "memory", "decisions"), { recursive: true });
+		writeFileSync(
+			join(root, "memory", "architecture", "auth-shape.md"),
+			'---\ntype: Architecture\ntitle: Auth shape\ndescription: d\nfiles: ["src/auth/*.ts"]\n---\nbody\n',
+		);
+		writeFileSync(
+			join(root, "memory", "pitfalls", "auth-sharp-edge.md"),
+			'---\ntype: Pitfall\ntitle: Auth sharp edge\ndescription: d\nfiles: ["src/auth/*.ts"]\n---\nbody\n',
+		);
+		const stored = Array.from({ length: 8 }, (_, i) => `decisions/direct-${i}`);
+		for (const id of stored) {
+			const slug = id.split("/")[1];
+			writeFileSync(
+				join(root, "memory", "decisions", `${slug}.md`),
+				`---\ntype: Decision\ntitle: ${slug}\ndescription: d\n---\nbody\n`,
+			);
+		}
+		writeFileSync(
+			join(root, "memory", "features", "auth-middleware.md"),
+			`---\ntype: Feature\ntitle: Auth middleware\ndescription: JWT middleware\nstatus: pending\ndepends_on: [config-module]\nfiles: ["src/auth/*.ts"]\nmemories: [${stored.join(", ")}]\n---\n`,
+		);
+
+		const memories = gatherImplement(root).next.relevantMemories;
+		assert.equal(memories.length, 8, "the final contract is capped");
+		assert.deepEqual(
+			memories.map((memory) => memory.id),
+			[
+				"pitfalls/auth-sharp-edge",
+				"architecture/auth-shape",
+				...stored.slice(0, 6),
+			],
+			"area priority wins, then stored references break ties deterministically",
 		);
 	} finally {
 		rmSync(root, { recursive: true, force: true });

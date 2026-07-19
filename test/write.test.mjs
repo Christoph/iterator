@@ -12,7 +12,12 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve as resolvePath } from "node:path";
 import { applyOp, topoSort, setFmKeys } from "../lib/write.mjs";
-import { frontmatter, gather } from "../lib/gather.mjs";
+import {
+	frontmatter,
+	gather,
+	gatherRetire,
+	gatherUsage,
+} from "../lib/gather.mjs";
 import { backlogItems } from "../lib/bundle.mjs";
 
 process.env.ITERATOR_NOW = "2026-07-06T12:00:00Z";
@@ -1613,6 +1618,63 @@ test("refresh-format copies the current template over the bundle copy", () => {
 // ---------------------------------------------------------------------------
 // op: retire-plan
 
+test("retire-plan requires reviewed memorization only when enabled", () => {
+	const root = makeRepo();
+	try {
+		writeFileSync(join(root, ".keep"), "base\n");
+		git(root, "add", ".keep");
+		git(root, "commit", "-qm", "base");
+		const base = git(root, "rev-parse", "HEAD");
+		applyOp(
+			{
+				op: "settings",
+				values: { branch_per_plan: "off", memorize_on_retire: "on" },
+			},
+			root,
+		);
+		applyOp(PLAN_OP, root);
+		applyOp(FEATURES_OP, root);
+		applyOp({ op: "memorize", advanceTo: base }, root);
+		mkdirSync(join(root, "src"), { recursive: true });
+		writeFileSync(join(root, "src", "auth.ts"), "export const auth = true;\n");
+		git(root, "add", "src/auth.ts");
+		git(root, "commit", "-qm", "feature: auth");
+
+		const before = gatherRetire(root);
+		assert.equal(before.memorize.enabled, true);
+		assert.equal(before.memorize.required, true);
+		assert.equal(before.memorize.range.commitCount, 1);
+		assert.throws(
+			() =>
+				applyOp(
+					{
+						op: "retire-plan",
+						force: true,
+						concept: { slug: "jwt", title: "JWT", description: "d", body: "b" },
+					},
+					root,
+				),
+			/requires reviewing 1 unmemorized commit/,
+		);
+
+		// Simulate the approved /iterator-memorize review advancing to its
+		// reviewed head. Only then may retirement proceed.
+		applyOp({ op: "memorize", advanceTo: "HEAD" }, root);
+		assert.equal(gatherRetire(root).memorize.required, false);
+		const retired = applyOp(
+			{
+				op: "retire-plan",
+				force: true,
+				concept: { slug: "jwt", title: "JWT", description: "d", body: "b" },
+			},
+			root,
+		);
+		assert.equal(retired.concept, "decisions/jwt");
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("retire-plan condenses a finished plan into a decision and archives the work", () => {
 	const root = makeRepo();
 	try {
@@ -2693,6 +2755,43 @@ test("features op stores writer-computed memories and model-flagged conflicts", 
 	}
 });
 
+test("features op caps the stored anchor-matched memory list", () => {
+	const root = makeRepo();
+	try {
+		applyOp(PLAN_OP, root);
+		mkdirSync(join(root, "memory", "patterns"), { recursive: true });
+		for (let i = 0; i < 9; i += 1) {
+			writeFileSync(
+				join(root, "memory", "patterns", `memory-${i}.md`),
+				`---\ntype: Pattern\ntitle: Memory ${i}\ndescription: d\nfiles: ["src/auth/*.ts"]\n---\nbody\n`,
+			);
+		}
+		applyOp(
+			{
+				op: "features",
+				features: [
+					{
+						name: "auth-middleware",
+						description: "JWT middleware",
+						files: ["src/auth/*.ts"],
+					},
+				],
+			},
+			root,
+		);
+		const memories = frontmatter(
+			read(root, "features", "auth-middleware.md"),
+		).memories;
+		assert.equal(memories.length, 8);
+		assert.deepEqual(
+			memories,
+			Array.from({ length: 8 }, (_, i) => `patterns/memory-${i}`),
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("usage op merges increment rows into per-step × model aggregates", () => {
 	const root = makeRepo();
 	try {
@@ -2753,6 +2852,11 @@ test("usage op merges increment rows into per-step × model aggregates", () => {
 		assert.equal(totals.steps.implement["openai/gpt-5.5"].turns, 2);
 		assert.equal(totals.steps.review["anthropic/claude-opus-4-8"].output, 3);
 		assert.equal(totals.features.auth.input, 107, "feature rollup spans steps");
+		assert.equal(
+			totals.featureModels.auth["openai/gpt-5.5"].input,
+			100,
+			"per-model feature usage supports honest pricing",
+		);
 		assert.match(raw, /\| openai\/gpt-5\.5 \| 110 \| 55 \| 20 \| 5 \| 2 \|/);
 
 		assert.throws(
@@ -2762,6 +2866,88 @@ test("usage op merges increment rows into per-step × model aggregates", () => {
 		assert.throws(
 			() => applyOp({ op: "usage", rows: [{ step: "x", input: -1 }] }, root),
 			/non-negative/,
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("usage prices persist and calculate complete row, feature, and grand costs", () => {
+	const root = makeRepo();
+	try {
+		applyOp(
+			{
+				op: "usage",
+				rows: [
+					{
+						step: "implement",
+						feature: "auth",
+						provider: "openai",
+						model: "gpt",
+						input: 100,
+						output: 50,
+						cacheRead: 20,
+						cacheWrite: 5,
+					},
+					{
+						step: "review",
+						feature: "auth",
+						provider: "anthropic",
+						model: "claude",
+						input: 10,
+						output: 4,
+					},
+				],
+			},
+			root,
+		);
+		const priced = applyOp(
+			{
+				op: "usage",
+				prices: {
+					"openai/gpt": { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2 },
+					"anthropic/claude": { input: 3, output: 15 },
+				},
+			},
+			root,
+		);
+		assert.equal(priced.rows, 0);
+		assert.equal(priced.prices, 2);
+		assert.ok(
+			Math.abs(priced.costs.steps.implement["openai/gpt"] - 0.000714) < 1e-12,
+		);
+		assert.ok(Math.abs(priced.costs.features.auth - 0.000804) < 1e-12);
+		assert.ok(Math.abs(priced.costs.grand - 0.000804) < 1e-12);
+		const gathered = gatherUsage(root);
+		assert.deepEqual(gathered.prices, {
+			"openai/gpt": { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2 },
+			"anthropic/claude": { input: 3, output: 15 },
+		});
+		assert.ok(Math.abs(gathered.costs.grand - 0.000804) < 1e-12);
+		const raw = read(root, "usage.md");
+		assert.equal(JSON.parse(frontmatter(raw).prices)["openai/gpt"].output, 10);
+		assert.match(raw, /Model prices \(USD per 1M tokens\)/);
+		assert.match(raw, /Estimated cost: \$0\.000804/);
+
+		const incomplete = applyOp(
+			{ op: "usage", prices: { "openai/gpt": { input: 2 } } },
+			root,
+		);
+		assert.equal(incomplete.costs.steps.implement["openai/gpt"], null);
+		assert.equal(incomplete.costs.features.auth, null);
+		assert.equal(incomplete.costs.grand, null);
+		assert.throws(
+			() =>
+				applyOp(
+					{ op: "usage", prices: { "openai/gpt": { output: -1 } } },
+					root,
+				),
+			/non-negative/,
+		);
+		assert.throws(
+			() =>
+				applyOp({ op: "usage", prices: { "openai/gpt": { typo: 1 } } }, root),
+			/unknown token field/,
 		);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
@@ -2804,6 +2990,13 @@ test("retire-plan archives the usage ledger and keeps totals in the decision", (
 			},
 			root,
 		);
+		applyOp(
+			{
+				op: "usage",
+				prices: { "openai/gpt-5.5": { input: 2, output: 10 } },
+			},
+			root,
+		);
 		const res = applyOp(
 			{
 				op: "retire-plan",
@@ -2829,6 +3022,8 @@ test("retire-plan archives the usage ledger and keeps totals in the decision", (
 			"utf8",
 		);
 		assert.match(archived, /500/);
+		assert.match(archived, /Model prices \(USD per 1M tokens\)/);
+		assert.match(archived, /Estimated cost: \$0\.003000/);
 		assert.match(
 			read(root, "decisions", "jwt-auth.md"),
 			/Token usage: 500 in \/ 200 out/,

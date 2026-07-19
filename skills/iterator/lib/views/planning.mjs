@@ -51,6 +51,8 @@ const BODY = `
 
 const JS = `
 const CH = D.features || [];
+const PLAN_DRAFT_KEY = 'iterator:plan-goal-draft:' + (D.branch || '');
+function clearPlanDraft(){ try { localStorage.removeItem(PLAN_DRAFT_KEY); } catch(e){} }
 
 async function backlogAction(payload, button, message){
   if(button){ button.disabled = true; button.dataset.label = button.textContent; button.textContent = 'Saving…'; }
@@ -119,6 +121,7 @@ render();
 function render(){
   const w = document.getElementById('wrap');
   w.innerHTML = '';
+  if(D.plan) clearPlanDraft();
   if(!D.plan){
     const hero = document.createElement('div');
     hero.className = 'hero';
@@ -136,15 +139,13 @@ function render(){
     goal.placeholder = 'What are you building and why? (1\\u20133 sentences \\u2014 optional, saves a question round; @ mentions repo files)';
     // The iframe is recreated on every tab switch/refresh — keep the unsent
     // goal in browser storage, cleared only once a plan actually starts.
-    const DRAFT_KEY = 'iterator:plan-goal-draft:' + (D.branch || '');
-    try { goal.value = localStorage.getItem(DRAFT_KEY) || ''; } catch(e){}
+    try { goal.value = localStorage.getItem(PLAN_DRAFT_KEY) || ''; } catch(e){}
     const saveDraft = () => { try {
-      if(goal.value) localStorage.setItem(DRAFT_KEY, goal.value);
-      else localStorage.removeItem(DRAFT_KEY);
+      if(goal.value) localStorage.setItem(PLAN_DRAFT_KEY, goal.value);
+      else localStorage.removeItem(PLAN_DRAFT_KEY);
     } catch(e){} };
     goal.addEventListener('input', saveDraft);
     goal.addEventListener('blur', saveDraft);
-    const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY); } catch(e){} };
     const goalWrap = document.createElement('div');
     goalWrap.className = 'goal-wrap';
     goalWrap.appendChild(goal);
@@ -160,19 +161,20 @@ function render(){
       const note = document.createElement('div');
       note.className = 'initnote';
       note.textContent = '\\u26a0 Project memory is not initialized yet \\u2014 initialize it first so plans and features can load relevant knowledge.';
-      hero.insertBefore(note, goal);
+      hero.insertBefore(note, goalWrap);
       const init = document.createElement('button');
       init.className = 'act primary-act'; init.textContent = 'Initialize memory';
+      // Keep the draft until a plan actually exists: init may be cancelled or
+      // need feedback, and its continuation must not lose the user's goal.
       init.addEventListener('click', () =>
-        post({ type:'action', action:'iterator-init', feature:null, prompt: goal.value.trim() || null }, 'Starting /iterator-init')
-          .then(() => { if(__submitted) clearDraft(); }));
+        post({ type:'action', action:'iterator-init', feature:null, prompt: goal.value.trim() || null }, 'Starting /iterator-init'));
       btns.appendChild(init);
     }
     const b = document.createElement('button');
     b.className = 'act' + (D.knowledgeInitialized ? ' primary-act' : ''); b.textContent = 'Create plan';
     b.addEventListener('click', () =>
       post({ type:'action', action:'plan', feature:null, prompt: goal.value.trim() || null }, 'Starting /iterator-plan')
-        .then(() => { if(__submitted) clearDraft(); }));
+        .then(() => { if(__submitted) clearPlanDraft(); }));
     btns.appendChild(b);
     hero.appendChild(btns);
     w.appendChild(hero);

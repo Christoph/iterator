@@ -1,6 +1,45 @@
 # iterator update log
 
+## 2026-07-19
+* **Retirement**: Plan "Improve memory relevance, usage costs, and dashboard recovery" condensed into [Memory relevance, usage costs, and dashboard recovery](/decisions/memory-relevance-usage-and-dashboard-recovery.md).
+
+## 2026-07-18
+* **Plan review**: Whole-plan review recorded (agent).
+* **Review**: Reviewed [Keep Work blocked while agents run](/features/reliable-work-blocker.md); approved (agent).
+* **Review**: Accepted [Keep Work blocked while agents run](/features/reliable-work-blocker.md) (committed as feature(reliable-work-blocker)).
+* **Implementation**: Committed feature(reliable-work-blocker) on branch iterator/always-available-backlog; awaiting review.
+* **Review**: Reviewed [Keep Work blocked while agents run](/features/reliable-work-blocker.md); changes (agent).
+* **Implementation**: Committed feature(reliable-work-blocker) on branch iterator/always-available-backlog; awaiting review.
+* **Review**: Reviewed [Price model usage](/features/price-model-usage.md); approved (agent).
+* **Review**: Accepted [Price model usage](/features/price-model-usage.md) (committed as feature(price-model-usage)).
+* **Implementation**: Committed feature(price-model-usage) on branch iterator/always-available-backlog; awaiting review.
+* **Review**: Reviewed [Onboard plan-less projects](/features/onboard-planless-projects.md); approved (agent).
+* **Review**: Accepted [Onboard plan-less projects](/features/onboard-planless-projects.md) (committed as feature(onboard-planless-projects)).
+* **Implementation**: Committed feature(onboard-planless-projects) on branch iterator/always-available-backlog; awaiting review.
+* **Review**: Reviewed [Onboard plan-less projects](/features/onboard-planless-projects.md); changes (agent).
+* **Implementation**: Committed feature(onboard-planless-projects) on branch iterator/always-available-backlog; awaiting review.
+* **Review**: Reviewed [Memorize retired plan commits](/features/memorize-on-retirement.md); approved (agent).
+* **Review**: Accepted [Memorize retired plan commits](/features/memorize-on-retirement.md) (committed as feature(memorize-on-retirement)).
+* **Implementation**: Committed feature(memorize-on-retirement) on branch iterator/always-available-backlog; awaiting review.
+* **Review**: Reviewed [Consolidate over-attached memories](/features/consolidate-overattached-memories.md); approved (agent).
+* **Review**: Accepted [Consolidate over-attached memories](/features/consolidate-overattached-memories.md) (committed as feature(consolidate-overattached-memories)).
+* **Implementation**: Committed feature(consolidate-overattached-memories) on branch iterator/always-available-backlog; awaiting review.
+* **Review**: Reviewed [Bound feature memory context](/features/bound-feature-memories.md); approved (agent).
+* **Review**: Accepted [Bound feature memory context](/features/bound-feature-memories.md) (committed as feature(bound-feature-memories)).
+* **Implementation**: Committed feature(bound-feature-memories) on branch iterator/always-available-backlog; awaiting review.
+* **Update**: Applied 6 feature adjustment(s).
+* **Creation**: 6 feature(s) written.
+* **Creation**: Plan "Improve memory relevance, usage costs, and dashboard recovery" approved on branch iterator/always-available-backlog. Consumed 6 selected backlog candidate(s).
+* **Backlog**: select in-a-new-project-planning-start-empty (selected).
+* **Backlog**: select make-sure-work-state-is-working (selected).
+* **Backlog**: select settign-and-function-to-memorize-commits-in-retire-plan (selected).
+* **Backlog**: select after-consolidating-the-memory-files-there-is-still-a-stale-memory (selected).
+* **Backlog**: select let-in-usage-add-a-price-for-the-models-ioptional (selected).
+* **Backlog**: select feature-plannning-memory-files (selected).
+
 ## 2026-07-17
+* **Backlog**: edit in-a-new-project-planning-start-empty.
+* **Backlog**: create in-a-new-project-planning-start-empty.
 * **Retirement**: Plan "Apply role models on manual turns and reset stale auto state" condensed into [Apply role models to manual turns and reset stale runtime state](/decisions/manual-role-models-and-runtime-reset.md).
 * **Plan review**: Whole-plan review recorded (agent).
 * **Review**: Reviewed [Apply configured models to manual turns](/features/apply-role-models-manual-turns.md); approved (agent).

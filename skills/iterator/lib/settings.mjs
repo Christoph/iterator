@@ -162,6 +162,13 @@ export const SETTINGS_DEFS = {
 		label: "Retire prompt",
 		help: "Offer retiring the plan once every feature is done.",
 	},
+	memorize_on_retire: {
+		kind: "enum",
+		values: ["on", "off"],
+		default: "off",
+		label: "Memorize on retire",
+		help: "Before retirement, require a reviewed /iterator-memorize pass over every commit since last_memorized_commit. Off keeps the current direct retirement flow.",
+	},
 };
 
 export const SETTINGS_KEYS = Object.keys(SETTINGS_DEFS);
@@ -196,14 +203,18 @@ export function validateSettings(partial) {
 		} else if (def.kind === "int") {
 			const n = Number(raw);
 			if (!Number.isInteger(n) || n < def.min || n > def.max) {
-				errors.push(`${key}: '${raw}' must be an integer in [${def.min}, ${def.max}]`);
+				errors.push(
+					`${key}: '${raw}' must be an integer in [${def.min}, ${def.max}]`,
+				);
 				continue;
 			}
 			values[key] = n;
 		} else if (def.kind === "model") {
 			const s = String(raw).trim();
 			if (!s || /\s/.test(s)) {
-				errors.push(`${key}: '${raw}' must be 'active' or '<provider>/<model-id>'`);
+				errors.push(
+					`${key}: '${raw}' must be 'active' or '<provider>/<model-id>'`,
+				);
 				continue;
 			}
 			values[key] = s;
