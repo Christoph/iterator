@@ -446,15 +446,15 @@ test("hub gates Implement/Review on status and renders escalation + review-plan 
 	assert.match(html, /Review all/);
 	assert.match(html, /action\('review-all'/);
 	assert.match(html, /Array\.isArray\(D\.reviewWave\)/);
-	// Active feature context and management live on Work.
+	// Active feature and plan lifecycle management live on Work.
 	assert.match(html, /renderGraphInto/);
 	assert.match(html, /action\('cancel-feature'/);
-	// Plan-lifecycle controls live on the Planning surface, not Work.
-	assert.doesNotMatch(html, /action\('review-plan'/);
-	assert.doesNotMatch(html, /Retires the plan/);
+	assert.match(html, /action\('review-plan'/);
+	assert.match(html, /Retires the plan/);
+	assert.match(html, /action\('cancel-plan'/);
 });
 
-test("planning drives plan-lifecycle controls from the server-derived stage", async () => {
+test("planning keeps active work staged while Work drives lifecycle controls", async () => {
 	const { render: planning } = await import("../lib/views/planning.mjs");
 	const html = planning({
 		step: "planning",
@@ -496,15 +496,15 @@ test("planning drives plan-lifecycle controls from the server-derived stage", as
 		],
 		backlog: [],
 	});
-	// Lifecycle buttons key off the server-derived stage.
-	assert.match(html, /D\.stage==='retirable'/);
-	assert.match(html, /action\('review-plan'/);
-	assert.match(html, /Retires the plan/);
-	assert.match(html, /action\('cancel-plan'/);
-	// Active features and their dependency graph live on Work, not Planning.
+	assert.match(html, /Planning is staged/);
+	assert.match(html, /Open Work/);
+	assert.match(html, /action\('hub'/);
+	// Active lifecycle, features, and execution controls are absent from Planning.
+	assert.doesNotMatch(html, /action\('review-plan'/);
+	assert.doesNotMatch(html, /Retires the plan/);
+	assert.doesNotMatch(html, /action\('cancel-plan'/);
 	assert.doesNotMatch(html, /action\('cancel-feature'/);
 	assert.doesNotMatch(html, /renderGraphInto/);
-	// The execution controls live on Work, not here.
 	assert.doesNotMatch(html, /action\('implement'/);
 	assert.doesNotMatch(html, /auto-implement/);
 	// Retired-plan browsing remains a planning concern.

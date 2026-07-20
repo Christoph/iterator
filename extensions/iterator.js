@@ -321,7 +321,10 @@ export default function iteratorExtension(pi) {
 	};
 
 	/** Refresh the idle dashboard tabs (no pending round). */
-	const refreshHub = async (cwd, { preferPlanning = false } = {}) => {
+	const refreshHub = async (
+		cwd,
+		{ preferPlanning = false, activateWork = false } = {},
+	) => {
 		if (!session || !session.isRunning() || session.hasPending()) return;
 		try {
 			// Inactive tabs first: their refreshes are stored silently. On first
@@ -343,7 +346,11 @@ export default function iteratorExtension(pi) {
 				render: () => VIEWS.planning({ ...hub, step: "planning" }),
 				activate: landOnPlanning,
 			});
-			session.showView({ step: "hub", render: () => VIEWS.hub(hub) });
+			session.showView({
+				step: "hub",
+				render: () => VIEWS.hub(hub),
+				activate: activateWork,
+			});
 			await pushStatus(cwd);
 		} catch {
 			/* a broken bundle read must never take pi down */
@@ -998,9 +1005,13 @@ export default function iteratorExtension(pi) {
 					// (decisions/settings-close-returns-to-work) — never a model turn.
 					// "planning" is pure navigation too: refresh both dashboard tabs
 					// (the shell's Planning tab already holds the view).
+					if (result?.type === "action" && result.action === "hub") {
+						void refreshHub(ctxCwd(), { activateWork: true });
+						return;
+					}
 					if (
 						result?.type === "action" &&
-						["hub", "close", "planning"].includes(result.action)
+						["close", "planning"].includes(result.action)
 					) {
 						void refreshHub(ctxCwd());
 						return;
@@ -1294,6 +1305,7 @@ export default function iteratorExtension(pi) {
 					(params.op === "adjustments" || params.type === "plan-approved") &&
 					(params.accept === true || params.type === "plan-approved");
 				if (approved) {
+					void refreshHub(ctx.cwd, { activateWork: true });
 					try {
 						const { settings, state } = await gatherSession(ctx.cwd);
 						if (settings?.auto_mode === "on" && state?.mode !== "auto") {
@@ -1511,6 +1523,7 @@ export default function iteratorExtension(pi) {
 						applied = { ok: false, error: e.message };
 					}
 					invalidateSession();
+					if (applied?.ok) await refreshHub(ctx.cwd, { activateWork: true });
 					return asText({ ...result, applied });
 				}
 				return asText(result);

@@ -577,6 +577,23 @@ test("showView can intentionally activate Planning for the startup landing page"
 	}
 });
 
+test("showView can intentionally activate Work after an approved transition", async () => {
+	const { session, origin } = await startSession();
+	try {
+		session.showView({
+			step: "hub",
+			render: () => viewHtml("ACTIVE-WORK"),
+			activate: true,
+		});
+		const sse = await firstSseEvent(origin);
+		assert.equal(sse.event, "view");
+		assert.equal(sse.data.tab, "work");
+		assert.match(await (await fetch(origin + "/")).text(), /let tab = "work"/);
+	} finally {
+		await session.stop();
+	}
+});
+
 test("tabs: steps render into their tab; inactive-tab refreshes are stored silently", async () => {
 	const { session, origin } = await startSession();
 	try {

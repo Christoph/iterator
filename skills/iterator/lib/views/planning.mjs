@@ -183,65 +183,17 @@ function render(){
     return;
   }
 
-  // Plan bar: title, status, progress count, and the stage-driven lifecycle
-  // buttons. Execution controls (auto mode, Test/Implement/Review) live on
-  // the Work surface.
-  const done = (D.progress&&D.progress.done)||0, total = (D.progress&&D.progress.total)||CH.length;
-  const bar = document.createElement('div');
-  bar.className = 'planbar';
-  bar.innerHTML = '<span class="pt">'+esc(D.plan.title||'Plan')+'</span>'+
-    '<span class="pst '+(D.plan.status==='approved'?'approved':'draft')+'">'+esc(D.plan.status||'draft')+'</span>'+
-    (total
-      ? '<span class="pcount">'+done+' / '+total+' features done</span>'
-      : '<span class="pcount">not broken into features yet</span>');
-  const revise = document.createElement('button');
-  revise.className='act'; revise.textContent='Revise plan';
-  revise.addEventListener('click', () => action('plan', null, 'Starting /iterator-plan'));
-  bar.appendChild(revise);
-  // Before featuring, this button IS the continue action — make it read and
-  // look like one instead of a "Re-feature" that has nothing to redo.
-  const refeature = document.createElement('button');
-  refeature.className = D.stage==='needs-features' ? 'act primary-act' : 'act';
-  refeature.textContent = D.stage==='needs-features' ? 'Feature the plan' : 'Re-feature';
-  refeature.title = D.stage==='needs-features'
-    ? 'Next step: break the approved plan into small, dependency-ordered features (/iterator-feature)'
-    : 'Redraw the feature set from the plan (/iterator-feature)';
-  refeature.addEventListener('click', () => action('feature', null, 'Starting /iterator-feature'));
-  bar.appendChild(refeature);
-  // Everything landed → the whole-plan review; every feature done → retire.
-  // Both derive from the server-computed stage, never recomputed here.
-  if(D.stage==='awaiting-plan-review' || D.stage==='retirable'){
-    const rp = document.createElement('button');
-    rp.className = 'act primary-act';
-    rp.textContent = D.plan.planReviewed ? 'Re-review plan' : 'Review plan';
-    rp.title = D.plan.planReviewed
-      ? 'Plan reviewed '+D.plan.planReviewed+' \\u2014 run the whole-plan review again'
-      : 'Review all changes and commits against the plan\\u2019s goals and decisions';
-    rp.addEventListener('click', () => action('review-plan', null, 'Starting /iterator-review-plan'));
-    bar.appendChild(rp);
-  }
-  if(D.stage==='retirable'){
-    const retire = document.createElement('button');
-    retire.className='act primary-act'; retire.textContent='Retire plan';
-    retire.title='Condense the finished plan into a decisions/ memory and archive its features';
-    confirmButton(retire, 'Retires the plan \\u2014 click again', () =>
-      action('retire', null, 'Starting plan retirement'));
-    bar.appendChild(retire);
-  }
-  // Cancel: abandon the plan entirely — archives the bundle side and deletes
-  // the plan branch/worktree, so the armed label spells out what is at stake.
-  const cancelPlan = document.createElement('button');
-  cancelPlan.className = 'act danger';
-  cancelPlan.textContent = 'Cancel plan';
-  const dirtyWarn = (D.dirty && D.dirty.count)
-    ? D.dirty.count + ' uncommitted file' + (D.dirty.count!==1?'s':'') + ' + '
-    : '';
-  cancelPlan.title = 'Abandon this plan: archive it and DELETE its branch/worktree'
-    + (dirtyWarn ? ' \\u2014 \\u26a0 ' + dirtyWarn + 'unmerged commits will be lost' : '');
-  confirmButton(cancelPlan, '\\u26a0 Deletes ' + dirtyWarn + 'branch \\u2014 click again', () =>
-    action('cancel-plan', null, 'Cancelling plan'));
-  bar.appendChild(cancelPlan);
-  w.appendChild(bar);
+  // Planning is a staging surface once a plan exists. Active lifecycle,
+  // progress, and feature controls stay together on Work.
+  const hero = document.createElement('div');
+  hero.className = 'hero';
+  hero.innerHTML = '<h2>Planning is staged</h2><p><strong>'+esc(D.plan.title||'This plan')+'</strong> is active on Work.<br>Use Work for progress, feature actions, and plan lifecycle controls.</p>';
+  const open = document.createElement('button');
+  open.className = 'act primary-act';
+  open.textContent = 'Open Work';
+  open.addEventListener('click', () => action('hub', null, 'Opening Work'));
+  hero.appendChild(open);
+  w.appendChild(hero);
   renderBacklog(w);
   renderRetired(w);
 }

@@ -7,7 +7,7 @@ size: large
 depends_on: []
 files: ["extensions/iterator.js", "lib/pi-tools.mjs", "skills/iterator-implement/SKILL.md", "test/pi-tools.test.mjs", "test/extension-fresh-session.test.mjs"]
 memories: [architecture/package-and-skill-layout, decisions/backlog-planning-and-feature-waves, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset, decisions/memory-relevance-usage-and-dashboard-recovery, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows, decisions/powerline-shows-sandbox-ui-port]
-timestamp: "2026-07-20T14:06:33.938Z"
+timestamp: "2026-07-20T14:06:39.909Z"
 tags: []
 commits:
   - sha: e7a69a4ee3dd962817c766d39109012284a0e530
@@ -48,4 +48,5 @@ Every Pi implementation entrypoint and session lifecycle; mistakes can lose auto
 # Review
 
 ## 2026-07-20
+* **Approved** _(agent review: openai-codex/gpt-5.6-sol)_ — Approved: replacement sessions now restore the prior step model before switching, apply the implementer role in the fresh turn, preserve ready-wave and autoSteps state, and retain interruption safety on reload; targeted lifecycle helpers and the full suite cover the corrected paths.
 * **Needs changes** _(agent review: openai-codex/gpt-5.6-sol)_ — Fresh-session auto/wave implementations no longer receive the configured implementer role: the old driver now skips applyRole, while the replacement turn's before_agent_start still refuses pendingRole whenever state.mode is auto or featureWave is set. Restore any prior step role before ctx.newSession, mark the intentional handoff in the new extension instance, and apply/restore the implementer role exactly once there. Also carry autoSteps through the handoff so replacing the session for every feature cannot reset and bypass AUTO_MAX_STEPS. Add lifecycle assertions for auto and ready-wave handoffs (the current extension test is skipped when typebox is absent).

@@ -110,6 +110,52 @@ function render(){
       ? '<span class="pcount">'+done+' / '+total+' features done</span>'+
         '<div class="pbar"><div style="width:'+Math.round(done/total*100)+'%"></div></div>'
       : '<span class="pcount">not broken into features yet</span>');
+  // Active-plan lifecycle belongs with its progress and feature work. Every
+  // condition is the server-derived stage; this view never infers it.
+  const revise = document.createElement('button');
+  revise.className = 'act';
+  revise.textContent = 'Revise plan';
+  revise.addEventListener('click', () => action('plan', null, 'Starting /iterator-plan'));
+  bar.appendChild(revise);
+  const refeature = document.createElement('button');
+  refeature.className = D.stage==='needs-features' ? 'act primary-act' : 'act';
+  refeature.textContent = D.stage==='needs-features' ? 'Feature the plan' : 'Re-feature';
+  refeature.title = D.stage==='needs-features'
+    ? 'Next step: break the approved plan into small, dependency-ordered features (/iterator-feature)'
+    : 'Redraw the feature set from the plan (/iterator-feature)';
+  refeature.addEventListener('click', () => action('feature', null, 'Starting /iterator-feature'));
+  bar.appendChild(refeature);
+  if(D.stage==='awaiting-plan-review' || D.stage==='retirable'){
+    const reviewPlan = document.createElement('button');
+    reviewPlan.className = 'act primary-act';
+    reviewPlan.textContent = D.plan.planReviewed ? 'Re-review plan' : 'Review plan';
+    reviewPlan.title = D.plan.planReviewed
+      ? 'Plan reviewed '+D.plan.planReviewed+' \\u2014 run the whole-plan review again'
+      : 'Review all changes and commits against the plan\\u2019s goals and decisions';
+    reviewPlan.addEventListener('click', () => action('review-plan', null, 'Starting /iterator-review-plan'));
+    bar.appendChild(reviewPlan);
+  }
+  if(D.stage==='retirable'){
+    const retire = document.createElement('button');
+    retire.className = 'act primary-act';
+    retire.textContent = 'Retire plan';
+    retire.title = 'Condense the finished plan into a decisions/ memory and archive its features';
+    confirmButton(retire, 'Retires the plan \\u2014 click again', () =>
+      action('retire', null, 'Starting plan retirement'));
+    bar.appendChild(retire);
+  }
+  const cancelPlan = document.createElement('button');
+  cancelPlan.className = 'act danger';
+  cancelPlan.textContent = 'Cancel plan';
+  const dirtyWarn = (D.dirty && D.dirty.count)
+    ? D.dirty.count + ' uncommitted file' + (D.dirty.count!==1?'s':'') + ' + '
+    : '';
+  cancelPlan.title = 'Abandon this plan: archive it and DELETE its branch/worktree'
+    + (dirtyWarn ? ' \\u2014 \\u26a0 ' + dirtyWarn + 'unmerged commits will be lost' : '');
+  confirmButton(cancelPlan, '\\u26a0 Deletes ' + dirtyWarn + 'branch \\u2014 click again', () =>
+    action('cancel-plan', null, 'Cancelling plan'));
+  bar.appendChild(cancelPlan);
+
   // Auto mode: once the feature set is approved (pending features exist), the
   // whole test → implement → review loop can run agent-driven.
   const readyWave = Array.isArray(D.readyWave) ? D.readyWave : [];
