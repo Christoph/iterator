@@ -372,6 +372,8 @@ test("planning backlog submits scoped CRUD actions and hands selected candidates
 	);
 	assert.match(html, /Plan selected candidates/);
 	assert.match(html, /selectedBacklogGoal/);
+	assert.match(html, /<div class="at-wrap"><textarea/);
+	assert.match(html, /wireAtMenu\(details, detailsMenu\)/);
 	// Long history feeds scroll within their own region; headings and controls
 	// remain available outside it.
 	assert.match(html, /backlog-list bounded-list/);
@@ -462,14 +464,28 @@ test("Work presents committed red tests as the implementation target", async () 
 		plan: { title: "P", status: "approved" },
 		stage: "implementing",
 		progress: { done: 0, total: 1 },
-		features: [{
-			name: "auth", title: "Auth", status: "pending", size: "small",
-			testsStatus: "red", tests: ["test/auth.test.mjs"], testCount: 1,
-			dependsOn: [], ready: true, waitingOn: [], hasDiff: false,
-			hasCommits: true, conflicts: 0,
-		}],
+		features: [
+			{
+				name: "auth",
+				title: "Auth",
+				status: "pending",
+				size: "small",
+				testsStatus: "red",
+				tests: ["test/auth.test.mjs"],
+				testCount: 1,
+				dependsOn: [],
+				ready: true,
+				waitingOn: [],
+				hasDiff: false,
+				hasCommits: true,
+				conflicts: 0,
+			},
+		],
 		state: { mode: "manual", paused: false, phase: "idle", strikes: {} },
-		settings: {}, dirty: { count: 0, files: [] }, retired: [], backlog: [],
+		settings: {},
+		dirty: { count: 0, files: [] },
+		retired: [],
+		backlog: [],
 	});
 	assert.match(html, /tests committed · intentionally red/);
 	assert.match(html, /Committed red tests — implementation target/);

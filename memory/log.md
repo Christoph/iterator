@@ -1,6 +1,22 @@
 # iterator update log
 
 ## 2026-07-20
+* **Implementation**: Committed feature(backlog-file-mentions) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Update**: Applied 6 feature adjustment(s).
+* **Creation**: 6 feature(s) written.
+* **Creation**: Plan "Streamline backlog planning and knowledge actions" approved on branch iterator/safe-role-model-handoff. Consumed 6 selected backlog candidate(s).
+* **Backlog**: select when-adding-a-plan-just-create-the-features (selected).
+* **Backlog**: select like-in-plan-allow-in-the-idea-baclkog-inputs-the-same-file-seleciton-logic-with (selected).
+* **Backlog**: select memroy-update-needs-foxus (selected).
+* **Backlog**: select save-candidate-should-alsways-work-as-its-a-save-to-file (selected).
+* **Backlog**: select in-work-ifeature-warning-that-it-conflics-with-a-memory-add-a-accept-button (selected).
+* **Backlog**: select idea-backlog-needs-filter-by-feature-and-bug-and-selecte-deselect-all-buttons (selected).
+* **Backlog**: create idea-backlog-needs-filter-by-feature-and-bug-and-selecte-deselect-all-buttons.
+* **Backlog**: select in-work-ifeature-warning-that-it-conflics-with-a-memory-add-a-accept-button (deselected).
+* **Backlog**: select in-work-ifeature-warning-that-it-conflics-with-a-memory-add-a-accept-button (selected).
+* **Retirement**: Plan "Focus feature execution and dashboard ownership" condensed into [Focus feature execution and dashboard ownership](/decisions/focus-feature-execution-and-dashboard-ownership.md).
+* **Plan review**: Whole-plan review recorded (agent).
+* **Review**: Reviewed [Visible red-test handoff](/features/visible-red-test-handoff.md); approved.
 * **Review**: Accepted [Visible red-test handoff](/features/visible-red-test-handoff.md) (committed as feature(visible-red-test-handoff)).
 * **Implementation**: Committed feature(visible-red-test-handoff) on branch iterator/safe-role-model-handoff; awaiting review.
 * **Backlog**: create in-work-ifeature-warning-that-it-conflics-with-a-memory-add-a-accept-button.

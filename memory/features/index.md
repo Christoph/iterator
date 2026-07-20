@@ -1,6 +1,8 @@
 # Features
 
-* [Fresh implementation session](fresh-implementation-session.md) - ✅ done · large · Start every manual, ready-wave, and automatic feature implementation in a new Pi session seeded only with the named feature command and deterministic bundle context.
-* [Active plan workspace](active-plan-workspace.md) - ✅ done · medium · depends: fresh-implementation-session · Make Work the complete home for an active plan and land there after plan or feature approval, while Planning stays focused on future work and archives.
-* [Settings dashboard modal](settings-dashboard-modal.md) - ✅ done · medium · depends: active-plan-workspace · Open project Settings as a modal above any dashboard tab and return to the exact originating context on save or close.
-* [Visible red-test handoff](visible-red-test-handoff.md) - ✅ done · medium · depends: active-plan-workspace · Show committed red tests as the implementation target in Work and carry their exact status and paths into the fresh implementer context.
+* [Backlog file mentions](backlog-file-mentions.md) - ⬜ pending · small · Add Planning-style @ file suggestions to backlog idea details so candidates can anchor repository context.
+* [Reliable backlog saves](backlog-save-during-work.md) - ⬜ pending · medium · Keep deterministic backlog saves available during active work without clearing the owned Work overlay.
+* [Backlog filtering and bulk selection](backlog-filter-and-bulk-select.md) - ⬜ pending · medium · depends: backlog-save-during-work · Filter backlog candidates by type and select or deselect the visible set for planning.
+* [Full-plan fast track](full-plan-fast-track.md) - ⬜ pending · medium · Turn a structured plan supplied in Planning into an approved feature-ready draft without redundant planning prompts.
+* [Focused memory review changes](memory-review-change-focus.md) - ⬜ pending · medium · Highlight changed sections in memory proposals so reviewers can see exactly what a create or update will alter.
+* [Work conflict memory resolution](work-conflict-memory-resolution.md) - ⬜ pending · medium · depends: memory-review-change-focus · Let a Work feature conflict initiate a reviewed decision-update request and anchored follow-up check.
