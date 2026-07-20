@@ -1,3 +1,3 @@
 # Features
 
-* [Persist budget prices across plans](persistent-budget-prices.md) - ✅ done · 🟢 tests green · medium · Budget saves a project-wide model price table that survives retirement, prefills later plans, and remains updateable or clearable.
+* [Finalize auto mode after plan review](finalize-auto-plan-review.md) - ⬜ pending · 🟢 tests green · medium · Agent plan-review completion resets durable auto state and refreshes Work so the final Auto step cannot remain stuck.

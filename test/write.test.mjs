@@ -2617,6 +2617,20 @@ test("record-plan-review appends the report and sets plan_reviewed", () => {
 			() => applyOp({ op: "record-plan-review" }, root),
 			/needs a report/,
 		);
+		applyOp(
+			{
+				op: "state",
+				set: {
+					mode: "auto",
+					paused: false,
+					phase: "reviewing",
+					active_feature: "auth-middleware",
+					strikes: { "auth-middleware": 2 },
+					escalation: { reason: "stale review state" },
+				},
+			},
+			root,
+		);
 		const res = applyOp(
 			{
 				op: "record-plan-review",
@@ -2627,6 +2641,19 @@ test("record-plan-review appends the report and sets plan_reviewed", () => {
 			root,
 		);
 		assert.ok(res.planReviewed, "date recorded");
+		assert.equal(res.autoCompleted, true);
+		assert.deepEqual(frontmatter(read(root, "state.md")), {
+			type: "State",
+			title: "Runtime state",
+			description: "Machine-owned iterator flow state — never hand-edited.",
+			mode: "manual",
+			paused: "false",
+			phase: "done",
+			active_feature: "null",
+			strikes: "{}",
+			escalation: "null",
+			timestamp: "2026-07-06T12:00:00Z",
+		});
 		const plan = read(root, "plan.md");
 		assert.match(plan, /plan_reviewed: \d{4}-\d{2}-\d{2}/);
 		assert.match(plan, /# Plan review/);
@@ -2634,9 +2661,22 @@ test("record-plan-review appends the report and sets plan_reviewed", () => {
 		assert.match(plan, /agent review: anthropic\/claude-fable-5/);
 		// A second review lands ABOVE the first (newest first).
 		applyOp(
+			{
+				op: "state",
+				set: {
+					mode: "auto",
+					phase: "reviewing",
+					active_feature: "manual-review",
+				},
+			},
+			root,
+		);
+		const human = applyOp(
 			{ op: "record-plan-review", report: "Second look, still clean." },
 			root,
 		);
+		assert.equal(human.autoCompleted, false, "human reviews retain runtime state");
+		assert.equal(frontmatter(read(root, "state.md")).mode, "auto");
 		const twice = read(root, "plan.md");
 		assert.ok(
 			twice.indexOf("Second look") < twice.indexOf("Goal covered"),

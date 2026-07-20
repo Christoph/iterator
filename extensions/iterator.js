@@ -1411,6 +1411,18 @@ export default function iteratorExtension(pi) {
 					// Work so their paths and target state are immediately visible.
 					void refreshHub(ctx.cwd, { activateWork: true });
 				}
+				if (result?.autoCompleted) {
+					// The agent plan-review writer already made the terminal state
+					// durable. Converge the local UI now instead of waiting for an
+					// agent-end callback that may race an iframe refresh.
+					autoSteps = 0;
+					await restoreModel();
+					session?.clearWorking?.();
+					notifyUi(
+						"auto mode: plan complete — every feature landed. Consider retiring the plan from the dashboard.",
+					);
+					await refreshHub(ctx.cwd, { activateWork: true });
+				}
 				if (approved) {
 					void refreshHub(ctx.cwd, { activateWork: true });
 					try {

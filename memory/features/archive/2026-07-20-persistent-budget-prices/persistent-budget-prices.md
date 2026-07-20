@@ -7,7 +7,7 @@ size: medium
 depends_on: []
 files: ["lib/settings.mjs", "lib/gather.mjs", "lib/write.mjs", "lib/views/usage.mjs", "test/settings.test.mjs", "test/write.test.mjs"]
 memories: [architecture/workflow-state-ownership, decisions/backlog-planning-and-feature-waves, decisions/consume-accepted-backlog-ideas, decisions/focus-feature-execution-and-dashboard-ownership, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset, decisions/memory-relevance-usage-and-dashboard-recovery, decisions/parallel-feature-waves-and-consolidated-review]
-timestamp: "2026-07-20T18:05:48.942Z"
+timestamp: "2026-07-20T18:05:55.175Z"
 tags: []
 tests_status: green
 commits:
@@ -50,4 +50,5 @@ Price-source precedence affects every live cost calculation and plan retirement 
 # Review
 
 ## 2026-07-20
+* **Approved** _(agent review: openai-codex/gpt-5.6-sol)_ — Approved after rework: Budget is the sole price mutation path, first saves register settings in the bundle index, active snapshots stay synchronized, archived prices remain stable, and regression coverage passes.
 * **Needs changes** _(agent review: openai-codex/gpt-5.6-sol)_ — `writeUsage` saves `usage_prices` through `persistSettings` but bypasses settings bookkeeping: when Budget first creates `memory/settings.md`, `memory/index.md` is not regenerated to link it. Also the generic `settings` writer/schema still accepts the hidden `usage_prices` key, allowing prices to change without refreshing the active usage snapshot and breaking archived-cost reproducibility. Make Budget price saves regenerate the settings index (with focused coverage), and keep the hidden catalog out of/rejected by the public settings op so Budget remains its only mutation path.

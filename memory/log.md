@@ -1,6 +1,13 @@
 # iterator update log
 
 ## 2026-07-20
+* **Implementation**: Committed feature(finalize-auto-plan-review) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Update**: Applied 1 feature adjustment(s).
+* **Creation**: 1 feature(s) written.
+* **Creation**: Plan "Finish auto mode after plan review" approved on branch iterator/safe-role-model-handoff.
+* **Retirement**: Plan "Persist budget prices across plans" condensed into [Persist budget prices across plans](/decisions/persistent-budget-prices.md).
+* **Plan review**: Whole-plan review recorded (agent).
+* **Review**: Reviewed [Persist budget prices across plans](/features/persistent-budget-prices.md); approved (agent).
 * **Review**: Accepted [Persist budget prices across plans](/features/persistent-budget-prices.md) (committed as feature(persistent-budget-prices)).
 * **Implementation**: Committed feature(persistent-budget-prices) on branch iterator/safe-role-model-handoff; awaiting review.
 * **Review**: Reviewed [Persist budget prices across plans](/features/persistent-budget-prices.md); changes (agent).

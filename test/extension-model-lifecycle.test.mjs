@@ -21,6 +21,16 @@ test("dashboard dispatch identifies the active Agent", () => {
 	assert.doesNotMatch(extension, /Dispatched \$\{cmd\} — Claude is working…/);
 });
 
+test("agent plan review completion converges the auto dashboard immediately", () => {
+	const extension = readFileSync(
+		new URL("../extensions/iterator.js", import.meta.url),
+		"utf8",
+	);
+	assert.match(extension, /if \(result\?\.autoCompleted\)/);
+	assert.match(extension, /await restoreModel\(\);\n\s+session\?\.clearWorking\?\.\(\);/);
+	assert.match(extension, /await refreshHub\(ctx\.cwd, \{ activateWork: true \}\);/);
+});
+
 const require = createRequire(import.meta.url);
 const extensionDependenciesAvailable = (() => {
 	try {

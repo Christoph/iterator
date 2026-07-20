@@ -731,6 +731,11 @@ test("nextAutoAction reads the review verdict from the bundle and strikes", () =
 		ST({ phase: "reviewing", active_feature: null }),
 	);
 	assert.deepEqual(a, { done: true });
+	assert.equal(
+		nextAutoAction(reviewed, S(), ST({ mode: "manual", phase: "done" })),
+		null,
+		"the persisted terminal state prevents a delayed agent-end from redispatching",
+	);
 });
 
 test("nextAutoAction escalates on conflicts, prior strikes, drafts, and stuck graphs", () => {

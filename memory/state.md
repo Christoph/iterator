@@ -4,11 +4,11 @@ title: Runtime state
 description: Machine-owned iterator flow state — never hand-edited.
 mode: auto
 paused: false
-phase: reviewing
-active_feature: persistent-budget-prices
-strikes: "{\"persistent-budget-prices\":1}"
+phase: implementing
+active_feature: finalize-auto-plan-review
+strikes: "{}"
 escalation: null
-timestamp: 2026-07-20T18:05:22.303Z
+timestamp: 2026-07-20T18:12:24.470Z
 ---
 
 Runtime flow state; read via gather, written only by the state op.
