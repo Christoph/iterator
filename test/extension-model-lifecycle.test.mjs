@@ -35,7 +35,10 @@ function fixture(settings = {}) {
 			.map(([key, value]) => `${key}: ${value}`)
 			.join("\n")}\n---\n`,
 	);
-	writeFileSync(join(root, "memory", "state.md"), "---\ntype: State\nmode: manual\n---\n");
+	writeFileSync(
+		join(root, "memory", "state.md"),
+		"---\ntype: State\nmode: manual\n---\n",
+	);
 	return root;
 }
 
@@ -60,26 +63,35 @@ function mockPi() {
 }
 
 async function startTurn(handlers, root, modelRegistry, model) {
-	await handlers.get("before_agent_start")({}, {
-		cwd: root,
-		hasUI: false,
-		modelRegistry,
-		model,
-	});
+	await handlers.get("before_agent_start")(
+		{},
+		{
+			cwd: root,
+			hasUI: false,
+			modelRegistry,
+			model,
+		},
+	);
 }
 
-test("failed tester override does not restore or alter the following active implementer", { skip: !extensionDependenciesAvailable }, async () => {
+test("failed tester override does not restore or alter the following active implementer", {
+	skip: !extensionDependenciesAvailable,
+}, async () => {
 	const root = fixture({ tester_model: "openai/override" });
 	try {
 		const { pi, handlers, setModels, currentModel, overrideModel } = mockPi();
 		await iteratorExtension(pi);
 		const registry = { find: () => overrideModel };
 
-		await handlers.get("input")({ text: "/iterator-test safe-role-model-handoff" });
+		await handlers.get("input")({
+			text: "/iterator-test safe-role-model-handoff",
+		});
 		await startTurn(handlers, root, registry, currentModel);
 		await handlers.get("agent_end")({}, { cwd: root, hasUI: false });
 
-		await handlers.get("input")({ text: "/iterator-implement safe-role-model-handoff" });
+		await handlers.get("input")({
+			text: "/iterator-implement safe-role-model-handoff",
+		});
 		await startTurn(handlers, root, registry, currentModel);
 		await handlers.get("agent_end")({}, { cwd: root, hasUI: false });
 
@@ -89,7 +101,9 @@ test("failed tester override does not restore or alter the following active impl
 	}
 });
 
-test("successful manual override restores once and a role input is consumed by one turn", { skip: !extensionDependenciesAvailable }, async () => {
+test("successful manual override restores once and a role input is consumed by one turn", {
+	skip: !extensionDependenciesAvailable,
+}, async () => {
 	const root = fixture({ tester_model: "openai/override" });
 	try {
 		const { pi, handlers, setModels, currentModel, overrideModel } = mockPi();
@@ -97,7 +111,9 @@ test("successful manual override restores once and a role input is consumed by o
 		await iteratorExtension(pi);
 		const registry = { find: () => overrideModel };
 
-		await handlers.get("input")({ text: "/iterator-test safe-role-model-handoff" });
+		await handlers.get("input")({
+			text: "/iterator-test safe-role-model-handoff",
+		});
 		await startTurn(handlers, root, registry, currentModel);
 		await startTurn(handlers, root, registry, currentModel);
 		await handlers.get("agent_end")({}, { cwd: root, hasUI: false });
@@ -108,13 +124,17 @@ test("successful manual override restores once and a role input is consumed by o
 	}
 });
 
-test("active role settings never call setModel", { skip: !extensionDependenciesAvailable }, async () => {
+test("active role settings never call setModel", {
+	skip: !extensionDependenciesAvailable,
+}, async () => {
 	const root = fixture({ implementer_model: "active" });
 	try {
 		const { pi, handlers, setModels, currentModel } = mockPi();
 		await iteratorExtension(pi);
 
-		await handlers.get("input")({ text: "/iterator-implement safe-role-model-handoff" });
+		await handlers.get("input")({
+			text: "/iterator-implement safe-role-model-handoff",
+		});
 		await startTurn(handlers, root, { find: () => null }, currentModel);
 		await handlers.get("agent_end")({}, { cwd: root, hasUI: false });
 

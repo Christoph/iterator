@@ -18,7 +18,7 @@ function sourceSection(start, end) {
 test("accepted feature breakdown intentionally activates Work", () => {
 	const section = sourceSection(
 		"// Issue 5: auto mode starts right after the feature set is approved",
-		"pi.registerTool({\n\t\tname: \"okf_write\"",
+		'pi.registerTool({\n\t\tname: "okf_write"',
 	);
 	assert.match(section, /const approved\s*=/);
 	assert.match(

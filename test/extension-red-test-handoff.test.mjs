@@ -8,7 +8,9 @@ const source = readFileSync(
 );
 
 test("committed tests intentionally refresh and activate Work", () => {
-	const from = source.indexOf('if (params.op === "commit-tests" && result?.ok)');
+	const from = source.indexOf(
+		'if (params.op === "commit-tests" && result?.ok)',
+	);
 	const to = source.indexOf("if (approved)", from);
 	assert.notEqual(from, -1, "commit-tests handoff is registered");
 	assert.notEqual(to, -1, "test handoff remains separate from plan approval");

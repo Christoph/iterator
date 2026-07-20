@@ -1,6 +1,13 @@
 # iterator update log
 
 ## 2026-07-20
+* **Backlog**: select remove-text-erferences-to-claude (selected).
+* **Backlog**: select red-mode-tests-should-show-the-real-test-code-for-verification-2 (selected).
+* **Backlog**: select red-mode-tests-should-show-the-real-test-code-for-verification (selected).
+* **Backlog**: create remove-text-erferences-to-claude.
+* **Retirement**: Plan "Streamline backlog planning and knowledge actions" condensed into [Streamline backlog planning and knowledge actions](/decisions/streamline-backlog-planning-and-knowledge-actions.md).
+* **Plan review**: Whole-plan review recorded (agent).
+* **Review**: Reviewed [Work conflict memory resolution](/features/work-conflict-memory-resolution.md); approved (agent).
 * **Review**: Accepted [Work conflict memory resolution](/features/work-conflict-memory-resolution.md) (committed as feature(work-conflict-memory-resolution)).
 * **Implementation**: Committed feature(work-conflict-memory-resolution) on branch iterator/safe-role-model-handoff; awaiting review.
 * **Review**: Reviewed [Focused memory review changes](/features/memory-review-change-focus.md); approved (agent).
