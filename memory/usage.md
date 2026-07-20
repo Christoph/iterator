@@ -2,9 +2,9 @@
 type: Usage
 title: Token usage
 description: Per-step model/token ledger and optional project-owned pricing for the active plan — written only by the usage op.
-totals: "{\"steps\":{\"hub\":{\"openai-codex/gpt-5.6-terra\":{\"input\":39930,\"output\":2073,\"cacheRead\":2132480,\"cacheWrite\":0,\"turns\":8}},\"plan\":{\"openai-codex/gpt-5.6-terra\":{\"input\":21413,\"output\":4965,\"cacheRead\":3170816,\"cacheWrite\":0,\"turns\":11}},\"implement\":{\"openai-codex/gpt-5.6-terra\":{\"input\":320231,\"output\":2436,\"cacheRead\":4639744,\"cacheWrite\":0,\"turns\":16},\"openai-codex/gpt-5.6-sol\":{\"input\":990019,\"output\":14589,\"cacheRead\":11044864,\"cacheWrite\":0,\"turns\":69}},\"review\":{\"openai-codex/gpt-5.6-sol\":{\"input\":553528,\"output\":3084,\"cacheRead\":3944448,\"cacheWrite\":0,\"turns\":28}}},\"features\":{\"retire-plan\":{\"input\":39930,\"output\":2073,\"cacheRead\":2132480,\"cacheWrite\":0,\"turns\":8},\"backlog-file-mentions\":{\"input\":631890,\"output\":2836,\"cacheRead\":5563904,\"cacheWrite\":0,\"turns\":20},\"backlog-save-during-work\":{\"input\":717690,\"output\":4017,\"cacheRead\":5634048,\"cacheWrite\":0,\"turns\":20},\"backlog-filter-and-bulk-select\":{\"input\":514198,\"output\":13256,\"cacheRead\":8431104,\"cacheWrite\":0,\"turns\":73}},\"featureModels\":{\"retire-plan\":{\"openai-codex/gpt-5.6-terra\":{\"input\":39930,\"output\":2073,\"cacheRead\":2132480,\"cacheWrite\":0,\"turns\":8}},\"backlog-file-mentions\":{\"openai-codex/gpt-5.6-terra\":{\"input\":320231,\"output\":2436,\"cacheRead\":4639744,\"cacheWrite\":0,\"turns\":16},\"openai-codex/gpt-5.6-sol\":{\"input\":311659,\"output\":400,\"cacheRead\":924160,\"cacheWrite\":0,\"turns\":4}},\"backlog-save-during-work\":{\"openai-codex/gpt-5.6-sol\":{\"input\":717690,\"output\":4017,\"cacheRead\":5634048,\"cacheWrite\":0,\"turns\":20}},\"backlog-filter-and-bulk-select\":{\"openai-codex/gpt-5.6-sol\":{\"input\":514198,\"output\":13256,\"cacheRead\":8431104,\"cacheWrite\":0,\"turns\":73}}}}"
+totals: "{\"steps\":{\"hub\":{\"openai-codex/gpt-5.6-terra\":{\"input\":39930,\"output\":2073,\"cacheRead\":2132480,\"cacheWrite\":0,\"turns\":8}},\"plan\":{\"openai-codex/gpt-5.6-terra\":{\"input\":21413,\"output\":4965,\"cacheRead\":3170816,\"cacheWrite\":0,\"turns\":11}},\"implement\":{\"openai-codex/gpt-5.6-terra\":{\"input\":320231,\"output\":2436,\"cacheRead\":4639744,\"cacheWrite\":0,\"turns\":16},\"openai-codex/gpt-5.6-sol\":{\"input\":1082854,\"output\":24900,\"cacheRead\":16308224,\"cacheWrite\":0,\"turns\":105}},\"review\":{\"openai-codex/gpt-5.6-sol\":{\"input\":553528,\"output\":3084,\"cacheRead\":3944448,\"cacheWrite\":0,\"turns\":28}}},\"features\":{\"retire-plan\":{\"input\":39930,\"output\":2073,\"cacheRead\":2132480,\"cacheWrite\":0,\"turns\":8},\"backlog-file-mentions\":{\"input\":631890,\"output\":2836,\"cacheRead\":5563904,\"cacheWrite\":0,\"turns\":20},\"backlog-save-during-work\":{\"input\":717690,\"output\":4017,\"cacheRead\":5634048,\"cacheWrite\":0,\"turns\":20},\"backlog-filter-and-bulk-select\":{\"input\":514198,\"output\":13256,\"cacheRead\":8431104,\"cacheWrite\":0,\"turns\":73},\"full-plan-fast-track\":{\"input\":92835,\"output\":10311,\"cacheRead\":5263360,\"cacheWrite\":0,\"turns\":36}},\"featureModels\":{\"retire-plan\":{\"openai-codex/gpt-5.6-terra\":{\"input\":39930,\"output\":2073,\"cacheRead\":2132480,\"cacheWrite\":0,\"turns\":8}},\"backlog-file-mentions\":{\"openai-codex/gpt-5.6-terra\":{\"input\":320231,\"output\":2436,\"cacheRead\":4639744,\"cacheWrite\":0,\"turns\":16},\"openai-codex/gpt-5.6-sol\":{\"input\":311659,\"output\":400,\"cacheRead\":924160,\"cacheWrite\":0,\"turns\":4}},\"backlog-save-during-work\":{\"openai-codex/gpt-5.6-sol\":{\"input\":717690,\"output\":4017,\"cacheRead\":5634048,\"cacheWrite\":0,\"turns\":20}},\"backlog-filter-and-bulk-select\":{\"openai-codex/gpt-5.6-sol\":{\"input\":514198,\"output\":13256,\"cacheRead\":8431104,\"cacheWrite\":0,\"turns\":73}},\"full-plan-fast-track\":{\"openai-codex/gpt-5.6-sol\":{\"input\":92835,\"output\":10311,\"cacheRead\":5263360,\"cacheWrite\":0,\"turns\":36}}}}"
 prices: "{}"
-timestamp: 2026-07-20T15:08:58.219Z
+timestamp: 2026-07-20T15:14:22.128Z
 ---
 
 # Usage
@@ -26,7 +26,7 @@ timestamp: 2026-07-20T15:08:58.219Z
 | model | input | output | cache read | cache write | turns | cost |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | openai-codex/gpt-5.6-terra | 320231 | 2436 | 4639744 | 0 | 16 | — |
-| openai-codex/gpt-5.6-sol | 990019 | 14589 | 11044864 | 0 | 69 | — |
+| openai-codex/gpt-5.6-sol | 1082854 | 24900 | 16308224 | 0 | 105 | — |
 
 ## review
 
@@ -42,5 +42,6 @@ timestamp: 2026-07-20T15:08:58.219Z
 | backlog-file-mentions | 631890 | 2836 | 5563904 | 0 | 20 | — |
 | backlog-save-during-work | 717690 | 4017 | 5634048 | 0 | 20 | — |
 | backlog-filter-and-bulk-select | 514198 | 13256 | 8431104 | 0 | 73 | — |
+| full-plan-fast-track | 92835 | 10311 | 5263360 | 0 | 36 | — |
 
-Total: 1925121 in / 27147 out / 24932352 cache-read / 0 cache-write over 132 turns. Cost unavailable: add every used model rate.
+Total: 2017956 in / 37458 out / 30195712 cache-read / 0 cache-write over 168 turns. Cost unavailable: add every used model rate.

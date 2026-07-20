@@ -11,7 +11,7 @@
  *     { type:"plan-approved"|"plan-feedback", sections, dependencies, comments, comment }
  *     plus the shared { type:"cancel" } / { type:"timeout" }.
  */
-import { renderPage } from '../ui.mjs';
+import { renderPage } from "../ui.mjs";
 
 const PLAN_CSS = `
 .main{max-width:960px;margin:0 auto;padding:28px var(--sp-5)}
@@ -241,9 +241,16 @@ function onPrimary(){
 `;
 
 export function render(data) {
-  return renderPage({
-    step: 'plan', subtitle: '/ plan review', branch: data.branch, title: data.title,
-    data, css: PLAN_CSS, body: PLAN_BODY, clientJs: PLAN_JS,
-    primaryIdle: 'Accept', primaryChanged: 'Send review',
-  });
+	return renderPage({
+		step: "plan",
+		subtitle: "/ plan review",
+		branch: data.branch,
+		title: data.title,
+		data,
+		css: PLAN_CSS,
+		body: PLAN_BODY,
+		clientJs: PLAN_JS,
+		primaryIdle: "Accept",
+		primaryChanged: "Send review",
+	});
 }
