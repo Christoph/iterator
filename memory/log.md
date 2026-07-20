@@ -1,6 +1,8 @@
 # iterator update log
 
 ## 2026-07-20
+* **Plan review**: Whole-plan review recorded (agent).
+* **Review**: Reviewed [Finalize auto mode after plan review](/features/finalize-auto-plan-review.md); approved (agent).
 * **Review**: Accepted [Finalize auto mode after plan review](/features/finalize-auto-plan-review.md) (committed as feature(finalize-auto-plan-review)).
 * **Implementation**: Committed feature(finalize-auto-plan-review) on branch iterator/safe-role-model-handoff; awaiting review.
 * **Review**: Reviewed [Finalize auto mode after plan review](/features/finalize-auto-plan-review.md); changes (agent).

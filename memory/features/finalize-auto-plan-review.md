@@ -7,7 +7,7 @@ size: medium
 depends_on: []
 files: ["lib/write.mjs", "lib/pi-tools.mjs", "extensions/iterator.js", "test/write.test.mjs", "test/pi-tools.test.mjs", "test/extension-model-lifecycle.test.mjs"]
 memories: [architecture/package-and-skill-layout, architecture/workflow-state-ownership, decisions/backlog-planning-and-feature-waves, decisions/code-exact-red-test-review-and-agent-wording, decisions/consume-accepted-backlog-ideas, decisions/focus-feature-execution-and-dashboard-ownership, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset]
-timestamp: "2026-07-20T18:19:33.306Z"
+timestamp: "2026-07-20T18:19:36.588Z"
 tags: []
 tests_status: passing
 commits:
@@ -50,4 +50,5 @@ The final auto transition owns runtime mode, role-model restoration, session ove
 # Review
 
 ## 2026-07-20
+* **Approved** _(agent review: openai-codex/gpt-5.6-sol)_ — Approved: the terminal writer state and immediate extension convergence remove stale auto ownership, preserve manual reviews, and now honor auto_retire_prompt in both completion paths; all 392 tests pass.
 * **Needs changes** _(agent review: openai-codex/gpt-5.6-sol)_ — The new immediate `autoCompleted` branch in `extensions/iterator.js` always notifies “Consider retiring the plan,” bypassing the existing `auto_retire_prompt` setting that the normal `kickAuto` done branch honors. Gather/read the effective setting for this terminal branch (or centralize the completion notifier) and preserve the no-retire-prompt message when it is off; add coverage for both setting values. The durable state reset, overlay clear, refresh, and manual-review preservation otherwise look correct.

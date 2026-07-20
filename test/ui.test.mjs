@@ -130,7 +130,8 @@ test("shared client JS wires read-only mode while the agent works", () => {
 
 test("red test review exposes and preserves exact source artifacts", async () => {
 	const { render } = await import("../lib/views/test.mjs");
-	const caseCode = "test('rejects <empty>', () => assert.throws(() => parse('')));";
+	const caseCode =
+		"test('rejects <empty>', () => assert.throws(() => parse('')));";
 	const html = render({
 		branch: "main",
 		mode: "red",

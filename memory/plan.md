@@ -5,7 +5,8 @@ description: Return the dashboard to completed manual state after the last autom
 status: approved
 branch: iterator/safe-role-model-handoff
 created: 2026-07-20
-timestamp: 2026-07-20T18:11:40.957Z
+timestamp: "2026-07-20T18:20:18.871Z"
+plan_reviewed: 2026-07-20
 ---
 
 # Goal
@@ -34,3 +35,15 @@ Make the final automatic plan-review transition reliably finish the auto run: af
 # Features
 
 * [Finalize auto mode after plan review](/features/finalize-auto-plan-review.md) - Agent plan-review completion resets durable auto state and refreshes Work so the final Auto step cannot remain stuck.
+
+# Plan review
+
+## 2026-07-20 _(agent review: openai-codex/gpt-5.6-sol)_
+
+## Finding
+
+- **Goal coverage / terminal-boundary decision:** `a0f4243` makes `recordPlanReview` reset runtime ownership only when `b.state.mode === "auto" && !b.state.paused` (`lib/write.mjs`). If the user pauses auto mode while the plan-review agent is already running, the successful agent review still records `plan_reviewed` but returns `autoCompleted: false`; the extension therefore skips model restoration, overlay clearing, and the completed Work refresh, leaving the runtime in paused auto/reviewing state. This contradicts the plan’s unconditional agent-review terminal boundary and its reliability goal. The terminal transition should distinguish a stale/unrelated agent review without excluding an in-flight final review merely because pause was toggled, with regression coverage for that race.
+
+## Otherwise verified
+
+The normal unpaused path durably resets state, delayed driver ticks are inert, manual reviews retain runtime ownership, both completion paths honor `auto_retire_prompt`, synced writer copies match, and the full suite passes (392 passed, 4 skipped). The only scope drift is a formatting-only `writeUsage` line in `a0f4243`, with no behavior change.
