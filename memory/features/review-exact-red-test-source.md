@@ -7,13 +7,14 @@ size: medium
 depends_on: []
 files: ["skills/iterator-test/SKILL.md", "lib/views/test.mjs", "test/ui.test.mjs", "test/client-js-parse.test.mjs"]
 memories: [pitfalls/client-js-template-literal-escaping, decisions/iterator-dashboard-feature-workflow, decisions/parallel-feature-waves-and-consolidated-review, decisions/review-navigation-and-work-context, decisions/settings-close-returns-to-work, decisions/streamline-backlog-planning-and-knowledge-actions]
-timestamp: "2026-07-20T16:46:30.851Z"
+timestamp: "2026-07-20T16:46:37.169Z"
 tags: []
 commits:
   - sha: bbb2be96942cd1a87c440fb58f7d0a6fec5c5975
     kind: implement
     date: 2026-07-20
 done: 2026-07-20
+reviewed: 2026-07-20
 ---
 
 # Implementation notes
@@ -35,3 +36,8 @@ post({ type:'test-approved', branch:D.branch||'HEAD', feature:feature.name,
 # Blast radius
 
 Changes the manual red-test approval payload consumed by the test skill; malformed round-tripping could authorize different tests or break test-plan rendering.
+
+# Review
+
+## 2026-07-20
+* **Approved** _(agent review: openai-codex/gpt-5.6-sol)_ — Approved: red-mode review now exposes per-case executable source and complete files, validates mappings, preserves exact approved artifacts, safely supports feedback, and retains green-mode compatibility.

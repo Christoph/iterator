@@ -717,7 +717,7 @@ test("review view groups files by Declared/Tests/Incidental with pre-seeded disp
 	// its JSON-preview bookkeeping are gone.
 	assert.doesNotMatch(html, /id="fbpanel"/);
 	assert.doesNotMatch(html, /toggleFb|updateFb/);
-	assert.match(html, /post\(buildFeedbackObj\(\), 'Review sent to Claude'\)/);
+	assert.match(html, /post\(buildFeedbackObj\(\), 'Review sent to Agent'\)/);
 });
 
 test("planning hero goal box persists an unsent draft and clears it on plan start", async () => {

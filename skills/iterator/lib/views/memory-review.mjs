@@ -117,7 +117,7 @@ function cardHtml(m) {
   <div class="controls">
     <div class="verdicts" data-id="${escHtml(m.id)}">${verdictButtons(m)}</div>
     <textarea class="comment" data-id="${escHtml(m.id)}" rows="1"
-      placeholder="Comment — sends this memory back to Claude for revision"></textarea>
+      placeholder="Comment — sends this memory back to the Agent for revision"></textarea>
   </div>
 </article>`;
 }
@@ -313,7 +313,7 @@ ${areaSections({ ...data, mode }, memories)}
   <label for="general-comment">General comment</label>
   <textarea id="general-comment"
     placeholder="Anything about the memory set as a whole — missing topics, wrong emphasis, …"></textarea>
-  <p class="hint">Any comment sends the review back to Claude for another round.
+  <p class="hint">Any comment sends the review back to the Agent for another round.
     With no comments, the header button accepts the verdicts as chosen above.</p>
 </footer>
 </div>`;

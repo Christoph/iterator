@@ -85,7 +85,7 @@ const PLAN_BODY = `
 <div class="main">
   <h1 id="title"></h1>
   <div class="fast-track" id="fast-track" hidden>Structured plan · ready for review</div>
-  <p class="hint" id="plan-hint">Each section is rendered markdown — <strong>click any section to edit</strong> (save with blur or ⌘/Ctrl+Enter). Use the 💬 icon to leave a comment on a section, and confirm the <strong>external dependencies</strong> below — new packages, libraries, or services this plan needs, never tasks or todos. When everything looks right click <strong>Accept</strong>; if you edit anything or add a comment the button becomes <strong>Send review</strong> so Claude can revise first.</p>
+  <p class="hint" id="plan-hint">Each section is rendered markdown — <strong>click any section to edit</strong> (save with blur or ⌘/Ctrl+Enter). Use the 💬 icon to leave a comment on a section, and confirm the <strong>external dependencies</strong> below — new packages, libraries, or services this plan needs, never tasks or todos. When everything looks right click <strong>Accept</strong>; if you edit anything or add a comment the button becomes <strong>Send review</strong> so the Agent can revise first.</p>
   <div class="deps-panel">
     <div class="shead"><span class="slabel">External dependencies</span><span class="chip-design" id="design-chip"></span></div>
     <div class="dep-chips" id="dep-chips"></div>
@@ -94,7 +94,7 @@ const PLAN_BODY = `
   <div class="comment-section">
     <div class="slabel">Global comment (optional)</div>
     <textarea class="comment-box" id="global-comment"
-      placeholder="Any overall feedback or changes you'd like Claude to incorporate before finalizing the plan…"
+      placeholder="Any overall feedback or changes you'd like the Agent to incorporate before finalizing the plan…"
       oninput="refresh()"></textarea>
   </div>
 </div>
@@ -106,7 +106,7 @@ const PLAN_BODY = `
   </div>
   <div class="cpbody" id="cp-body"></div>
   <div class="cpadd">
-    <textarea id="cp-input" placeholder="Add a comment for Claude about this section…"
+    <textarea id="cp-input" placeholder="Add a comment for the Agent about this section…"
       onkeydown="if((event.metaKey||event.ctrlKey)&&event.key==='Enter'){event.preventDefault();addComment()}"></textarea>
     <button onclick="addComment()">Add comment</button>
   </div>
@@ -236,7 +236,7 @@ function onPrimary(){
     dependencies: deps,
     comments: collectComments(),
     comment: document.getElementById('global-comment').value.trim(),
-  }, changed ? 'Review sent to Claude' : 'Plan approved');
+  }, changed ? 'Review sent to Agent' : 'Plan approved');
 }
 `;
 
