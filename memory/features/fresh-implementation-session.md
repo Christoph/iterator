@@ -7,8 +7,12 @@ size: large
 depends_on: []
 files: ["extensions/iterator.js", "lib/pi-tools.mjs", "skills/iterator-implement/SKILL.md", "test/pi-tools.test.mjs", "test/extension-fresh-session.test.mjs"]
 memories: [architecture/package-and-skill-layout, decisions/backlog-planning-and-feature-waves, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset, decisions/memory-relevance-usage-and-dashboard-recovery, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows, decisions/powerline-shows-sandbox-ui-port]
-timestamp: "2026-07-20T13:59:01.971Z"
+timestamp: "2026-07-20T13:59:02.057Z"
 tags: []
+commits:
+  - sha: e7a69a4ee3dd962817c766d39109012284a0e530
+    kind: implement
+    date: 2026-07-20
 ---
 
 # Implementation notes
