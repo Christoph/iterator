@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-20
+* **Review**: Accepted [Backlog filtering and bulk selection](/features/backlog-filter-and-bulk-select.md) (committed as feature(backlog-filter-and-bulk-select)).
 * **Implementation**: Committed feature(backlog-filter-and-bulk-select) on branch iterator/safe-role-model-handoff; awaiting review.
 * **Review**: Reviewed [Backlog filtering and bulk selection](/features/backlog-filter-and-bulk-select.md); changes (agent).
 * **Implementation**: Committed feature(backlog-filter-and-bulk-select) on branch iterator/safe-role-model-handoff; awaiting review.
