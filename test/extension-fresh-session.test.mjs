@@ -36,7 +36,9 @@ function mockPi() {
 	};
 }
 
-test("iterator-implement starts a clean replacement session with only its feature command", { skip: !extensionDependenciesAvailable }, async () => {
+test("iterator-implement starts a clean replacement session with only its feature command", {
+	skip: !extensionDependenciesAvailable,
+}, async () => {
 	const { pi, commands } = mockPi();
 	const register = await loadExtension();
 	register(pi);
@@ -67,7 +69,12 @@ test("iterator-implement starts a clean replacement session with only its featur
 	assert.deepEqual(marker, [
 		{
 			type: "iterator-implementation-handoff",
-			data: { feature: "auth", auto: true, featureWave: null },
+			data: {
+				feature: "auth",
+				auto: true,
+				autoSteps: 0,
+				featureWave: null,
+			},
 		},
 	]);
 });

@@ -61,6 +61,7 @@ import {
 	extractPathsFromBash,
 	footerText,
 	implementationCommand,
+	implementationHandoffState,
 	mergePayload,
 	nextAutoAction,
 	nextFeatureWaveAction,
@@ -69,6 +70,7 @@ import {
 	roleFromInput,
 	roleModelSpec,
 	runJson,
+	shouldApplyRole,
 	scriptPath,
 	shouldNudge,
 	uiPort,
@@ -788,7 +790,8 @@ export default function iteratorExtension(pi) {
 				phase: AUTO_PHASE_FOR_STEP[action.step] || "implementing",
 				active_feature: action.feature || null,
 			});
-			if (action.step !== "implement") await applyRole(action.role, sess.settings);
+			if (action.step !== "implement")
+				await applyRole(action.role, sess.settings);
 			attribution = { step: action.step, feature: action.feature || null };
 			const p = sess.hub?.progress || {};
 			// Structured working state: the shell renders step/feature and a
@@ -1076,6 +1079,7 @@ export default function iteratorExtension(pi) {
 		const handoff = {
 			feature,
 			auto,
+			autoSteps,
 			// A ready-wave lives in extension memory; preserve only its plain,
 			// immutable snapshot so the replacement runtime can finish the wave.
 			featureWave: featureWave
@@ -1086,6 +1090,9 @@ export default function iteratorExtension(pi) {
 					}
 				: null,
 		};
+		// A tester/reviewer role belongs to the old session. Return to the user's
+		// model before replacement so an `active` implementer never inherits it.
+		await restoreModel();
 		const result = await ctx.newSession({
 			parentSession: ctx.sessionManager?.getSessionFile?.(),
 			setup: async (manager) => {
@@ -1529,7 +1536,12 @@ export default function iteratorExtension(pi) {
 			const { hub, implement, settings, state } = await gatherSession(ctx.cwd);
 			const role = pendingRole;
 			pendingRole = null; // role input belongs to exactly one agent turn
-			if (role && state?.mode !== "auto" && !featureWave) {
+			if (
+				shouldApplyRole(role, {
+					mode: state?.mode,
+					featureWave,
+				})
+			) {
 				manualRoleTurn.switched = await applyRole(role, settings);
 			}
 			// Model selection also applies to /iterator-plan before a bundle exists;
@@ -1616,22 +1628,11 @@ export default function iteratorExtension(pi) {
 	pi.on("session_start", async (event, ctx) => {
 		rememberCtx(ctx);
 		const sessionEntries = ctx.sessionManager?.getEntries?.() || [];
-		let handoff = null;
 		// A persisted marker is only a handoff during the session replacement
 		// that created it. On reload/restart, retain the normal auto safety pause.
-		if (event?.reason === "new") {
-			for (let index = sessionEntries.length - 1; index >= 0; index -= 1) {
-				const entry = sessionEntries[index];
-				if (
-					entry.type === "custom" &&
-					entry.customType === "iterator-implementation-handoff"
-				) {
-					handoff = entry.data;
-					break;
-				}
-			}
-		}
+		const handoff = implementationHandoffState(sessionEntries, event?.reason);
 		if (handoff?.featureWave) featureWave = handoff.featureWave;
+		if (handoff) autoSteps = handoff.autoSteps;
 		await refreshStatus(ctx);
 		try {
 			await ensureServer(ctx);
