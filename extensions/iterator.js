@@ -454,8 +454,7 @@ export default function iteratorExtension(pi) {
 			const payload = await gatherPayload(cwd, "settings");
 			const models = await modelOptions();
 			session.showModal({
-				render: () =>
-					VIEWS.settings({ ...(models ? { ...payload, models } : payload), modal: true }),
+				render: () => VIEWS.settings({ ...(models ? { ...payload, models } : payload), modal: true }),
 			});
 		} catch (e) {
 			if (lastCtx?.hasUI) lastCtx.ui.notify(`iterator: ${e.message}`, "error");
@@ -1309,6 +1308,11 @@ export default function iteratorExtension(pi) {
 				const approved =
 					(params.op === "adjustments" || params.type === "plan-approved") &&
 					(params.accept === true || params.type === "plan-approved");
+				if (params.op === "commit-tests" && result?.ok) {
+					// Red tests are an intentional implementation handoff: return to
+					// Work so their paths and target state are immediately visible.
+					void refreshHub(ctx.cwd, { activateWork: true });
+				}
 				if (approved) {
 					void refreshHub(ctx.cwd, { activateWork: true });
 					try {

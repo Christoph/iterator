@@ -162,6 +162,8 @@ test("gather builds the hub payload from bundle + git state", () => {
 		assert.equal(config.ready, true);
 
 		assert.equal(auth.status, "pending");
+		assert.deepEqual(auth.tests, []);
+		assert.equal(auth.testCount, 0);
 		assert.deepEqual(auth.dependsOn, ["config-module"]);
 		assert.equal(auth.ready, true, "done dependency satisfies");
 		assert.deepEqual(
@@ -409,6 +411,26 @@ test("globToRegExp handles exact paths, * and **", () => {
 	assert.ok(globToRegExp("src/*.ts").test("src/a.ts"));
 	assert.ok(!globToRegExp("src/*.ts").test("src/deep/a.ts"));
 	assert.ok(globToRegExp("src/**").test("src/deep/a.ts"));
+});
+
+test("hub exposes recorded red-test paths and count as implementation targets", () => {
+	const root = makeFixture();
+	try {
+		const feature = join(root, "memory", "features", "auth-middleware.md");
+		writeFileSync(
+			feature,
+			readFileSync(feature, "utf8").replace(
+				'files: ["src/auth/*.ts"]',
+				'tests_status: red\ntests: ["test/auth.test.mjs", "test/auth-policy.test.mjs"]\nfiles: ["src/auth/*.ts"]',
+			),
+		);
+		const auth = gather(root).features.find((feature) => feature.name === "auth-middleware");
+		assert.equal(auth.testsStatus, "red");
+		assert.deepEqual(auth.tests, ["test/auth.test.mjs", "test/auth-policy.test.mjs"]);
+		assert.equal(auth.testCount, 2);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
 });
 
 test("implement rounds carry exactly ONE feature (next) with its full contract", () => {

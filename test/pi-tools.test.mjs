@@ -243,7 +243,11 @@ test("composeAmbientContext builds the state line and anchored-knowledge list", 
 		plan: { title: "Add JWT auth", status: "approved" },
 		progress: { done: 3, total: 7 },
 		features: [
-			{ name: "auth-middleware", testsStatus: "red" },
+			{
+				name: "auth-middleware",
+				testsStatus: "red",
+				tests: ["test/auth.test.mjs", "test/auth-policy.test.mjs"],
+			},
 			{ name: "config-module", testsStatus: "green" },
 		],
 	};
@@ -259,7 +263,10 @@ test("composeAmbientContext builds the state line and anchored-knowledge list", 
 	const out = composeAmbientContext(hub, implement, concepts);
 	assert.match(out, /Plan "Add JWT auth" — 3\/7 features done/);
 	assert.match(out, /next ready: auth-middleware/);
-	assert.match(out, /tests red: auth-middleware/);
+	assert.match(
+		out,
+		/committed red tests: auth-middleware \(test\/auth\.test\.mjs, test\/auth-policy\.test\.mjs\)/,
+	);
 	assert.match(
 		out,
 		/\[pitfalls\/token-clock-skew\] JWT clock skew — Fresh tokens fail without leeway\. \(memory\/pitfalls\/token-clock-skew\.md\)/,

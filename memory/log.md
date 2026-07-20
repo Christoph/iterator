@@ -1,6 +1,9 @@
 # iterator update log
 
 ## 2026-07-20
+* **Implementation**: Committed feature(visible-red-test-handoff) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Backlog**: create in-work-ifeature-warning-that-it-conflics-with-a-memory-add-a-accept-button.
+* **Review**: Reviewed [Settings dashboard modal](/features/settings-dashboard-modal.md); approved.
 * **Review**: Accepted [Settings dashboard modal](/features/settings-dashboard-modal.md) (committed as feature(settings-dashboard-modal)).
 * **Update**: Memorized [Settings modal preserves originating dashboard context](/decisions/settings-close-returns-to-work.md).
 * **Implementation**: Committed feature(settings-dashboard-modal) on branch iterator/safe-role-model-handoff; awaiting review.

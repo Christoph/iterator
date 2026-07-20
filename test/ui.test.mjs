@@ -454,6 +454,31 @@ test("hub gates Implement/Review on status and renders escalation + review-plan 
 	assert.match(html, /action\('cancel-plan'/);
 });
 
+test("Work presents committed red tests as the implementation target", async () => {
+	const { render: hub } = await import("../lib/views/hub.mjs");
+	const html = hub({
+		step: "hub",
+		branch: "iterator/p",
+		plan: { title: "P", status: "approved" },
+		stage: "implementing",
+		progress: { done: 0, total: 1 },
+		features: [{
+			name: "auth", title: "Auth", status: "pending", size: "small",
+			testsStatus: "red", tests: ["test/auth.test.mjs"], testCount: 1,
+			dependsOn: [], ready: true, waitingOn: [], hasDiff: false,
+			hasCommits: true, conflicts: 0,
+		}],
+		state: { mode: "manual", paused: false, phase: "idle", strikes: {} },
+		settings: {}, dirty: { count: 0, files: [] }, retired: [], backlog: [],
+	});
+	assert.match(html, /tests committed · intentionally red/);
+	assert.match(html, /Committed red tests — implementation target/);
+	assert.match(html, /c\.tests\.map/);
+	assert.match(html, /Drive tests green/);
+	assert.match(html, /Tests committed \(red\)/);
+	assert.match(html, /Committed red tests are the implementation target/);
+});
+
 test("planning keeps active work staged while Work drives lifecycle controls", async () => {
 	const { render: planning } = await import("../lib/views/planning.mjs");
 	const html = planning({
