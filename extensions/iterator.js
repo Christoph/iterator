@@ -434,6 +434,54 @@ export default function iteratorExtension(pi) {
 		}
 	};
 
+	/** Review and apply a complete pasted plan without spending a planner turn. */
+	const startFastPlan = async (input) => {
+		const cwd = ctxCwd();
+		const draft = input?.structuredPlan;
+		if (
+			!draft?.title ||
+			!draft?.plan?.goal ||
+			!draft?.plan?.architecture ||
+			!draft?.plan?.keyDecisions
+		) {
+			notifyUi("structured plan is missing a required section", "error");
+			return;
+		}
+		try {
+			const gathered = await gatherPayload(cwd, "plan");
+			const payload = mergePayload(gathered, { ...draft, fastTrack: true });
+			const result = await session.showStep({
+				step: "plan",
+				render: () => VIEWS.plan(payload),
+			});
+			// This direct path has no planner agent waiting behind the review round.
+			session.clearWorking?.();
+			if (result?.type !== "plan-approved") {
+				await refreshHub(cwd);
+				return;
+			}
+			const applied = await runJson(scriptPath("write"), [], {
+				cwd,
+				stdin: JSON.stringify({
+					op: "plan",
+					title: payload.title,
+					...(payload.description ? { description: payload.description } : {}),
+					sections: result.sections,
+					dependencies: result.dependencies || [],
+				}),
+			});
+			invalidateSession();
+			if (!applied?.ok) throw new Error(applied?.error || "plan was not applied");
+			await refreshHub(cwd, { activateWork: true });
+			session.showWorking("Plan approved — preparing feature breakdown…");
+			dispatch("/skill:iterator-feature");
+		} catch (e) {
+			session?.clearWorking?.();
+			notifyUi(`structured plan not saved — ${e.message}`, "error");
+			await refreshHub(cwd);
+		}
+	};
+
 	/** Persist the Usage tab's complete optional model-price table. */
 	const saveUsagePrices = async (prices) => {
 		const cwd = ctxCwd();
@@ -1010,6 +1058,13 @@ export default function iteratorExtension(pi) {
 					}
 					if (result?.type === "action" && result.action === "view-archive") {
 						void openArchive(result.feature);
+						return;
+					}
+					if (
+						result?.type === "action" &&
+						result.action === "plan-fast-track"
+					) {
+						void startFastPlan(result);
 						return;
 					}
 					// Knowledge's page-level Close mirrors Settings: back to Work

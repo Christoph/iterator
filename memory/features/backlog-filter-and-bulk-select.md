@@ -7,7 +7,7 @@ size: medium
 depends_on: [backlog-save-during-work]
 files: ["lib/views/planning.mjs", "lib/write.mjs", "test/ui.test.mjs", "test/write.test.mjs"]
 memories: [architecture/workflow-state-ownership, decisions/backlog-planning-and-feature-waves, decisions/consume-accepted-backlog-ideas, decisions/focus-feature-execution-and-dashboard-ownership, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset, decisions/memory-relevance-usage-and-dashboard-recovery, decisions/parallel-feature-waves-and-consolidated-review]
-timestamp: "2026-07-20T15:08:48.471Z"
+timestamp: "2026-07-20T15:08:53.196Z"
 tags: []
 tests_status: green
 commits:
@@ -42,4 +42,5 @@ Backlog selection semantics, plan candidate consumption, and responsive Planning
 # Review
 
 ## 2026-07-20
+* **Approved** _(agent review: openai-codex/gpt-5.6-sol)_ — Approved: filtering targets only visible candidates, bulk selection now persists all IDs in one validated deterministic write, and UI, writer, extension, and session coverage verifies the handoff without weakening plan-approval consumption.
 * **Needs changes** _(agent review: openai-codex/gpt-5.6-sol)_ — Bulk select is not durably serialized: each per-item post receives HTTP 200 before the async saveBacklog write finishes, so the loop launches concurrent read-modify-write operations against memory/backlog/index.md; updates can overwrite one another and each save also triggers a dashboard refresh. Send the visible IDs through one acknowledged deterministic bulk operation (or otherwise serialize server-side writes and refresh once), and add a regression test through the session/extension boundary proving a multi-item visible selection persists every item.

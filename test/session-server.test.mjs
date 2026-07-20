@@ -862,6 +862,39 @@ test("an idle submit from a stale-run view still dispatches as unsolicited", asy
 	}
 });
 
+test("an idle structured plan is forwarded intact for direct review", async () => {
+	let unsolicited = null;
+	const { session, origin } = await startSession({
+		onUnsolicited: (r) => (unsolicited = r),
+	});
+	try {
+		session.showView({ step: "planning", render: () => viewHtml("PLANNING") });
+		const payload = {
+			type: "action",
+			action: "plan-fast-track",
+			prompt: "# Complete plan",
+			structuredPlan: {
+				title: "Complete plan",
+				plan: {
+					goal: "Ship it.",
+					architecture: "- Existing seams.",
+					keyDecisions: "- Keep review.",
+				},
+				dependencies: [],
+			},
+		};
+		const res = await fetch(`${origin}/submit?r=${srvMod.RUN_ID}`, {
+			method: "POST",
+			body: JSON.stringify(payload),
+		});
+		assert.equal(res.status, 200);
+		await sleep(20);
+		assert.deepEqual(unsolicited, payload);
+	} finally {
+		await session.stop();
+	}
+});
+
 test("an idle backlog submission is forwarded without unrelated dashboard state", async () => {
 	let unsolicited = null;
 	const { session, origin } = await startSession({

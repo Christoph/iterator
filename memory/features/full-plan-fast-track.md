@@ -2,12 +2,12 @@
 type: Feature
 title: Full-plan fast track
 description: Turn a structured plan supplied in Planning into an approved feature-ready draft without redundant planning prompts.
-status: pending
+status: implemented
 size: medium
 depends_on: []
 files: ["lib/views/planning.mjs", "lib/views/plan.mjs", "extensions/iterator.js", "test/ui.test.mjs", "test/session-server.test.mjs"]
 memories: [pitfalls/cancel-now-after-grace-timer, architecture/package-and-skill-layout, architecture/workflow-state-ownership, decisions/backlog-planning-and-feature-waves, decisions/consume-accepted-backlog-ideas, decisions/focus-feature-execution-and-dashboard-ownership, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset]
-timestamp: "2026-07-20T14:51:37.803Z"
+timestamp: "2026-07-20T15:14:14.044Z"
 tags: []
 ---
 

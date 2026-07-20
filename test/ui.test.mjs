@@ -313,8 +313,11 @@ test("plan-less Planning exposes init and plan actions without losing the goal",
 	assert.match(html, /Initialize memory/);
 	assert.match(html, /Create plan/);
 	assert.match(html, /action:'iterator-init'/);
-	assert.match(html, /action:'plan'/);
-	assert.match(html, /prompt: goal\.value\.trim\(\) \|\| null/);
+	assert.match(html, /action:structuredPlan \? 'plan-fast-track' : 'plan'/);
+	assert.match(html, /const prompt = goal\.value\.trim\(\) \|\| null/);
+	assert.match(html, /function parseStructuredPlan/);
+	assert.match(html, /found < 3/);
+	assert.match(html, /plan:\{goal, architecture, keyDecisions\}/);
 	assert.match(html, /PLAN_DRAFT_KEY/);
 	assert.match(html, /if\(D\.plan\) clearPlanDraft\(\)/);
 	const initHandler = html.slice(
@@ -631,9 +634,9 @@ test("planning hero goal box persists an unsent draft and clears it on plan star
 	assert.match(html, /iterator:plan-goal-draft/);
 	assert.match(html, /localStorage\.getItem\(PLAN_DRAFT_KEY\)/);
 	assert.match(html, /goal\.addEventListener\('input', saveDraft\)/);
-	// Direct planning clears on accepted submit; initialization retains the goal
-	// until the continued plan actually appears.
-	assert.match(html, /if\(__submitted\) clearPlanDraft\(\)/);
+	// Goal-only planning clears after dispatch as before. A complete plan keeps
+	// its draft through browser review and clears when the approved plan appears.
+	assert.match(html, /if\(__submitted && !structuredPlan\) clearPlanDraft\(\)/);
 	assert.match(html, /if\(D\.plan\) clearPlanDraft\(\)/);
 	// The larger input within the saved design parameters.
 	assert.match(html, /textarea\.goal\{[^}]*min-height:132px/);
@@ -651,6 +654,26 @@ test("Settings closes through the shell modal without a cancellation beacon", as
 	assert.match(html, /type:'settings-close'/);
 	assert.match(html, /allowWhileWorking:true/);
 	assert.match(html, /id="primary" onclick="primaryClick\(\)">Close/);
+});
+
+test("structured plan review accepts direct edits without a planner feedback round", async () => {
+	const { render: plan } = await import("../lib/views/plan.mjs");
+	const html = plan({
+		branch: "main",
+		title: "Complete plan",
+		fastTrack: true,
+		plan: {
+			goal: "Ship it.",
+			architecture: "- Use existing seams.",
+			keyDecisions: "- Keep approval.",
+		},
+		dependencies: [],
+	});
+	assert.match(html, /Structured plan · ready for review/);
+	assert.match(html, /if\(D\.fastTrack\)/);
+	assert.match(html, /if\(D\.fastTrack\) return false/);
+	assert.match(html, /type: changed \? 'plan-feedback' : 'plan-approved'/);
+	assert.match(html, /body\.fast-plan \.cmt-btn/);
 });
 
 test("idle dashboard tabs omit the header Cancel button; round views keep it with a tooltip", async () => {
