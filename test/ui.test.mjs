@@ -588,6 +588,20 @@ test("planning hero goal box persists an unsent draft and clears it on plan star
 	assert.match(html, /textarea\.goal\{[^}]*min-height:132px/);
 });
 
+test("Settings closes through the shell modal without a cancellation beacon", async () => {
+	const { render: settings } = await import("../lib/views/settings.mjs");
+	const html = settings({
+		branch: "main",
+		plan: "P",
+		defined: true,
+		settings: {},
+	});
+	assert.doesNotMatch(html, /onclick="cancelFlow\(\)"/);
+	assert.match(html, /type:'settings-close'/);
+	assert.match(html, /allowWhileWorking:true/);
+	assert.match(html, /id="primary" onclick="primaryClick\(\)">Close/);
+});
+
 test("idle dashboard tabs omit the header Cancel button; round views keep it with a tooltip", async () => {
 	const CANCEL_BTN = 'onclick="cancelFlow()"';
 	const { render: hub } = await import("../lib/views/hub.mjs");

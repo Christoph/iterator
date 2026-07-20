@@ -1,6 +1,8 @@
 # iterator update log
 
 ## 2026-07-20
+* **Implementation**: Committed feature(settings-dashboard-modal) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Review**: Reviewed [Active plan workspace](/features/active-plan-workspace.md); approved (agent).
 * **Review**: Accepted [Active plan workspace](/features/active-plan-workspace.md) (committed as feature(active-plan-workspace)).
 * **Implementation**: Committed feature(active-plan-workspace) on branch iterator/safe-role-model-handoff; awaiting review.
 * **Review**: Reviewed [Active plan workspace](/features/active-plan-workspace.md); changes (agent).

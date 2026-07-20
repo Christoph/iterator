@@ -44,6 +44,33 @@ const viewHtml = (marker) =>
 	`<!DOCTYPE html><html><body>${marker} run=${srvMod.RUN_ID}</body></html>`;
 
 /** Read the first SSE event from /events. */
+function sseEvent(origin, wanted) {
+	return new Promise((resolve, reject) => {
+		const req = http.get(`${origin}/events`, (res) => {
+			let buf = "";
+			res.on("data", (d) => {
+				buf += d;
+				for (const packet of buf.split("\n\n")) {
+					const m = packet.match(/event: (\w+)\ndata: (.*)/);
+					if (!m || m[1] !== wanted) continue;
+					try {
+						const data = JSON.parse(m[2]);
+						req.destroy();
+						resolve({ event: m[1], data });
+						return;
+					} catch (error) {
+						req.destroy();
+						reject(error);
+						return;
+					}
+				}
+			});
+		});
+		req.on("error", () => {});
+		setTimeout(() => reject(new Error(`no ${wanted} SSE event`)), 3000).unref();
+	});
+}
+
 function firstSseEvent(origin) {
 	return new Promise((resolve, reject) => {
 		const req = http.get(`${origin}/events`, (res) => {
@@ -549,6 +576,80 @@ test("stop() resolves a pending round, frees the port, and removes the registry 
 		undefined,
 		`port ${port} must be free`,
 	);
+});
+
+test("shell-owned Settings preserves the active tab and replays on reconnect", async () => {
+	const { session, origin } = await startSession();
+	try {
+		session.showView({
+			step: "planning",
+			render: () => viewHtml("PLANNING-UNDER-MODAL"),
+			activate: true,
+		});
+		session.showModal({ render: () => viewHtml("SETTINGS-MODAL") });
+		assert.match(await (await fetch(origin + "/settings")).text(), /SETTINGS-MODAL/);
+		assert.match(
+			await (await fetch(origin + "/view?tab=planning")).text(),
+			/PLANNING-UNDER-MODAL/,
+		);
+		assert.match(await (await fetch(origin + "/")).text(), /let tab = "planning"/);
+		const replay = await sseEvent(origin, "modal");
+		assert.deepEqual(replay.data, { open: true, v: 1 });
+		assert.equal(session.closeModal(), true);
+		assert.match(await (await fetch(origin + "/settings")).text(), /waiting for the next step/);
+	} finally {
+		await session.stop();
+	}
+});
+
+test("Settings submit does not settle the pending round beneath the modal", async () => {
+	let unsolicited = null;
+	const { session, origin } = await startSession({
+		onUnsolicited: (result) => (unsolicited = result),
+	});
+	try {
+		const round = session.showStep({ step: "review", render: () => viewHtml("REVIEW") });
+		session.showModal({ render: () => viewHtml("SETTINGS") });
+		const response = await fetch(`${origin}/submit`, {
+			method: "POST",
+			body: '{"type":"settings","values":{"auto_mode":"on"}}',
+		});
+		assert.equal(response.status, 200);
+		await sleep(20);
+		assert.deepEqual(unsolicited, {
+			type: "settings",
+			values: { auto_mode: "on" },
+		});
+		assert.equal(session.hasPending(), true);
+		await fetch(`${origin}/submit?r=${srvMod.RUN_ID}`, {
+			method: "POST",
+			body: '{"type":"review-approved"}',
+		});
+		assert.deepEqual(await round, { type: "review-approved" });
+	} finally {
+		await session.stop();
+	}
+});
+
+test("Settings dismissal remains available while Work is blocked", async () => {
+	let unsolicited = null;
+	const { session, origin } = await startSession({
+		onUnsolicited: (result) => (unsolicited = result),
+	});
+	try {
+		session.showView({ step: "hub", render: () => viewHtml("WORK") });
+		session.showWorking("AI is working…");
+		const response = await fetch(`${origin}/submit`, {
+			method: "POST",
+			body: '{"type":"settings-close"}',
+		});
+		assert.equal(response.status, 200);
+		await sleep(20);
+		assert.deepEqual(unsolicited, { type: "settings-close" });
+		assert.equal(session.isWorking(), true);
+	} finally {
+		await session.stop();
+	}
 });
 
 test("showView can intentionally activate Planning for the startup landing page", async () => {

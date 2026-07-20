@@ -386,7 +386,8 @@ export default function iteratorExtension(pi) {
 					"info",
 				);
 			}
-			await refreshHub(cwd);
+			session?.closeModal?.();
+			await refreshStatus(cwd);
 		} catch (e) {
 			if (lastCtx?.hasUI)
 				lastCtx.ui.notify(
@@ -446,15 +447,15 @@ export default function iteratorExtension(pi) {
 		}
 	};
 
-	/** Show the settings view as an idle dashboard page (unsolicited round). */
+	/** Open Settings above the shell without replacing its tab or pending round. */
 	const openSettings = async () => {
 		const cwd = ctxCwd();
 		try {
 			const payload = await gatherPayload(cwd, "settings");
 			const models = await modelOptions();
-			session.showView({
-				step: "settings",
-				render: () => VIEWS.settings(models ? { ...payload, models } : payload),
+			session.showModal({
+				render: () =>
+					VIEWS.settings({ ...(models ? { ...payload, models } : payload), modal: true }),
 			});
 		} catch (e) {
 			if (lastCtx?.hasUI) lastCtx.ui.notify(`iterator: ${e.message}`, "error");
@@ -987,8 +988,12 @@ export default function iteratorExtension(pi) {
 						void saveUsagePrices(result.prices);
 						return;
 					}
-					// Settings is an idle page: its Close button emits cancel, which
-					// must restore the dashboard rather than leave its view in place.
+					// Settings is shell-owned: dismissal leaves the originating tab,
+					// pending round, and Work overlay untouched.
+					if (result?.type === "settings-close") {
+						session.closeModal();
+						return;
+					}
 					if (result?.type === "cancel") {
 						void refreshHub(ctxCwd());
 						return;
