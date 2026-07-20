@@ -7,10 +7,13 @@ size: medium
 depends_on: []
 files: ["lib/views/memory-review.mjs", "lib/ui.mjs", "test/ui.test.mjs", "test/client-js-parse.test.mjs"]
 memories: [pitfalls/client-js-template-literal-escaping, architecture/browser-server-contract, patterns/agent-reviewed-memory-writes, patterns/safe-browser-rendering, decisions/iterator-dashboard-feature-workflow, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows, decisions/review-navigation-and-work-context]
-timestamp: "2026-07-20T15:21:40.369Z"
+timestamp: "2026-07-20T15:21:40.450Z"
 tags: []
 commits:
   - sha: dff652ec86deb8aaba625755a71e75ac4bb2f563
+    kind: implement
+    date: 2026-07-20
+  - sha: 9213ff8661b525aa94d53cbaaf403c01e21f4c5f
     kind: implement
     date: 2026-07-20
 reviewed: 2026-07-20
