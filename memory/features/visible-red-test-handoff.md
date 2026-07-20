@@ -2,17 +2,18 @@
 type: Feature
 title: Visible red-test handoff
 description: Show committed red tests as the implementation target in Work and carry their exact status and paths into the fresh implementer context.
-status: implemented
+status: done
 size: medium
 depends_on: [active-plan-workspace]
 files: ["lib/gather.mjs", "lib/views/hub.mjs", "lib/pi-tools.mjs", "test/gather.test.mjs", "test/ui.test.mjs", "test/pi-tools.test.mjs"]
 memories: [pitfalls/client-js-template-literal-escaping, architecture/package-and-skill-layout, architecture/workflow-state-ownership, patterns/safe-browser-rendering, decisions/backlog-planning-and-feature-waves, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset, decisions/memory-relevance-usage-and-dashboard-recovery]
-timestamp: "2026-07-20T14:44:01.910Z"
+timestamp: "2026-07-20T14:45:50.557Z"
 tags: []
 commits:
   - sha: 962693458648f7d084df7c41e1dedefcb5f8f509
     kind: implement
     date: 2026-07-20
+done: 2026-07-20
 ---
 
 # Implementation notes

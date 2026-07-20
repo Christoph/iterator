@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-20
+* **Review**: Accepted [Visible red-test handoff](/features/visible-red-test-handoff.md) (committed as feature(visible-red-test-handoff)).
 * **Implementation**: Committed feature(visible-red-test-handoff) on branch iterator/safe-role-model-handoff; awaiting review.
 * **Backlog**: create in-work-ifeature-warning-that-it-conflics-with-a-memory-add-a-accept-button.
 * **Review**: Reviewed [Settings dashboard modal](/features/settings-dashboard-modal.md); approved.
