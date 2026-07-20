@@ -1,6 +1,15 @@
 # iterator update log
 
 ## 2026-07-20
+* **Implementation**: Committed feature(persistent-budget-prices) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Update**: Applied 1 feature adjustment(s).
+* **Creation**: 1 feature(s) written.
+* **Creation**: Plan "Persist budget prices across plans" approved on branch iterator/safe-role-model-handoff. Consumed 1 selected backlog candidate(s).
+* **Backlog**: select in-budget-the-saved-prices-are-presistet-so-later-they-are-used-and-can-be-updated (selected).
+* **Backlog**: create in-budget-the-saved-prices-are-presistet-so-later-they-are-used-and-can-be-updated.
+* **Retirement**: Plan "Verify red test code and use Agent wording" condensed into [Review exact red test source and use Agent wording](/decisions/code-exact-red-test-review-and-agent-wording.md).
+* **Plan review**: Whole-plan review recorded (agent).
+* **Review**: Reviewed [Use Agent wording in workflow views](/features/agent-neutral-workflow-copy.md); approved (agent).
 * **Review**: Accepted [Use Agent wording in workflow views](/features/agent-neutral-workflow-copy.md) (committed as feature(agent-neutral-workflow-copy)).
 * **Implementation**: Committed feature(agent-neutral-workflow-copy) on branch iterator/safe-role-model-handoff; awaiting review.
 * **Review**: Reviewed [Review exact red test source](/features/review-exact-red-test-source.md); approved (agent).

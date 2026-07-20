@@ -7,13 +7,14 @@ size: small
 depends_on: [review-exact-red-test-source, agent-neutral-shell-copy]
 files: ["lib/views/plan.mjs", "lib/views/feature.mjs", "lib/views/review.mjs", "lib/views/memory-review.mjs", "lib/views/question.mjs", "lib/views/widgets.mjs", "test/agent-copy.test.mjs"]
 memories: [patterns/agent-reviewed-memory-writes, patterns/safe-browser-rendering, decisions/backlog-planning-and-feature-waves, decisions/iterator-dashboard-feature-workflow, decisions/parallel-feature-waves-and-consolidated-review, decisions/review-navigation-and-work-context, decisions/streamline-backlog-planning-and-knowledge-actions]
-timestamp: "2026-07-20T16:50:56.611Z"
+timestamp: "2026-07-20T16:51:01.137Z"
 tags: []
 commits:
   - sha: 9544c699b49cb5926e8749b10607b05838e0adc0
     kind: implement
     date: 2026-07-20
 done: 2026-07-20
+reviewed: 2026-07-20
 ---
 
 # Implementation notes
@@ -38,3 +39,8 @@ return post({ type:'action', action: act, feature: feature || null, prompt: prom
 # Blast radius
 
 Copy is spread across all interactive approval and feedback surfaces; missing one occurrence would leave inconsistent actor naming.
+
+# Review
+
+## 2026-07-20
+* **Approved** _(agent review: openai-codex/gpt-5.6-sol)_ — Approved: all canonical interactive workflow surfaces use provider-neutral Agent wording, explicit Claude Code naming remains allowed, shipped copies are synchronized, and regression coverage prevents generic labels from returning.

@@ -93,6 +93,7 @@ import {
 	SETTINGS_KEYS,
 	STATE_PHASES,
 	validateSettings,
+	validateUsagePrices,
 } from "./settings.mjs";
 import {
 	backlogIndex,
@@ -1027,13 +1028,16 @@ function writeDesign(payload, root) {
 // ---------------------------------------------------------------------------
 // op: settings — memory/settings.md, partial merge over the current values.
 
-function writeSettings(payload, root) {
-	const b = loadBundle(root);
-	const incoming = payload.values || {};
-	if (!Object.keys(incoming).length) fail("settings op needs values");
-	const { ok, errors, values } = validateSettings(incoming);
-	if (!ok) fail(errors.join("; "));
+function settingsScalar(key, value) {
+	return fmScalar(
+		SETTINGS_DEFS[key].kind === "prices"
+			? JSON.stringify(value)
+			: String(value),
+	);
+}
 
+/** Write validated setting values, retaining valid values omitted by a partial save. */
+function persistSettings(b, values) {
 	const file = join(b.memDir, "settings.md");
 	const current = existsSync(file)
 		? frontmatter(readFileSync(file, "utf8"))
@@ -1049,19 +1053,30 @@ function writeSettings(payload, root) {
 	}
 
 	mkdirSync(b.memDir, { recursive: true });
+	const stored = SETTINGS_KEYS.filter((k) => k in merged);
+	const visible = stored.filter((k) => !SETTINGS_DEFS[k].hidden);
 	const fm = [
 		"type: Settings",
 		"title: Project settings",
 		"description: Iterator behavior for this project — edited via the settings UI, applied by the writer.",
-		...SETTINGS_KEYS.filter((k) => k in merged).map(
-			(k) => `${k}: ${fmScalar(String(merged[k]))}`,
-		),
+		...stored.map((k) => `${k}: ${settingsScalar(k, merged[k])}`),
 		`timestamp: ${nowIso()}`,
 	].join("\n");
-	const bodyText = `\n# Settings\n\n${SETTINGS_KEYS.filter((k) => k in merged)
+	const bodyText = `\n# Settings\n\n${visible
 		.map((k) => `* \`${k}\`: ${merged[k]} — ${SETTINGS_DEFS[k].help}`)
 		.join("\n")}\n`;
 	writeFileSync(file, joinDoc(fm, bodyText));
+	return merged;
+}
+
+function writeSettings(payload, root) {
+	const b = loadBundle(root);
+	const incoming = payload.values || {};
+	if (!Object.keys(incoming).length) fail("settings op needs values");
+	const { ok, errors, values } = validateSettings(incoming);
+	if (!ok) fail(errors.join("; "));
+
+	persistSettings(b, values);
 	regenerate(root);
 	prependLog(
 		b.memDir,
@@ -1270,39 +1285,6 @@ function usageBody(totals, prices) {
 	return lines.join("\n");
 }
 
-function normalizeUsagePrices(value) {
-	if (!value || typeof value !== "object" || Array.isArray(value))
-		fail("usage prices must be an object keyed by provider/model");
-	const out = {};
-	for (const [rawModel, rawRates] of Object.entries(value)) {
-		const model = String(rawModel).trim();
-		if (
-			!model ||
-			!model.includes("/") ||
-			model.length > 200 ||
-			/\s/.test(model)
-		)
-			fail(
-				`usage price model '${rawModel}' must be a non-empty provider/model without whitespace`,
-			);
-		if (!rawRates || typeof rawRates !== "object" || Array.isArray(rawRates))
-			fail(`usage prices for ${model} must be an object`);
-		const rates = {};
-		for (const [field, rawRate] of Object.entries(rawRates)) {
-			if (!USAGE_FIELDS.includes(field))
-				fail(`usage prices for ${model}: unknown token field '${field}'`);
-			const rate = Number(rawRate);
-			if (!Number.isFinite(rate) || rate < 0)
-				fail(
-					`usage prices for ${model}: ${field} must be a non-negative number`,
-				);
-			rates[field] = rate;
-		}
-		if (Object.keys(rates).length) out[model] = rates;
-	}
-	return out;
-}
-
 function writeUsage(payload, root) {
 	const b = loadBundle(root);
 	const rows = listy(payload.rows);
@@ -1325,9 +1307,29 @@ function writeUsage(payload, root) {
 		? frontmatter(readFileSync(file, "utf8"))
 		: null;
 	const totals = parseUsageTotals(existingFm);
+	const checkedPrices = hasPrices ? validateUsagePrices(payload.prices) : null;
+	if (checkedPrices && !checkedPrices.ok) fail(checkedPrices.errors.join("; "));
+	// A saved empty catalog is intentional ({}), so only null permits the
+	// compatibility fallback to a legacy active-ledger price table.
 	const prices = hasPrices
-		? normalizeUsagePrices(payload.prices)
-		: parseUsagePrices(existingFm);
+		? checkedPrices.prices
+		: (b.settings.usage_prices ?? parseUsagePrices(existingFm));
+	if (hasPrices) persistSettings(b, { usage_prices: prices });
+
+	// Project prices are useful before any plan has a token ledger. Do not
+	// create an empty usage.md merely to store them; the next ledger inherits
+	// the catalog above, while retirement only archives real usage snapshots.
+	if (!rows.length && hasPrices && !existsSync(file)) {
+		return {
+			op: "usage",
+			written: ["settings.md"],
+			rows: 0,
+			prices: Object.keys(prices).length,
+			grand: usageGrandTotal(totals),
+			costs: usageCosts(totals, prices),
+			memoryDir: b.memDir,
+		};
+	}
 	for (const r of rows) {
 		const model = `${r.provider || "unknown"}/${r.model || "unknown"}`;
 		const step = r.step.trim();
@@ -1361,7 +1363,7 @@ function writeUsage(payload, root) {
 	writeFileSync(file, joinDoc(fm, usageBody(totals, prices)));
 	return {
 		op: "usage",
-		written: ["usage.md"],
+		written: hasPrices ? ["settings.md", "usage.md"] : ["usage.md"],
 		rows: rows.length,
 		prices: Object.keys(prices).length,
 		grand: usageGrandTotal(totals),

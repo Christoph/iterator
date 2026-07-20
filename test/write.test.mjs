@@ -2954,6 +2954,73 @@ test("usage prices persist and calculate complete row, feature, and grand costs"
 	}
 });
 
+test("usage price saves persist project-wide without creating an empty ledger", () => {
+	const root = makeRepo();
+	try {
+		const first = applyOp(
+			{
+				op: "usage",
+				prices: { "openai/gpt": { input: 2, output: 10 } },
+			},
+			root,
+		);
+		assert.deepEqual(first.written, ["settings.md"]);
+		assert.ok(!existsSync(join(root, "memory", "usage.md")));
+		assert.deepEqual(gatherUsage(root).prices, {
+			"openai/gpt": { input: 2, output: 10 },
+		});
+		assert.equal(gatherUsage(root).exists, false);
+		assert.deepEqual(
+			JSON.parse(frontmatter(read(root, "settings.md")).usage_prices),
+			{
+				"openai/gpt": { input: 2, output: 10 },
+			},
+		);
+
+		applyOp(
+			{
+				op: "usage",
+				rows: [
+					{
+						step: "implement",
+						provider: "openai",
+						model: "gpt",
+						input: 100,
+						output: 50,
+					},
+				],
+			},
+			root,
+		);
+		assert.equal(gatherUsage(root).costs.grand, 0.0007);
+
+		applyOp(
+			{
+				op: "usage",
+				prices: { "openai/gpt": { input: 4, output: 20 } },
+			},
+			root,
+		);
+		assert.equal(
+			JSON.parse(frontmatter(read(root, "usage.md")).prices)["openai/gpt"]
+				.input,
+			4,
+			"saving refreshes the active ledger snapshot",
+		);
+		assert.equal(gatherUsage(root).costs.grand, 0.0014);
+
+		applyOp({ op: "usage", prices: {} }, root);
+		assert.deepEqual(gatherUsage(root).prices, {});
+		assert.equal(
+			gatherUsage(root).costs.grand,
+			null,
+			"an explicitly cleared catalog does not fall back to an old snapshot",
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("retire-plan archives the usage ledger and keeps totals in the decision", () => {
 	const root = makeRepo();
 	try {
@@ -3024,6 +3091,23 @@ test("retire-plan archives the usage ledger and keeps totals in the decision", (
 		assert.match(archived, /500/);
 		assert.match(archived, /Model prices \(USD per 1M tokens\)/);
 		assert.match(archived, /Estimated cost: \$0\.003000/);
+		applyOp(
+			{
+				op: "usage",
+				prices: { "openai/gpt-5.5": { input: 4, output: 20 } },
+			},
+			root,
+		);
+		assert.equal(gatherUsage(root).prices["openai/gpt-5.5"].input, 4);
+		assert.equal(
+			JSON.parse(
+				frontmatter(
+					readFileSync(join(root, "memory", res.archived, "usage.md"), "utf8"),
+				).prices,
+			)["openai/gpt-5.5"].input,
+			2,
+			"later catalog changes cannot rewrite archived costs",
+		);
 		assert.match(
 			read(root, "decisions", "jwt-auth.md"),
 			/Token usage: 500 in \/ 200 out/,
