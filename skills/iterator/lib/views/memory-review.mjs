@@ -152,6 +152,11 @@ const CSS = `
 .stale-panel{border-left:3px solid var(--dot-yellow);padding:4px 10px;margin:6px 0;font-size:13px;color:var(--dot-yellow)}
 .conflict-panel{border-left:3px solid var(--dot-red);padding:6px 10px;margin:6px 0;font-size:13px;color:var(--dot-red)}
 .body.md{border-top:1px solid var(--border);margin-top:8px;padding-top:4px;font-size:14px;overflow:hidden}
+.change-block{position:relative;margin:8px 0;padding:8px 10px;border-left:3px solid transparent;border-radius:0 var(--radius-sm) var(--radius-sm) 0}
+.change-block.added,.change-block.modified{background:var(--add-bg);border-left-color:var(--dot-green)}
+.change-block.removed{background:var(--del-bg);border-left-color:var(--dot-red);color:var(--del-fg)}
+.change-block.unchanged{padding-block:2px;opacity:.72}.change-label{font:600 10px var(--font-mono);letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px}
+.change-block.added .change-label,.change-block.modified .change-label{color:var(--add-fg)}.change-block.removed .change-label{color:var(--del-fg)}
 .body.md.collapsed{max-height:280px;-webkit-mask-image:linear-gradient(black 75%,transparent);mask-image:linear-gradient(black 75%,transparent)}
 .show-more{display:block;margin:4px 0;font-size:12px;padding:2px 10px}
 details.existing{margin:8px 0;font-size:14px}
@@ -171,6 +176,7 @@ footer.general{margin:30px 0 60px}
 footer.general label{display:block;font-weight:600;margin-bottom:6px}
 #general-comment{width:100%;min-height:70px}
 .hint{color:var(--text-muted);font-size:12px;margin-top:6px}
+@media(max-width:640px){.change-block{margin-inline:0;padding:7px 8px}.controls{flex-direction:column}.verdicts{max-width:100%}}
 `;
 
 // Step client JS. No backticks / dollar-brace; data only via D.
@@ -206,7 +212,10 @@ function onReady() {
     var el = document.querySelector('[data-body-id="' + CSS.escape(m.id) + '"]');
     if (el) {
       var main = (m.action === 'keep' || m.body == null) ? (m.existingBody != null ? m.existingBody : m.body) : m.body;
-      el.innerHTML = mdToHtml(main == null ? '' : main);
+      var focusChanges = (m.action === 'create' || m.action === 'update') && m.body != null;
+      el.innerHTML = focusChanges
+        ? markdownChangeHtml(m.body, m.existingBody == null ? '' : m.existingBody, m.action === 'create')
+        : mdToHtml(main == null ? '' : main);
     }
     var ex = document.querySelector('[data-existing-id="' + CSS.escape(m.id) + '"]');
     if (ex) ex.innerHTML = mdToHtml(m.existingBody == null ? '' : m.existingBody);

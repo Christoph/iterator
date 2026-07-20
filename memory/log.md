@@ -1,6 +1,8 @@
 # iterator update log
 
 ## 2026-07-20
+* **Implementation**: Committed feature(memory-review-change-focus) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Review**: Reviewed [Full-plan fast track](/features/full-plan-fast-track.md); approved (agent).
 * **Review**: Accepted [Full-plan fast track](/features/full-plan-fast-track.md) (committed as feature(full-plan-fast-track)).
 * **Implementation**: Committed feature(full-plan-fast-track) on branch iterator/safe-role-model-handoff; awaiting review.
 * **Review**: Reviewed [Backlog filtering and bulk selection](/features/backlog-filter-and-bulk-select.md); approved (agent).

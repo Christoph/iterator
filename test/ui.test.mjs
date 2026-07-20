@@ -128,10 +128,13 @@ test("shared client JS wires read-only mode while the agent works", () => {
 	);
 });
 
-test("mdToHtml refuses javascript: links", () => {
+test("mdToHtml refuses unsafe links and escapes allowed href attributes", () => {
 	const html = renderPage({ step: "t", data: {}, body: "", clientJs: "" });
-	// The linkify branch must be guarded by a protocol whitelist.
+	// The linkify branch must be guarded by a protocol whitelist, and quotes in
+	// otherwise-allowed targets cannot escape the href attribute.
 	assert.ok(html.includes("https?:|mailto:"));
+	assert.ok(html.includes("attr(u)"));
+	assert.ok(html.includes("&quot;"));
 });
 
 test("CSS exports are non-empty and themed", () => {
@@ -654,6 +657,36 @@ test("Settings closes through the shell modal without a cancellation beacon", as
 	assert.match(html, /type:'settings-close'/);
 	assert.match(html, /allowWhileWorking:true/);
 	assert.match(html, /id="primary" onclick="primaryClick\(\)">Close/);
+});
+
+test("memory review highlights changed markdown sections without changing verdicts", async () => {
+	const { render } = await import("../lib/views/memory-review.mjs");
+	const html = render({
+		branch: "main",
+		mode: "consolidate",
+		round: 1,
+		areas: [{ name: "patterns", description: "Patterns" }],
+		memories: [
+			{
+				id: "patterns/safe",
+				area: "patterns",
+				action: "update",
+				title: "Safe rendering",
+				type: "Pattern",
+				body: "# Kept\nSame.\n\n# Changed\nNew <value>.",
+				existingBody: "# Kept\nSame.\n\n# Changed\nOld value.\n\n# Removed\nGone.",
+			},
+		],
+	});
+	assert.match(html, /function markdownBlocks/);
+	assert.match(html, /function markdownChangeHtml/);
+	assert.match(html, /Changed section/);
+	assert.match(html, /Removed section/);
+	assert.match(html, /change-block\.added,\.change-block\.modified/);
+	assert.match(html, /m\.action === 'create' \|\| m\.action === 'update'/);
+	assert.match(html, /type: 'review-approved'/);
+	assert.match(html, /decisions: decisions/);
+	assert.match(html, /\\u003cvalue>/, "embedded proposal data stays inert");
 });
 
 test("structured plan review accepts direct edits without a planner feedback round", async () => {
