@@ -7,8 +7,12 @@ size: medium
 depends_on: []
 files: ["extensions/iterator.js", "test/extension-model-lifecycle.test.mjs"]
 memories: [architecture/package-and-skill-layout, decisions/backlog-planning-and-feature-waves, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset, decisions/memory-relevance-usage-and-dashboard-recovery, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows, decisions/powerline-shows-sandbox-ui-port]
-timestamp: "2026-07-20T13:31:30.159Z"
+timestamp: "2026-07-20T13:31:30.243Z"
 tags: []
+commits:
+  - sha: 9116540c8f0bdac6dd7bab5041c9f3245981daf8
+    kind: implement
+    date: 2026-07-20
 ---
 
 # Implementation notes
