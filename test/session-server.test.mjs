@@ -309,6 +309,23 @@ test("backlog writes remain available while an agent is working", async () => {
 			action: "create",
 			title: "Next idea",
 		});
+		const bulk = await fetch(`${origin}/submit?r=${srvMod.RUN_ID}`, {
+			method: "POST",
+			body: JSON.stringify({
+				type: "backlog",
+				action: "select-many",
+				ids: ["first-idea", "second-bug"],
+				selected: true,
+			}),
+		});
+		assert.equal(bulk.status, 200);
+		await sleep(20);
+		assert.deepEqual(unsolicited, {
+			type: "backlog",
+			action: "select-many",
+			ids: ["first-idea", "second-bug"],
+			selected: true,
+		});
 		assert.equal(
 			session.isWorking(),
 			true,

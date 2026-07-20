@@ -17,6 +17,9 @@ test("backlog saves refresh stored dashboards without clearing active work", () 
 		section,
 		/const preserveAgentWorking = session\?\.isWorking\?\.\(\) === true/,
 	);
+	assert.match(section, /ids: input\.ids/);
+	assert.match(section, /result\.action === "select-many"/);
+	assert.match(section, /result\.changedItems\.length/);
 	assert.match(
 		section,
 		/if \(!preserveAgentWorking\) session\?\.clearWorking\?\.\(\);\s*await refreshHub\(cwd\);/,

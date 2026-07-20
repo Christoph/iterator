@@ -256,15 +256,18 @@ function renderBacklog(w){
     button.addEventListener('click', () => applyFilter(button.dataset.kind)));
   const bulkSelect = async (selected, button) => {
     const targets = visibleItems().filter(item => Boolean(item.selected)!==selected);
-    button.disabled = true; const label = button.textContent; button.textContent = 'Saving…';
+    if(!targets.length) return;
+    const saved = await backlogAction(
+      { action:'select-many', ids:targets.map(item => item.id), selected },
+      button,
+      selected ? 'Visible candidates selected' : 'Visible candidates deselected'
+    );
+    if(!saved) return;
     for(const item of targets){
-      const saved = await backlogAction({ action:'select', id:item.id, selected }, null, selected ? 'Candidate selected' : 'Candidate deselected');
-      if(!saved) break;
       item.selected = selected;
       const checkbox = rows.get(item.id).querySelector('input'); checkbox.checked = selected;
     }
     refreshHandoff();
-    button.disabled = false; button.textContent = label;
   };
   section.querySelector('[data-bulk="select"]').addEventListener('click', event => bulkSelect(true, event.currentTarget));
   section.querySelector('[data-bulk="deselect"]').addEventListener('click', event => bulkSelect(false, event.currentTarget));

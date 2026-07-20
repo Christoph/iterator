@@ -898,16 +898,28 @@ function writeBacklog(payload, root) {
 			updated: nowIso(),
 		};
 		items[i] = changed;
-	} else if (action === "select") {
-		const id = String(payload.id || "").trim();
-		if (!/^[a-z0-9][a-z0-9-]*$/.test(id))
+	} else if (action === "select" || action === "select-many") {
+		const ids =
+			action === "select"
+				? [String(payload.id || "").trim()]
+				: Array.isArray(payload.ids)
+					? [...new Set(payload.ids.map((id) => String(id).trim()))]
+					: [];
+		if (!ids.length) fail("backlog ids must be a non-empty array");
+		if (ids.some((id) => !/^[a-z0-9][a-z0-9-]*$/.test(id)))
 			fail("backlog id must be a kebab-case slug");
 		if (typeof payload.selected !== "boolean")
 			fail("backlog selected must be a boolean");
-		const i = items.findIndex((item) => item.id === id);
-		if (i === -1) fail(`no backlog item '${id}'`);
-		changed = { ...items[i], selected: payload.selected, updated: nowIso() };
-		items[i] = changed;
+		const missing = ids.filter((id) => !items.some((item) => item.id === id));
+		if (missing.length) fail(`no backlog item '${missing[0]}'`);
+		const changedIds = new Set(ids);
+		const updated = nowIso();
+		changed = [];
+		for (let i = 0; i < items.length; i++) {
+			if (!changedIds.has(items[i].id)) continue;
+			items[i] = { ...items[i], selected: payload.selected, updated };
+			changed.push(items[i]);
+		}
 	} else if (action === "delete") {
 		const id = String(payload.id || "").trim();
 		if (!/^[a-z0-9][a-z0-9-]*$/.test(id))
@@ -917,9 +929,10 @@ function writeBacklog(payload, root) {
 		changed = items[i];
 		items.splice(i, 1);
 	} else {
-		fail("backlog action must be create, edit, select, or delete");
+		fail("backlog action must be create, edit, select, select-many, or delete");
 	}
 
+	const changedItems = Array.isArray(changed) ? changed : [changed];
 	const dir = join(b.memDir, "backlog");
 	mkdirSync(dir, { recursive: true });
 	writeFileSync(backlogPath(b), backlogIndex(items));
@@ -927,9 +940,16 @@ function writeBacklog(payload, root) {
 	prependLog(
 		b.memDir,
 		payload.log ||
-			`**Backlog**: ${action} ${changed.id}${action === "select" ? (changed.selected ? " (selected)" : " (deselected)") : ""}.`,
+			`**Backlog**: ${action} ${changedItems.map((item) => item.id).join(", ")}${action.startsWith("select") ? (payload.selected ? " (selected)" : " (deselected)") : ""}.`,
 	);
-	return { op: "backlog", action, item: changed, items, memoryDir: b.memDir };
+	return {
+		op: "backlog",
+		action,
+		item: changedItems[0],
+		changedItems,
+		items,
+		memoryDir: b.memDir,
+	};
 }
 
 // ---------------------------------------------------------------------------
@@ -3207,8 +3227,9 @@ const SCHEMAS = {
 	},
 	backlog: {
 		op: "backlog",
-		action: "create|edit|select|delete",
-		"id?": "kebab-case item id (required except create)",
+		action: "create|edit|select|select-many|delete",
+		"id?": "kebab-case item id (required for edit/select/delete)",
+		"ids?": ["item ids (required for select-many)"],
 		"title?": "1-160 characters (required for create/edit)",
 		"details?": "up to 4000 characters (required for create/edit)",
 		"kind?": "idea|bug (required for create/edit)",

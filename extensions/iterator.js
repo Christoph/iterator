@@ -413,6 +413,7 @@ export default function iteratorExtension(pi) {
 					op: "backlog",
 					action: input.action,
 					id: input.id,
+					ids: input.ids,
 					title: input.title,
 					details: input.details,
 					kind: input.kind,
@@ -420,7 +421,11 @@ export default function iteratorExtension(pi) {
 				}),
 			});
 			invalidateSession();
-			notifyUi(`backlog ${result.action}d: ${result.item.title}`, "info");
+			const savedLabel =
+				result.action === "select-many"
+					? `${result.changedItems.length} backlog candidates updated`
+					: `backlog ${result.action}d: ${result.item.title}`;
+			notifyUi(savedLabel, "info");
 		} catch (e) {
 			notifyUi(`backlog not saved — ${e.message}`, "error");
 		} finally {

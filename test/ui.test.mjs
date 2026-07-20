@@ -380,10 +380,9 @@ test("planning backlog submits scoped CRUD actions and hands selected candidates
 	assert.match(html, /Select visible/);
 	assert.match(html, /Deselect visible/);
 	assert.match(html, /const visibleItems =/);
-	assert.match(
-		html,
-		/backlogAction\(\{ action:'select', id:item\.id, selected \}/,
-	);
+	assert.match(html, /action:'select-many'/);
+	assert.match(html, /ids:targets\.map\(item => item\.id\)/);
+	assert.doesNotMatch(html, /for\(const item of targets\)\{\s*const saved/);
 	assert.match(html, /refreshHandoff/);
 	// Long history feeds scroll within their own region; headings and controls
 	// remain available outside it.

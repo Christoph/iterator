@@ -3215,7 +3215,7 @@ test("loadBundle re-roots every gather/write into the plan's worktree", async ()
 // ---------------------------------------------------------------------------
 // op: backlog
 
-test("backlog writer persists sequential visible-set selections", () => {
+test("backlog writer atomically persists visible-set selections", () => {
 	const root = makeRepo();
 	try {
 		const idea = applyOp(
@@ -3238,13 +3238,19 @@ test("backlog writer persists sequential visible-set selections", () => {
 			},
 			root,
 		).item;
-		let result;
-		for (const item of [idea, bug]) {
-			result = applyOp(
-				{ op: "backlog", action: "select", id: item.id, selected: true },
-				root,
-			);
-		}
+		let result = applyOp(
+			{
+				op: "backlog",
+				action: "select-many",
+				ids: [idea.id, bug.id],
+				selected: true,
+			},
+			root,
+		);
+		assert.deepEqual(
+			result.changedItems.map((item) => item.id),
+			[idea.id, bug.id],
+		);
 		assert.ok(result.items.every((item) => item.selected));
 		result = applyOp(
 			{ op: "backlog", action: "select", id: idea.id, selected: false },
@@ -3257,6 +3263,19 @@ test("backlog writer persists sequential visible-set selections", () => {
 		assert.equal(
 			result.items.find((item) => item.id === bug.id).selected,
 			true,
+		);
+		assert.throws(
+			() =>
+				applyOp(
+					{
+						op: "backlog",
+						action: "select-many",
+						ids: [idea.id, "missing"],
+						selected: false,
+					},
+					root,
+				),
+			/no backlog item 'missing'/,
 		);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
