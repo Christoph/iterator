@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-20
+* **Review**: Accepted [Use Agent wording in workflow views](/features/agent-neutral-workflow-copy.md) (committed as feature(agent-neutral-workflow-copy)).
 * **Implementation**: Committed feature(agent-neutral-workflow-copy) on branch iterator/safe-role-model-handoff; awaiting review.
 * **Review**: Reviewed [Review exact red test source](/features/review-exact-red-test-source.md); approved (agent).
 * **Review**: Accepted [Review exact red test source](/features/review-exact-red-test-source.md) (committed as feature(review-exact-red-test-source)).

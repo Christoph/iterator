@@ -18,8 +18,8 @@
  *     { type:"merge-request", features:[a,b] }
  *     plus the shared { type:"cancel" } / { type:"timeout" }.
  */
-import { renderPage } from '../ui.mjs';
-import { GRAPH_CSS, GRAPH_JS } from './graph.mjs';
+import { renderPage } from "../ui.mjs";
+import { GRAPH_CSS, GRAPH_JS } from "./graph.mjs";
 
 const FEATURE_CSS = `
 .sumbar{padding:14px 20px;display:flex;align-items:center;gap:24px;border-bottom:1px solid var(--border);
@@ -205,9 +205,16 @@ function onPrimary(){
 `;
 
 export function render(data) {
-  return renderPage({
-    step: 'feature', subtitle: '/ features', branch: data.branch, title: data.plan,
-    data, css: FEATURE_CSS + GRAPH_CSS, body: FEATURE_BODY, clientJs: GRAPH_JS + FEATURE_JS,
-    primaryIdle: 'Accept', primaryChanged: 'Send review',
-  });
+	return renderPage({
+		step: "feature",
+		subtitle: "/ features",
+		branch: data.branch,
+		title: data.plan,
+		data,
+		css: FEATURE_CSS + GRAPH_CSS,
+		body: FEATURE_BODY,
+		clientJs: GRAPH_JS + FEATURE_JS,
+		primaryIdle: "Accept",
+		primaryChanged: "Send review",
+	});
 }

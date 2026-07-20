@@ -2,17 +2,18 @@
 type: Feature
 title: Use Agent wording in workflow views
 description: Interactive plan, feature, review, memory, and question views consistently address the provider-neutral Agent.
-status: implemented
+status: done
 size: small
 depends_on: [review-exact-red-test-source, agent-neutral-shell-copy]
 files: ["lib/views/plan.mjs", "lib/views/feature.mjs", "lib/views/review.mjs", "lib/views/memory-review.mjs", "lib/views/question.mjs", "lib/views/widgets.mjs", "test/agent-copy.test.mjs"]
 memories: [patterns/agent-reviewed-memory-writes, patterns/safe-browser-rendering, decisions/backlog-planning-and-feature-waves, decisions/iterator-dashboard-feature-workflow, decisions/parallel-feature-waves-and-consolidated-review, decisions/review-navigation-and-work-context, decisions/streamline-backlog-planning-and-knowledge-actions]
-timestamp: "2026-07-20T16:49:54.348Z"
+timestamp: "2026-07-20T16:50:56.611Z"
 tags: []
 commits:
   - sha: 9544c699b49cb5926e8749b10607b05838e0adc0
     kind: implement
     date: 2026-07-20
+done: 2026-07-20
 ---
 
 # Implementation notes
