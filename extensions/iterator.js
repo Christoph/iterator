@@ -471,7 +471,8 @@ export default function iteratorExtension(pi) {
 				}),
 			});
 			invalidateSession();
-			if (!applied?.ok) throw new Error(applied?.error || "plan was not applied");
+			if (!applied?.ok)
+				throw new Error(applied?.error || "plan was not applied");
 			await refreshHub(cwd, { activateWork: true });
 			session.showWorking("Plan approved — preparing feature breakdown…");
 			dispatch("/skill:iterator-feature");
@@ -622,6 +623,34 @@ export default function iteratorExtension(pi) {
 			deliverAs: "followUp",
 			streamingBehavior: "followUp", // older runtimes take the raw option name
 		});
+
+	const startConflictResolution = (result) => {
+		const feature = String(result?.feature || "").trim();
+		const target = String(result?.target || "").trim();
+		if (
+			!/^[a-z0-9][a-z0-9-]*$/.test(feature) ||
+			!/^[a-z-]+\/[a-z0-9][a-z0-9-]*$/.test(target)
+		) {
+			notifyUi("invalid feature or decision conflict target", "error");
+			return;
+		}
+		const note = String(result.prompt || "Recorded decision conflict")
+			.replace(/\s+/g, " ")
+			.trim()
+			.slice(0, 500);
+		const anchors = (Array.isArray(result.anchors) ? result.anchors : [])
+			.map(String)
+			.filter(Boolean)
+			.slice(0, 12)
+			.join(", ");
+		const followUp =
+			`Resolve the conflict recorded on feature ${feature}: ${note}. ` +
+			`Use the existing reviewed update-memory flow for ${target}; no durable knowledge may change before an explicit memory verdict. ` +
+			(anchors ? `Re-check against anchored files ${anchors}. ` : "") +
+			`After an accepted memory update, continue into /skill:iterator-feature with guidance to re-check only ${feature} against ${target}, preserving every unrelated feature and conflict flag.`;
+		session.showWorking("Opening reviewed decision conflict resolution…");
+		dispatch(`/skill:iterator-knowledge update-memory ${target} — ${followUp}`);
+	};
 
 	/**
 	 * Apply a role's model/thinking overrides and report whether the model
@@ -1065,6 +1094,13 @@ export default function iteratorExtension(pi) {
 						result.action === "plan-fast-track"
 					) {
 						void startFastPlan(result);
+						return;
+					}
+					if (
+						result?.type === "action" &&
+						result.action === "resolve-memory-conflict"
+					) {
+						startConflictResolution(result);
 						return;
 					}
 					// Knowledge's page-level Close mirrors Settings: back to Work

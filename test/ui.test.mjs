@@ -133,8 +133,7 @@ test("mdToHtml preserves query strings while escaping href quotes", () => {
 		step: "t",
 		data: {},
 		body: "",
-		clientJs:
-			`globalThis.renderedLink = mdToHtml('[safe](https://example.test/?a=1&b="two")');`,
+		clientJs: `globalThis.renderedLink = mdToHtml('[safe](https://example.test/?a=1&b="two")');`,
 	});
 	const script = html.match(/<script>\n([\s\S]*?)\n<\/script>/)[1];
 	const branch = { textContent: "" };
@@ -495,6 +494,47 @@ test("hub gates Implement/Review on status and renders escalation + review-plan 
 	assert.match(html, /action\('cancel-plan'/);
 });
 
+test("Work routes decision conflicts through reviewed knowledge updates", async () => {
+	const { render: hub } = await import("../lib/views/hub.mjs");
+	const html = hub({
+		step: "hub",
+		branch: "iterator/p",
+		plan: { title: "P", status: "approved" },
+		stage: "implementing",
+		progress: { done: 0, total: 1 },
+		features: [
+			{
+				name: "orm-feature",
+				title: "ORM feature",
+				description: "Uses an ORM",
+				status: "pending",
+				size: "small",
+				testsStatus: "none",
+				dependsOn: [],
+				ready: true,
+				conflicts: [
+					{
+						decision: "decisions/no-orm",
+						title: "No ORM",
+						note: "Introduces an ORM",
+						files: ["src/db/*.ts"],
+					},
+				],
+			},
+		],
+		readyWave: [],
+		reviewWave: [],
+		state: {},
+		dirty: { count: 0, files: [] },
+		retired: [],
+	});
+	assert.match(html, /Review decision/);
+	assert.match(html, /resolve-memory-conflict/);
+	assert.match(html, /target:conflict\.decision/);
+	assert.match(html, /anchors:Array\.isArray\(conflict\.files\)/);
+	assert.match(html, /review it before implementation/);
+});
+
 test("Work presents committed red tests as the implementation target", async () => {
 	const { render: hub } = await import("../lib/views/hub.mjs");
 	const html = hub({
@@ -696,6 +736,7 @@ test("memory review highlights changed markdown sections without changing verdic
 				action: "update",
 				title: "Safe rendering",
 				type: "Pattern",
+				reason: "Resolve the Work decision conflict.",
 				body: "# Kept\nSame.\n\n# Changed\nNew <value>.",
 				existingBody:
 					"# Kept\nSame.\n\n# Changed\nOld value.\n\n# Removed\nGone.",
@@ -706,6 +747,8 @@ test("memory review highlights changed markdown sections without changing verdic
 	assert.match(html, /function markdownChangeHtml/);
 	assert.match(html, /Changed section/);
 	assert.match(html, /Removed section/);
+	assert.match(html, /Why this change:/);
+	assert.match(html, /Resolve the Work decision conflict\./);
 	assert.match(html, /change-block\.added,\.change-block\.modified/);
 	assert.match(html, /m\.action === 'create' \|\| m\.action === 'update'/);
 	assert.match(html, /type: 'review-approved'/);

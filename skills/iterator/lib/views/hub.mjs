@@ -18,12 +18,12 @@
  *                         tests, testCount,              // recorded red/green test targets
  *                         dependsOn, ready, waitingOn,  // server-computed readiness
  *                         hasDiff, hasCommits,
- *                         conflicts } ] }               // # of flagged decision conflicts
+ *                         conflicts } ] }               // flagged decisions + notes/anchors
  *             retired: [ { name, title, created } ]   // archived plans, newest first
  *   output: one JSON line to stdout —
  *     { type:"action", action:"planning"|"plan"|"feature"|"test"|"implement"|"review"|"review-all"
  *       |"review-plan"|"retire"|"implement-wave"|"auto-implement"|"cancel-plan"|"cancel-feature"
- *       |"escalation-restart"|"escalation-guide",
+ * *       |"escalation-restart"|"escalation-guide"|"resolve-memory-conflict",
  *       feature:"<slug>"|null,
  *       prompt:"<guidance>"|null }                 // escalation-guide only
  *     plus the shared { type:"cancel" } / { type:"timeout" }.
@@ -38,6 +38,8 @@ const CSS = `
 .escalation .er{font-size:var(--fs-sm);white-space:pre-wrap}
 .escalation .em{font-size:var(--fs-xs);color:var(--text-muted)}
 .escalation textarea{width:100%;min-height:56px;resize:vertical;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;color:var(--text);font:inherit;font-size:var(--fs-sm)}
+.conflict-list{display:grid;gap:var(--sp-2);margin:8px 0 10px}.conflict-item{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sp-3);padding:8px 10px;background:var(--bg-red);border-left:3px solid var(--dot-red);border-radius:0 var(--radius-sm) var(--radius-sm) 0}.conflict-copy{font-size:var(--fs-xs);line-height:1.45}.conflict-copy strong{display:block;color:var(--del-fg)}.conflict-copy code{font-size:11px}.conflict-action{flex-shrink:0}
+@media(max-width:640px){.conflict-item{flex-direction:column}.conflict-action{width:100%}}
 `;
 
 const BODY = `
@@ -225,6 +227,8 @@ function makeCard(c){
   const ready = c.ready !== false;
   const draft = c.status==='draft';
   const implemented = c.status==='implemented';
+  const conflictDetails = Array.isArray(c.conflicts) ? c.conflicts : [];
+  const conflictCount = conflictDetails.length || Number(c.conflicts) || 0;
   const icon = '<i class="st '+(c.status==='done'?'done':draft?'draft':implemented?'implemented':'pending')+'"></i>';
   const redTarget = c.testsStatus==='red'
     ? '<div class="deps"><strong>Committed red tests — implementation target:</strong> '+
@@ -237,9 +241,30 @@ function makeCard(c){
       (implemented?'<span class="chip cy">implemented \\u2014 awaiting review</span>':'')+
       (implemented&&!c.hasDiff&&!c.hasCommits?'<span class="chip cr" title="Marked implemented, but review would find nothing: no working-tree diff and no recorded commits. Usual causes: the work was committed outside the accept flow (no Feature: trailer) or landed in a different checkout (plan worktree vs main). Check git log for its files, or Restart the feature.">\\u26a0 no recorded changes</span>':'')+
       sizeChip(c)+testBadge(c)+
-      (c.conflicts?'<span class="chip cr" title="This feature contradicts a project decision — check its Decision conflicts section">\\u26a0 '+c.conflicts+' decision conflict'+(c.conflicts!==1?'s':'')+'</span>':'')+'</div>'+
+      (conflictCount?'<span class="chip cr" title="This feature contradicts a project decision — review it before implementation">\\u26a0 '+conflictCount+' decision conflict'+(conflictCount!==1?'s':'')+'</span>':'')+'</div>'+
     '<div class="cdesc">'+esc(c.description||'')+'</div>'+redTarget+
     ((c.dependsOn&&c.dependsOn.length)?'<div class="deps">depends on '+c.dependsOn.map(d=>'<code>'+esc(d)+'</code>').join(' ')+'</div>':'');
+
+  if(conflictDetails.length){
+    const list = document.createElement('div'); list.className = 'conflict-list';
+    conflictDetails.forEach(conflict => {
+      const row = document.createElement('div'); row.className = 'conflict-item';
+      const copy = document.createElement('div'); copy.className = 'conflict-copy';
+      const title = document.createElement('strong'); title.textContent = conflict.title || conflict.decision;
+      const note = document.createElement('div'); note.textContent = conflict.note || conflict.description || 'Recorded decision conflict';
+      const id = document.createElement('code'); id.textContent = conflict.decision;
+      copy.append(title, note, id);
+      const resolve = document.createElement('button'); resolve.className = 'act conflict-action'; resolve.type = 'button'; resolve.textContent = 'Review decision';
+      resolve.title = 'Draft a decision update, require memory review, then re-check only this feature conflict';
+      resolve.addEventListener('click', () => post({
+        type:'action', action:'resolve-memory-conflict', feature:c.name,
+        target:conflict.decision, prompt:conflict.note || null,
+        anchors:Array.isArray(conflict.files) ? conflict.files : []
+      }, 'Starting reviewed decision update'));
+      row.append(copy, resolve); list.appendChild(row);
+    });
+    card.appendChild(list);
+  }
 
   const btns = document.createElement('div');
   btns.className = 'btns';

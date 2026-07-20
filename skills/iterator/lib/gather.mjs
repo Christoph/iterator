@@ -395,6 +395,7 @@ export function gather(startDir) {
 	];
 
 	const trailerMap = featureCommitMap(b.root);
+	const conceptsById = new Map(loadConcepts(b.memDir).map((c) => [c.id, c]));
 	// Readiness is computed here, once, server-side — views only render it.
 	const ready = readiness(b.features, b.settings);
 	const features = b.features.map((c) => {
@@ -404,6 +405,16 @@ export function gather(startDir) {
 		const recorded = Array.isArray(c.fm.commits) && c.fm.commits.length > 0;
 		const hasCommits = recorded || trailerMap.has(c.slug);
 		const tests = listy(c.fm.tests);
+		const conflicts = featureConflicts(c.fm).map((conflict) => {
+			const decision = conceptsById.get(conflict.decision);
+			return {
+				...conflict,
+				title: decision?.title || conflict.decision,
+				description: decision?.description || "",
+				files: decision?.files || [],
+				decisionExists: Boolean(decision),
+			};
+		});
 		return {
 			name: c.slug,
 			title: c.fm.title || c.slug,
@@ -417,7 +428,7 @@ export function gather(startDir) {
 			...ready.get(c.slug),
 			hasDiff,
 			hasCommits,
-			conflicts: featureConflicts(c.fm).length,
+			conflicts,
 		};
 	});
 
