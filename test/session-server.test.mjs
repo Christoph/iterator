@@ -314,6 +314,18 @@ test("backlog writes remain available while an agent is working", async () => {
 			true,
 			"backlog writes preserve the active model guard",
 		);
+		// The extension refreshes both tabs after the deterministic write. A
+		// refresh while working must update stored Planning HTML without releasing
+		// or replacing the active claim.
+		session.showView({
+			step: "planning",
+			render: () => viewHtml("PLANNING-WITH-SAVED-CANDIDATE"),
+		});
+		assert.match(
+			await (await fetch(`${origin}/view?tab=planning`)).text(),
+			/PLANNING-WITH-SAVED-CANDIDATE/,
+		);
+		assert.equal(session.isWorking(), true);
 		const blocked = await fetch(`${origin}/submit?r=${srvMod.RUN_ID}`, {
 			method: "POST",
 			body: '{"type":"action","action":"implement","feature":"other"}',
@@ -587,16 +599,25 @@ test("shell-owned Settings preserves the active tab and replays on reconnect", a
 			activate: true,
 		});
 		session.showModal({ render: () => viewHtml("SETTINGS-MODAL") });
-		assert.match(await (await fetch(origin + "/settings")).text(), /SETTINGS-MODAL/);
+		assert.match(
+			await (await fetch(origin + "/settings")).text(),
+			/SETTINGS-MODAL/,
+		);
 		assert.match(
 			await (await fetch(origin + "/view?tab=planning")).text(),
 			/PLANNING-UNDER-MODAL/,
 		);
-		assert.match(await (await fetch(origin + "/")).text(), /let tab = "planning"/);
+		assert.match(
+			await (await fetch(origin + "/")).text(),
+			/let tab = "planning"/,
+		);
 		const replay = await sseEvent(origin, "modal");
 		assert.deepEqual(replay.data, { open: true, v: 1 });
 		assert.equal(session.closeModal(), true);
-		assert.match(await (await fetch(origin + "/settings")).text(), /waiting for the next step/);
+		assert.match(
+			await (await fetch(origin + "/settings")).text(),
+			/waiting for the next step/,
+		);
 	} finally {
 		await session.stop();
 	}
@@ -608,7 +629,10 @@ test("Settings submit does not settle the pending round beneath the modal", asyn
 		onUnsolicited: (result) => (unsolicited = result),
 	});
 	try {
-		const round = session.showStep({ step: "review", render: () => viewHtml("REVIEW") });
+		const round = session.showStep({
+			step: "review",
+			render: () => viewHtml("REVIEW"),
+		});
 		session.showModal({ render: () => viewHtml("SETTINGS") });
 		const response = await fetch(`${origin}/submit`, {
 			method: "POST",

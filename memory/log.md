@@ -1,6 +1,8 @@
 # iterator update log
 
 ## 2026-07-20
+* **Implementation**: Committed feature(backlog-save-during-work) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Review**: Reviewed [Backlog file mentions](/features/backlog-file-mentions.md); approved (agent).
 * **Review**: Accepted [Backlog file mentions](/features/backlog-file-mentions.md) (committed as feature(backlog-file-mentions)).
 * **Implementation**: Committed feature(backlog-file-mentions) on branch iterator/safe-role-model-handoff; awaiting review.
 * **Update**: Applied 6 feature adjustment(s).
