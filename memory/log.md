@@ -1,6 +1,8 @@
 # iterator update log
 
 ## 2026-07-20
+* **Update**: Memorized [Apply role models to manual turns and reset stale runtime state](/decisions/manual-role-models-and-runtime-reset.md).
+* **Review**: Accepted [Safe role-model handoff](/features/safe-role-model-handoff.md) (committed as feature(safe-role-model-handoff)).
 * **Implementation**: Committed feature(safe-role-model-handoff) on branch iterator/safe-role-model-handoff; awaiting review.
 * **Backlog**: create red-mode-tests-should-show-the-real-test-code-for-verification-2.
 * **Backlog**: create red-mode-tests-should-show-the-real-test-code-for-verification.
