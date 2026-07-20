@@ -14,7 +14,7 @@
  *     { type:"answer", choice:"<label>"|null, text:"<free text>"|null }
  *     plus the shared { type:"cancel" } / { type:"timeout" }.
  */
-import { renderPage } from '../ui.mjs';
+import { renderPage } from "../ui.mjs";
 
 const CSS = `
 .main{max-width:640px;margin:0 auto;padding:40px var(--sp-5)}
@@ -48,7 +48,7 @@ const BODY = `
     <div class="flabel">Other — type your own answer</div>
     <textarea id="free-text" placeholder="Your answer…"></textarea>
   </div>
-  <p class="note">Answering here returns control to Claude — same as answering in the terminal.</p>
+  <p class="note">Answering here returns control to the Agent — same as answering in the terminal.</p>
 </div>
 `;
 
@@ -88,14 +88,21 @@ function hasChanges(){ return choice != null || Boolean(ft && ft.value.trim()); 
 function onPrimary(){
   const text = ft && ft.value.trim() ? ft.value.trim() : null;
   if(!choice && !text) return;
-  post({ type:'answer', choice, text }, 'Answer sent to Claude');
+  post({ type:'answer', choice, text }, 'Answer sent to Agent');
 }
 `;
 
 export function render(data) {
-  return renderPage({
-    step: 'question', subtitle: '/ question', branch: data.branch, title: data.title,
-    data, css: CSS, body: BODY, clientJs: JS,
-    primaryIdle: 'Answer', primaryChanged: 'Answer',
-  });
+	return renderPage({
+		step: "question",
+		subtitle: "/ question",
+		branch: data.branch,
+		title: data.title,
+		data,
+		css: CSS,
+		body: BODY,
+		clientJs: JS,
+		primaryIdle: "Answer",
+		primaryChanged: "Answer",
+	});
 }

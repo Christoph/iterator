@@ -7,11 +7,16 @@ import { randomUUID } from "node:crypto";
 import { networkInterfaces, tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { isRemoteSession } from "../lib/server.mjs";
+import { doneHtml, isRemoteSession } from "../lib/server.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SERVER = join(root, "skills", "iterator", "server.mjs");
 const CANCEL_GRACE_MS = 250;
+
+test("completion page identifies the active Agent", () => {
+	assert.match(doneHtml(), /Sent to Agent/);
+	assert.doesNotMatch(doneHtml(), /Sent to Claude/);
+});
 
 /**
  * Spawn the shared UI server with a payload on stdin; resolve once it prints
@@ -54,7 +59,9 @@ function startServer(payload, extraEnv = {}) {
 		child.stdout.on("data", (d) => (stdout += d));
 		child.stderr.on("data", (d) => {
 			stderr += d;
-			const m = stderr.match(/listening on (http:\/\/(?:localhost|127\.0\.0\.1):\d+\/)/);
+			const m = stderr.match(
+				/listening on (http:\/\/(?:localhost|127\.0\.0\.1):\d+\/)/,
+			);
 			if (m && !io.url) {
 				try {
 					io.url = new URL(m[1]);
@@ -389,7 +396,9 @@ test("reclaimPort: never kills a session dashboard; degrades without lsof/fuser"
 	const fake = http.createServer((req, res) => {
 		if (req.url === "/__iterator/status") {
 			res.writeHead(200, { "Content-Type": "application/json" });
-			res.end(JSON.stringify({ app: "iterator", mode: "session", pid: process.pid }));
+			res.end(
+				JSON.stringify({ app: "iterator", mode: "session", pid: process.pid }),
+			);
 		} else {
 			res.writeHead(200);
 			res.end("dash");
@@ -477,7 +486,10 @@ test("ITERATOR_REMOTE=1 binds dual-stack: 127.0.0.1 and ::1 both reach it", asyn
 	const io = await startServer(PLAN_PAYLOAD, { ITERATOR_REMOTE: "1" });
 	const port = io.url.port;
 	// The tokenless status endpoint — probing it cannot disturb the flow.
-	assert.equal(await reqStatusFrom("127.0.0.1", port, "/__iterator/status"), 200);
+	assert.equal(
+		await reqStatusFrom("127.0.0.1", port, "/__iterator/status"),
+		200,
+	);
 	if (hasIpv6Loopback()) {
 		// A sandbox publishes ::1:<host>-><container> alongside the v4 forward.
 		// Bound IPv4-only, that forward RSTs rather than refusing, so browsers
@@ -657,14 +669,29 @@ const SMOKE = [
 	],
 	[
 		"test",
-		"test cases Claude proposes",
+		"Verify the real source for every test",
 		{
 			step: "test",
 			branch: "test",
+			mode: "red",
 			feature: { name: "auth-middleware", description: "JWT middleware" },
 			runner: "vitest",
 			cases: [
-				{ title: "passes a valid token", kind: "happy", rationale: "core" },
+				{
+					id: "valid-token",
+					title: "passes a valid token",
+					kind: "happy",
+					rationale: "core",
+					path: "test/auth.test.mjs",
+					code: "test('valid token', () => expect(authenticate()).toBe(true));",
+				},
+			],
+			draftFiles: [
+				{
+					path: "test/auth.test.mjs",
+					content:
+						"test('valid token', () => expect(authenticate()).toBe(true));\n",
+				},
 			],
 		},
 	],
@@ -821,12 +848,20 @@ test("knowledge view renders memory state, areas, concepts, design, and actions"
 	assert.match(page, /id="rail"/, "area nav rail present");
 	assert.match(page, /id="browser"/, "client-rendered concept browser");
 	assert.match(page, /Search concepts/, "live search input");
-	assert.match(page, /Safe browser rendering/, "concept data embedded for the browser");
+	assert.match(
+		page,
+		/Safe browser rendering/,
+		"concept data embedded for the browser",
+	);
 	assert.match(page, /pitfalls\/gone-anchor/, "concept ids embedded");
 	assert.match(page, /data-action="update-memory"/);
 	assert.match(page, /badge-stale/);
 	assert.match(page, /Design parameters/, "design.md panel present");
-	assert.match(page, /design-grid/, "design constants grid rendered client-side");
+	assert.match(
+		page,
+		/design-grid/,
+		"design constants grid rendered client-side",
+	);
 	assert.match(page, /space-sm: 8px/, "design section content embedded");
 	assert.match(page, /data-action="refresh-format"/, "formatStale affordance");
 	assert.match(page, /data-action="iterator-memorize"/);
@@ -852,7 +887,10 @@ test("knowledge view renders memory state, areas, concepts, design, and actions"
 	const code = await waitExit(io.child);
 	assert.equal(code, 0);
 	// The server dispatches action results: update-memory belongs to /iterator-knowledge.
-	assert.deepEqual(parseJson(io.stdout().trim()), { ...payload, skill: "iterator-knowledge" });
+	assert.deepEqual(parseJson(io.stdout().trim()), {
+		...payload,
+		skill: "iterator-knowledge",
+	});
 });
 
 test("memorize review renders conflicts, range, and grouped cards", async () => {
@@ -989,7 +1027,7 @@ test("POST /submit with a non-JSON body emits a JSON error line, never garbage",
 	});
 	const code = await waitExit(io.child);
 	assert.equal(code, 0);
-	const line = JSON.parse(io.stdout().trim());
+	const line = parseJson(io.stdout().trim());
 	assert.equal(line.type, "error");
 	assert.match(line.error, /malformed/);
 });
@@ -1062,13 +1100,19 @@ test("listenWithTakeover walks up when the start port is busy and falls back to 
 	try {
 		// Walk-up: start on the busy port, land on a nearby free one.
 		const s1 = http.createServer(() => {});
-		const p1 = await listenWithTakeover(s1, { startPort: blockerPort, maxRetries: 5 });
+		const p1 = await listenWithTakeover(s1, {
+			startPort: blockerPort,
+			maxRetries: 5,
+		});
 		assert.notEqual(p1, blockerPort);
 		assert.ok(p1 > 0);
 		s1.close();
 		// Ephemeral fallback: no retries left → the OS picks a port.
 		const s2 = http.createServer(() => {});
-		const p2 = await listenWithTakeover(s2, { startPort: blockerPort, maxRetries: 0 });
+		const p2 = await listenWithTakeover(s2, {
+			startPort: blockerPort,
+			maxRetries: 0,
+		});
 		assert.notEqual(p2, blockerPort);
 		assert.ok(p2 > 0);
 		s2.close();

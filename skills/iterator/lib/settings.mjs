@@ -13,7 +13,7 @@
  * time — this module never talks to a model registry.
  */
 
-/** Key definitions: kind (enum|int|model), allowed values / bounds, default. */
+/** Key definitions: kind (enum|int|model|prices), allowed values / bounds, default. */
 export const SETTINGS_DEFS = {
 	auto_mode: {
 		kind: "enum",
@@ -155,6 +155,17 @@ export const SETTINGS_DEFS = {
 		label: "Token usage ledger",
 		help: "Record per-step model/token usage into memory/usage.md (pi sessions only).",
 	},
+	// This is project configuration, but Budget is its only editor: keeping it
+	// hidden prevents the generic Settings form from exposing serialized rates.
+	// null means no project catalog has been saved; {} deliberately means the
+	// user cleared it, so usage.md may not supply a legacy fallback.
+	usage_prices: {
+		kind: "prices",
+		default: null,
+		hidden: true,
+		label: "Model prices",
+		help: "Project-owned USD-per-million model rates, edited in Budget.",
+	},
 	auto_retire_prompt: {
 		kind: "enum",
 		values: ["on", "off"],
@@ -172,6 +183,77 @@ export const SETTINGS_DEFS = {
 };
 
 export const SETTINGS_KEYS = Object.keys(SETTINGS_DEFS);
+export const USAGE_PRICE_FIELDS = [
+	"input",
+	"output",
+	"cacheRead",
+	"cacheWrite",
+];
+
+/**
+ * Validate and normalize a complete project-owned model-rate catalog. Accept
+ * parsed objects from the Budget writer and JSON scalars from settings.md.
+ */
+export function validateUsagePrices(raw) {
+	let value = raw;
+	if (typeof value === "string") {
+		try {
+			value = JSON.parse(value);
+		} catch {
+			return { ok: false, errors: ["usage prices must be valid JSON"] };
+		}
+	}
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		return {
+			ok: false,
+			errors: ["usage prices must be an object keyed by provider/model"],
+		};
+	}
+	const prices = {};
+	for (const [rawModel, rawRates] of Object.entries(value)) {
+		const model = String(rawModel).trim();
+		if (
+			!model ||
+			!model.includes("/") ||
+			model.length > 200 ||
+			/\s/.test(model)
+		) {
+			return {
+				ok: false,
+				errors: [
+					`usage price model '${rawModel}' must be a non-empty provider/model without whitespace`,
+				],
+			};
+		}
+		if (!rawRates || typeof rawRates !== "object" || Array.isArray(rawRates)) {
+			return {
+				ok: false,
+				errors: [`usage prices for ${model} must be an object`],
+			};
+		}
+		const rates = {};
+		for (const [field, rawRate] of Object.entries(rawRates)) {
+			if (!USAGE_PRICE_FIELDS.includes(field)) {
+				return {
+					ok: false,
+					errors: [`usage prices for ${model}: unknown token field '${field}'`],
+				};
+			}
+			const rate = Number(rawRate);
+			if (!Number.isFinite(rate) || rate < 0) {
+				return {
+					ok: false,
+					errors: [
+						`usage prices for ${model}: ${field} must be a non-negative number`,
+					],
+				};
+			}
+			rates[field] = rate;
+		}
+		if (Object.keys(rates).length) prices[model] = rates;
+	}
+	return { ok: true, errors: [], prices };
+}
 
 /** The full defaults object. */
 export function settingsDefaults() {
@@ -218,6 +300,13 @@ export function validateSettings(partial) {
 				continue;
 			}
 			values[key] = s;
+		} else if (def.kind === "prices") {
+			const checked = validateUsagePrices(raw);
+			if (!checked.ok) {
+				errors.push(...checked.errors.map((error) => `${key}: ${error}`));
+				continue;
+			}
+			values[key] = checked.prices;
 		}
 	}
 	return { ok: errors.length === 0, errors, values };

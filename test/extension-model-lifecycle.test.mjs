@@ -2,9 +2,45 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+	mkdtempSync,
+	mkdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+test("dashboard dispatch identifies the active Agent", () => {
+	const extension = readFileSync(
+		new URL("../extensions/iterator.js", import.meta.url),
+		"utf8",
+	);
+	assert.match(extension, /Dispatched \$\{cmd\} — Agent is working…/);
+	assert.doesNotMatch(extension, /Dispatched \$\{cmd\} — Claude is working…/);
+});
+
+test("agent plan review completion converges the auto dashboard immediately", () => {
+	const extension = readFileSync(
+		new URL("../extensions/iterator.js", import.meta.url),
+		"utf8",
+	);
+	assert.match(extension, /if \(result\?\.autoCompleted\)/);
+	assert.match(
+		extension,
+		/await restoreModel\(\);\n\s+session\?\.clearWorking\?\.\(\);/,
+	);
+	assert.match(
+		extension,
+		/const \{ settings \} = await gatherSession\(ctx\.cwd\);/,
+	);
+	assert.match(extension, /notifyUi\(autoCompleteMessage\(settings\)\);/);
+	assert.match(
+		extension,
+		/await refreshHub\(ctx\.cwd, \{ activateWork: true \}\);/,
+	);
+});
 
 const require = createRequire(import.meta.url);
 const extensionDependenciesAvailable = (() => {

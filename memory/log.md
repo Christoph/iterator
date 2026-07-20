@@ -1,6 +1,41 @@
 # iterator update log
 
 ## 2026-07-20
+* **Plan review**: Whole-plan review recorded (agent).
+* **Review**: Reviewed [Finalize auto mode after plan review](/features/finalize-auto-plan-review.md); approved (agent).
+* **Review**: Accepted [Finalize auto mode after plan review](/features/finalize-auto-plan-review.md) (committed as feature(finalize-auto-plan-review)).
+* **Implementation**: Committed feature(finalize-auto-plan-review) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Review**: Reviewed [Finalize auto mode after plan review](/features/finalize-auto-plan-review.md); changes (agent).
+* **Implementation**: Committed feature(finalize-auto-plan-review) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Update**: Applied 1 feature adjustment(s).
+* **Creation**: 1 feature(s) written.
+* **Creation**: Plan "Finish auto mode after plan review" approved on branch iterator/safe-role-model-handoff.
+* **Retirement**: Plan "Persist budget prices across plans" condensed into [Persist budget prices across plans](/decisions/persistent-budget-prices.md).
+* **Plan review**: Whole-plan review recorded (agent).
+* **Review**: Reviewed [Persist budget prices across plans](/features/persistent-budget-prices.md); approved (agent).
+* **Review**: Accepted [Persist budget prices across plans](/features/persistent-budget-prices.md) (committed as feature(persistent-budget-prices)).
+* **Implementation**: Committed feature(persistent-budget-prices) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Review**: Reviewed [Persist budget prices across plans](/features/persistent-budget-prices.md); changes (agent).
+* **Implementation**: Committed feature(persistent-budget-prices) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Update**: Applied 1 feature adjustment(s).
+* **Creation**: 1 feature(s) written.
+* **Creation**: Plan "Persist budget prices across plans" approved on branch iterator/safe-role-model-handoff. Consumed 1 selected backlog candidate(s).
+* **Backlog**: select in-budget-the-saved-prices-are-presistet-so-later-they-are-used-and-can-be-updated (selected).
+* **Backlog**: create in-budget-the-saved-prices-are-presistet-so-later-they-are-used-and-can-be-updated.
+* **Retirement**: Plan "Verify red test code and use Agent wording" condensed into [Review exact red test source and use Agent wording](/decisions/code-exact-red-test-review-and-agent-wording.md).
+* **Plan review**: Whole-plan review recorded (agent).
+* **Review**: Reviewed [Use Agent wording in workflow views](/features/agent-neutral-workflow-copy.md); approved (agent).
+* **Review**: Accepted [Use Agent wording in workflow views](/features/agent-neutral-workflow-copy.md) (committed as feature(agent-neutral-workflow-copy)).
+* **Implementation**: Committed feature(agent-neutral-workflow-copy) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Review**: Reviewed [Review exact red test source](/features/review-exact-red-test-source.md); approved (agent).
+* **Review**: Accepted [Review exact red test source](/features/review-exact-red-test-source.md) (committed as feature(review-exact-red-test-source)).
+* **Implementation**: Committed feature(review-exact-red-test-source) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Review**: Reviewed [Use Agent wording in the dashboard shell](/features/agent-neutral-shell-copy.md); approved (agent).
+* **Review**: Accepted [Use Agent wording in the dashboard shell](/features/agent-neutral-shell-copy.md) (committed as feature(agent-neutral-shell-copy)).
+* **Implementation**: Committed feature(agent-neutral-shell-copy) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Update**: Applied 3 feature adjustment(s).
+* **Creation**: 3 feature(s) written.
+* **Creation**: Plan "Verify red test code and use Agent wording" approved on branch iterator/safe-role-model-handoff. Consumed 3 selected backlog candidate(s).
 * **Backlog**: select remove-text-erferences-to-claude (selected).
 * **Backlog**: select red-mode-tests-should-show-the-real-test-code-for-verification-2 (selected).
 * **Backlog**: select red-mode-tests-should-show-the-real-test-code-for-verification (selected).

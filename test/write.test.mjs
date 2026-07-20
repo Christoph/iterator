@@ -2363,6 +2363,18 @@ test("settings op writes, merges partially, and validates", () => {
 			() => applyOp({ op: "settings", values: {} }, root),
 			/needs values/,
 		);
+		assert.throws(
+			() =>
+				applyOp(
+					{
+						op: "settings",
+						values: { usage_prices: { "openai/gpt": { input: 2 } } },
+					},
+					root,
+				),
+			/Budget-owned.*usage_prices.*usage op/,
+			"generic settings writes cannot bypass the Budget snapshot path",
+		);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
@@ -2605,6 +2617,20 @@ test("record-plan-review appends the report and sets plan_reviewed", () => {
 			() => applyOp({ op: "record-plan-review" }, root),
 			/needs a report/,
 		);
+		applyOp(
+			{
+				op: "state",
+				set: {
+					mode: "auto",
+					paused: false,
+					phase: "reviewing",
+					active_feature: "auth-middleware",
+					strikes: { "auth-middleware": 2 },
+					escalation: { reason: "stale review state" },
+				},
+			},
+			root,
+		);
 		const res = applyOp(
 			{
 				op: "record-plan-review",
@@ -2615,6 +2641,19 @@ test("record-plan-review appends the report and sets plan_reviewed", () => {
 			root,
 		);
 		assert.ok(res.planReviewed, "date recorded");
+		assert.equal(res.autoCompleted, true);
+		assert.deepEqual(frontmatter(read(root, "state.md")), {
+			type: "State",
+			title: "Runtime state",
+			description: "Machine-owned iterator flow state — never hand-edited.",
+			mode: "manual",
+			paused: "false",
+			phase: "done",
+			active_feature: "null",
+			strikes: "{}",
+			escalation: "null",
+			timestamp: "2026-07-06T12:00:00Z",
+		});
 		const plan = read(root, "plan.md");
 		assert.match(plan, /plan_reviewed: \d{4}-\d{2}-\d{2}/);
 		assert.match(plan, /# Plan review/);
@@ -2622,9 +2661,26 @@ test("record-plan-review appends the report and sets plan_reviewed", () => {
 		assert.match(plan, /agent review: anthropic\/claude-fable-5/);
 		// A second review lands ABOVE the first (newest first).
 		applyOp(
+			{
+				op: "state",
+				set: {
+					mode: "auto",
+					phase: "reviewing",
+					active_feature: "manual-review",
+				},
+			},
+			root,
+		);
+		const human = applyOp(
 			{ op: "record-plan-review", report: "Second look, still clean." },
 			root,
 		);
+		assert.equal(
+			human.autoCompleted,
+			false,
+			"human reviews retain runtime state",
+		);
+		assert.equal(frontmatter(read(root, "state.md")).mode, "auto");
 		const twice = read(root, "plan.md");
 		assert.ok(
 			twice.indexOf("Second look") < twice.indexOf("Goal covered"),
@@ -2954,6 +3010,78 @@ test("usage prices persist and calculate complete row, feature, and grand costs"
 	}
 });
 
+test("usage price saves persist project-wide without creating an empty ledger", () => {
+	const root = makeRepo();
+	try {
+		const first = applyOp(
+			{
+				op: "usage",
+				prices: { "openai/gpt": { input: 2, output: 10 } },
+			},
+			root,
+		);
+		assert.deepEqual(first.written, ["settings.md", "index.md"]);
+		assert.ok(!existsSync(join(root, "memory", "usage.md")));
+		assert.match(
+			read(root, "index.md"),
+			/\[Settings\]\(settings\.md\)/,
+			"a first Budget save registers its persistent settings document",
+		);
+		assert.deepEqual(gatherUsage(root).prices, {
+			"openai/gpt": { input: 2, output: 10 },
+		});
+		assert.equal(gatherUsage(root).exists, false);
+		assert.deepEqual(
+			JSON.parse(frontmatter(read(root, "settings.md")).usage_prices),
+			{
+				"openai/gpt": { input: 2, output: 10 },
+			},
+		);
+
+		applyOp(
+			{
+				op: "usage",
+				rows: [
+					{
+						step: "implement",
+						provider: "openai",
+						model: "gpt",
+						input: 100,
+						output: 50,
+					},
+				],
+			},
+			root,
+		);
+		assert.equal(gatherUsage(root).costs.grand, 0.0007);
+
+		applyOp(
+			{
+				op: "usage",
+				prices: { "openai/gpt": { input: 4, output: 20 } },
+			},
+			root,
+		);
+		assert.equal(
+			JSON.parse(frontmatter(read(root, "usage.md")).prices)["openai/gpt"]
+				.input,
+			4,
+			"saving refreshes the active ledger snapshot",
+		);
+		assert.equal(gatherUsage(root).costs.grand, 0.0014);
+
+		applyOp({ op: "usage", prices: {} }, root);
+		assert.deepEqual(gatherUsage(root).prices, {});
+		assert.equal(
+			gatherUsage(root).costs.grand,
+			null,
+			"an explicitly cleared catalog does not fall back to an old snapshot",
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("retire-plan archives the usage ledger and keeps totals in the decision", () => {
 	const root = makeRepo();
 	try {
@@ -3024,6 +3152,23 @@ test("retire-plan archives the usage ledger and keeps totals in the decision", (
 		assert.match(archived, /500/);
 		assert.match(archived, /Model prices \(USD per 1M tokens\)/);
 		assert.match(archived, /Estimated cost: \$0\.003000/);
+		applyOp(
+			{
+				op: "usage",
+				prices: { "openai/gpt-5.5": { input: 4, output: 20 } },
+			},
+			root,
+		);
+		assert.equal(gatherUsage(root).prices["openai/gpt-5.5"].input, 4);
+		assert.equal(
+			JSON.parse(
+				frontmatter(
+					readFileSync(join(root, "memory", res.archived, "usage.md"), "utf8"),
+				).prices,
+			)["openai/gpt-5.5"].input,
+			2,
+			"later catalog changes cannot rewrite archived costs",
+		);
 		assert.match(
 			read(root, "decisions", "jwt-auth.md"),
 			/Token usage: 500 in \/ 200 out/,

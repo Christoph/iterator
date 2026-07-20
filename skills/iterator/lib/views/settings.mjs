@@ -47,6 +47,10 @@ const BODY = `
 `;
 
 // Render order: behavior first, then models, then the knobs.
+const PUBLIC_SETTINGS_DEFS = Object.fromEntries(
+	Object.entries(SETTINGS_DEFS).filter(([, def]) => !def.hidden),
+);
+
 const GROUPS = [
 	[
 		"Flow",
@@ -86,7 +90,7 @@ const GROUPS = [
 ];
 
 const JS = `
-const DEFS = ${JSON.stringify(SETTINGS_DEFS)};
+const DEFS = ${JSON.stringify(PUBLIC_SETTINGS_DEFS)};
 const GROUPS = ${JSON.stringify(GROUPS)};
 const ORIG = Object.assign({}, D.settings || {});
 const cur = Object.assign({}, ORIG);
@@ -192,12 +196,20 @@ function onPrimary(){
 `;
 
 export function render(data) {
+	const publicData = {
+		...data,
+		settings: Object.fromEntries(
+			Object.entries(data.settings || {}).filter(
+				([key]) => !SETTINGS_DEFS[key]?.hidden,
+			),
+		),
+	};
 	return renderPage({
 		step: "settings",
 		subtitle: "/ settings",
 		branch: data.branch,
 		title: data.plan,
-		data,
+		data: publicData,
 		css: CSS,
 		body: BODY,
 		clientJs: JS,

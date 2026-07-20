@@ -188,7 +188,7 @@ function primaryClick(){ if(typeof onPrimary==='function') onPrimary(); }
 // round-trip actions (split/merge). Shows sending state on the primary button.
 async function post(payload, okMsg, options){
   if(document.body.classList.contains('iterator-ro') && !options?.allowWhileWorking){
-    alert('Claude is working — actions are disabled until it finishes.');
+    alert('Agent is working — actions are disabled until it finishes.');
     return false;
   }
   var btn=document.getElementById('primary');
@@ -200,10 +200,10 @@ async function post(payload, okMsg, options){
       // Busy (agent working) or stale round — the action was NOT accepted.
       __submitted = false;
       if(btn){ btn.disabled=false; if(typeof refresh==='function') refresh(); else btn.textContent=btn.dataset.prev||'Accept'; }
-      alert('Not sent — Claude is still working (or this view is stale). Try again when the dashboard refreshes.');
+      alert('Not sent — Agent is still working (or this view is stale). Try again when the dashboard refreshes.');
       return false;
     }
-    if(btn) btn.textContent = '✓ ' + (okMsg||'Sent to Claude');
+    if(btn) btn.textContent = '✓ ' + (okMsg||'Sent to Agent');
     return true;
   }catch(e){
     __submitted=false;
@@ -320,7 +320,7 @@ function header(subtitle, showPrimary, idleLabel, showCancel) {
 		'<span class="tag" id="branch"></span></div>\n' +
 		'  <div class="it-hr">' +
 		(showCancel
-			? '<button class="it-btn cancel" onclick="cancelFlow()" title="Close this step without answering — Claude stops this flow">Cancel</button>'
+			? '<button class="it-btn cancel" onclick="cancelFlow()" title="Close this step without answering — Agent stops this flow">Cancel</button>'
 			: "") +
 		(showPrimary
 			? '<button class="it-btn primary" id="primary" onclick="primaryClick()">' +

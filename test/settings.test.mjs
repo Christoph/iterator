@@ -6,6 +6,7 @@ import {
 	settingsDefaults,
 	SETTINGS_KEYS,
 	validateSettings,
+	validateUsagePrices,
 } from "../lib/settings.mjs";
 import { render as settingsView } from "../lib/views/settings.mjs";
 
@@ -18,6 +19,11 @@ test("settingsDefaults covers every defined key", () => {
 	assert.equal(d.max_review_iterations, 3);
 	assert.equal(d.reviewer_model, "active");
 	assert.equal(d.memorize_on_retire, "off");
+	assert.equal(
+		d.usage_prices,
+		null,
+		"no catalog permits legacy-ledger fallback",
+	);
 });
 
 test("validateSettings accepts valid entries and rejects unknown/invalid ones", () => {
@@ -44,6 +50,23 @@ test("validateSettings accepts valid entries and rejects unknown/invalid ones", 
 	assert.equal(bad.ok, false);
 	assert.equal(bad.errors.length, 4);
 	assert.match(bad.errors[0], /unknown setting 'nonsense_key'/);
+});
+
+test("usage price catalogs are validated as hidden structured settings", () => {
+	const prices = { "openai/gpt-5.6": { input: 2, output: 10 } };
+	assert.deepEqual(validateUsagePrices(JSON.stringify(prices)), {
+		ok: true,
+		errors: [],
+		prices,
+	});
+	assert.deepEqual(validateSettings({ usage_prices: prices }).values, {
+		usage_prices: prices,
+	});
+	assert.equal(
+		validateSettings({ usage_prices: { "openai/gpt": { typo: 1 } } }).ok,
+		false,
+		"token categories stay constrained to supported fields",
+	);
 });
 
 test("effectiveSettings overlays valid stored values and ignores mangled ones", () => {
@@ -144,6 +167,7 @@ test("settings view renders a form over the defs (models free-text without avail
 	assert.ok(html.includes("type:'settings'"), "submits a settings result");
 	assert.ok(html.includes("memory/settings.md"));
 	assert.ok(html.includes("free text otherwise"));
+	assert.ok(!html.includes("usage_prices"), "Budget owns the price editor");
 });
 
 test("settings view limits model selectors to available choices and keeps saved unlisted values", () => {

@@ -150,6 +150,7 @@ test("showStep pushes an SSE view event, serves the html, and resolves on /submi
 		// After a submit the dashboard shows the working overlay state.
 		const after = await firstSseEvent(origin);
 		assert.equal(after.event, "working");
+		assert.equal(after.data.text, "Sent to Agent — working…");
 	} finally {
 		await session.stop();
 	}

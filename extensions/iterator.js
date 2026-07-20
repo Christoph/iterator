@@ -53,6 +53,7 @@ import {
 	actionToCommand,
 	activityTextFromMessage,
 	attributionFromInput,
+	autoCompleteMessage,
 	AUTO_PHASE_FOR_STEP,
 	bundleExists,
 	featuresDirEntries,
@@ -821,11 +822,7 @@ export default function iteratorExtension(pi) {
 				});
 				autoSteps = 0;
 				await restoreModel();
-				notifyUi(
-					sess.settings?.auto_retire_prompt === "on"
-						? "auto mode: plan complete — every feature landed. Consider retiring the plan from the dashboard."
-						: "auto mode: plan complete — every feature landed.",
-				);
+				notifyUi(autoCompleteMessage(sess.settings));
 				await refreshHub(cwd);
 				return;
 			}
@@ -1161,7 +1158,7 @@ export default function iteratorExtension(pi) {
 					}
 					const cmd = actionToCommand(result);
 					if (!cmd) return;
-					session.showWorking(`Dispatched ${cmd} — Claude is working…`);
+					session.showWorking(`Dispatched ${cmd} — Agent is working…`);
 					dispatch(cmd);
 				},
 				onControl,
@@ -1410,6 +1407,17 @@ export default function iteratorExtension(pi) {
 					// Red tests are an intentional implementation handoff: return to
 					// Work so their paths and target state are immediately visible.
 					void refreshHub(ctx.cwd, { activateWork: true });
+				}
+				if (result?.autoCompleted) {
+					// The agent plan-review writer already made the terminal state
+					// durable. Converge the local UI now instead of waiting for an
+					// agent-end callback that may race an iframe refresh.
+					autoSteps = 0;
+					await restoreModel();
+					session?.clearWorking?.();
+					const { settings } = await gatherSession(ctx.cwd);
+					notifyUi(autoCompleteMessage(settings));
+					await refreshHub(ctx.cwd, { activateWork: true });
 				}
 				if (approved) {
 					void refreshHub(ctx.cwd, { activateWork: true });
