@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-20
+* **Review**: Accepted [Work conflict memory resolution](/features/work-conflict-memory-resolution.md) (committed as feature(work-conflict-memory-resolution)).
 * **Implementation**: Committed feature(work-conflict-memory-resolution) on branch iterator/safe-role-model-handoff; awaiting review.
 * **Review**: Reviewed [Focused memory review changes](/features/memory-review-change-focus.md); approved (agent).
 * **Review**: Accepted [Focused memory review changes](/features/memory-review-change-focus.md) (committed as feature(memory-review-change-focus)).

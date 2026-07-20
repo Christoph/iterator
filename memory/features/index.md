@@ -5,4 +5,4 @@
 * [Backlog filtering and bulk selection](backlog-filter-and-bulk-select.md) - ✅ done · 🟢 tests green · medium · depends: backlog-save-during-work · Filter backlog candidates by type and select or deselect the visible set for planning.
 * [Full-plan fast track](full-plan-fast-track.md) - ✅ done · medium · Turn a structured plan supplied in Planning into an approved feature-ready draft without redundant planning prompts.
 * [Focused memory review changes](memory-review-change-focus.md) - ✅ done · medium · Highlight changed sections in memory proposals so reviewers can see exactly what a create or update will alter.
-* [Work conflict memory resolution](work-conflict-memory-resolution.md) - ⬜ pending · medium · depends: memory-review-change-focus · Let a Work feature conflict initiate a reviewed decision-update request and anchored follow-up check.
+* [Work conflict memory resolution](work-conflict-memory-resolution.md) - ✅ done · medium · depends: memory-review-change-focus · Let a Work feature conflict initiate a reviewed decision-update request and anchored follow-up check.
