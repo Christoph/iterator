@@ -2,12 +2,12 @@
 type: Feature
 title: Focused memory review changes
 description: Highlight changed sections in memory proposals so reviewers can see exactly what a create or update will alter.
-status: implemented
+status: done
 size: medium
 depends_on: []
 files: ["lib/views/memory-review.mjs", "lib/ui.mjs", "test/ui.test.mjs", "test/client-js-parse.test.mjs"]
 memories: [pitfalls/client-js-template-literal-escaping, architecture/browser-server-contract, patterns/agent-reviewed-memory-writes, patterns/safe-browser-rendering, decisions/iterator-dashboard-feature-workflow, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows, decisions/review-navigation-and-work-context]
-timestamp: "2026-07-20T15:21:40.450Z"
+timestamp: "2026-07-20T15:22:12.401Z"
 tags: []
 commits:
   - sha: dff652ec86deb8aaba625755a71e75ac4bb2f563
@@ -17,6 +17,7 @@ commits:
     kind: implement
     date: 2026-07-20
 reviewed: 2026-07-20
+done: 2026-07-20
 ---
 
 # Implementation notes
