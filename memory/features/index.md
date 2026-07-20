@@ -1,6 +1,6 @@
 # Features
 
-* [Backlog file mentions](backlog-file-mentions.md) - ⬜ pending · small · Add Planning-style @ file suggestions to backlog idea details so candidates can anchor repository context.
+* [Backlog file mentions](backlog-file-mentions.md) - ✅ done · small · Add Planning-style @ file suggestions to backlog idea details so candidates can anchor repository context.
 * [Reliable backlog saves](backlog-save-during-work.md) - ⬜ pending · medium · Keep deterministic backlog saves available during active work without clearing the owned Work overlay.
 * [Backlog filtering and bulk selection](backlog-filter-and-bulk-select.md) - ⬜ pending · medium · depends: backlog-save-during-work · Filter backlog candidates by type and select or deselect the visible set for planning.
 * [Full-plan fast track](full-plan-fast-track.md) - ⬜ pending · medium · Turn a structured plan supplied in Planning into an approved feature-ready draft without redundant planning prompts.
