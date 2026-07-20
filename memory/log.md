@@ -2,6 +2,8 @@
 
 ## 2026-07-20
 * **Implementation**: Committed feature(persistent-budget-prices) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Review**: Reviewed [Persist budget prices across plans](/features/persistent-budget-prices.md); changes (agent).
+* **Implementation**: Committed feature(persistent-budget-prices) on branch iterator/safe-role-model-handoff; awaiting review.
 * **Update**: Applied 1 feature adjustment(s).
 * **Creation**: 1 feature(s) written.
 * **Creation**: Plan "Persist budget prices across plans" approved on branch iterator/safe-role-model-handoff. Consumed 1 selected backlog candidate(s).

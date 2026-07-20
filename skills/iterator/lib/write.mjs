@@ -1073,6 +1073,14 @@ function writeSettings(payload, root) {
 	const b = loadBundle(root);
 	const incoming = payload.values || {};
 	if (!Object.keys(incoming).length) fail("settings op needs values");
+	const hidden = Object.keys(incoming).filter(
+		(key) => SETTINGS_DEFS[key]?.hidden,
+	);
+	if (hidden.length) {
+		fail(
+			`settings op cannot update Budget-owned setting(s): ${hidden.join(", ")} (use the usage op)`,
+		);
+	}
 	const { ok, errors, values } = validateSettings(incoming);
 	if (!ok) fail(errors.join("; "));
 
@@ -1320,9 +1328,10 @@ function writeUsage(payload, root) {
 	// create an empty usage.md merely to store them; the next ledger inherits
 	// the catalog above, while retirement only archives real usage snapshots.
 	if (!rows.length && hasPrices && !existsSync(file)) {
+		regenerate(root);
 		return {
 			op: "usage",
-			written: ["settings.md"],
+			written: ["settings.md", "index.md"],
 			rows: 0,
 			prices: Object.keys(prices).length,
 			grand: usageGrandTotal(totals),
@@ -1361,9 +1370,12 @@ function writeUsage(payload, root) {
 		`timestamp: ${nowIso()}`,
 	].join("\n");
 	writeFileSync(file, joinDoc(fm, usageBody(totals, prices)));
+	if (hasPrices) regenerate(root);
 	return {
 		op: "usage",
-		written: hasPrices ? ["settings.md", "usage.md"] : ["usage.md"],
+		written: hasPrices
+			? ["settings.md", "usage.md", "index.md"]
+			: ["usage.md"],
 		rows: rows.length,
 		prices: Object.keys(prices).length,
 		grand: usageGrandTotal(totals),
@@ -3216,14 +3228,16 @@ const SCHEMAS = {
 	settings: {
 		op: "settings",
 		values: Object.fromEntries(
-			Object.entries(SETTINGS_DEFS).map(([k, d]) => [
-				`${k}?`,
-				d.kind === "enum"
-					? `${d.values.join("|")} (default ${d.default})`
-					: d.kind === "int"
-						? `int ${d.min}-${d.max} (default ${d.default})`
-						: "'active' | '<provider>/<model-id>' (default active)",
-			]),
+			Object.entries(SETTINGS_DEFS)
+				.filter(([, def]) => !def.hidden)
+				.map(([k, d]) => [
+					`${k}?`,
+					d.kind === "enum"
+						? `${d.values.join("|")} (default ${d.default})`
+						: d.kind === "int"
+							? `int ${d.min}-${d.max} (default ${d.default})`
+							: "'active' | '<provider>/<model-id>' (default active)",
+				]),
 		),
 		"log?": "string",
 	},

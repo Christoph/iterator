@@ -2363,6 +2363,18 @@ test("settings op writes, merges partially, and validates", () => {
 			() => applyOp({ op: "settings", values: {} }, root),
 			/needs values/,
 		);
+		assert.throws(
+			() =>
+				applyOp(
+					{
+						op: "settings",
+						values: { usage_prices: { "openai/gpt": { input: 2 } } },
+					},
+					root,
+				),
+			/Budget-owned.*usage_prices.*usage op/,
+			"generic settings writes cannot bypass the Budget snapshot path",
+		);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
@@ -2964,8 +2976,13 @@ test("usage price saves persist project-wide without creating an empty ledger", 
 			},
 			root,
 		);
-		assert.deepEqual(first.written, ["settings.md"]);
+		assert.deepEqual(first.written, ["settings.md", "index.md"]);
 		assert.ok(!existsSync(join(root, "memory", "usage.md")));
+		assert.match(
+			read(root, "index.md"),
+			/\[Settings\]\(settings\.md\)/,
+			"a first Budget save registers its persistent settings document",
+		);
 		assert.deepEqual(gatherUsage(root).prices, {
 			"openai/gpt": { input: 2, output: 10 },
 		});
