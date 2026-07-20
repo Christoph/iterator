@@ -2,17 +2,18 @@
 type: Feature
 title: Use Agent wording in the dashboard shell
 description: Shared dashboard status, submission, cancellation, and working messages refer to the active coding Agent rather than Claude.
-status: implemented
+status: done
 size: small
 depends_on: []
 files: ["extensions/iterator.js", "lib/server.mjs", "lib/ui.mjs", "lib/session-server.mjs", "test/server.test.mjs", "test/session-server.test.mjs", "test/extension-model-lifecycle.test.mjs"]
 memories: [pitfalls/cancel-now-after-grace-timer, pitfalls/client-js-template-literal-escaping, architecture/browser-server-contract, architecture/package-and-skill-layout, patterns/one-json-line-server-results, patterns/safe-browser-rendering, decisions/backlog-planning-and-feature-waves, decisions/focus-feature-execution-and-dashboard-ownership]
-timestamp: "2026-07-20T16:17:05.254Z"
+timestamp: "2026-07-20T16:17:51.866Z"
 tags: []
 commits:
   - sha: 3854fc7cc6ffd5de8f64868c3dc56c2747a1c78c
     kind: implement
     date: 2026-07-20
+done: 2026-07-20
 ---
 
 # Implementation notes

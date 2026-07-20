@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-20
+* **Review**: Accepted [Use Agent wording in the dashboard shell](/features/agent-neutral-shell-copy.md) (committed as feature(agent-neutral-shell-copy)).
 * **Implementation**: Committed feature(agent-neutral-shell-copy) on branch iterator/safe-role-model-handoff; awaiting review.
 * **Update**: Applied 3 feature adjustment(s).
 * **Creation**: 3 feature(s) written.
