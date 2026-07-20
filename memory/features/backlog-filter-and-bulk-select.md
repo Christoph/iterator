@@ -2,13 +2,14 @@
 type: Feature
 title: Backlog filtering and bulk selection
 description: Filter backlog candidates by type and select or deselect the visible set for planning.
-status: pending
+status: implemented
 size: medium
 depends_on: [backlog-save-during-work]
 files: ["lib/views/planning.mjs", "lib/write.mjs", "test/ui.test.mjs", "test/write.test.mjs"]
 memories: [architecture/workflow-state-ownership, decisions/backlog-planning-and-feature-waves, decisions/consume-accepted-backlog-ideas, decisions/focus-feature-execution-and-dashboard-ownership, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset, decisions/memory-relevance-usage-and-dashboard-recovery, decisions/parallel-feature-waves-and-consolidated-review]
-timestamp: "2026-07-20T14:51:37.803Z"
+timestamp: "2026-07-20T15:03:34.975Z"
 tags: []
+tests_status: green
 ---
 
 # Implementation notes

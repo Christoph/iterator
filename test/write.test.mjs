@@ -3215,6 +3215,54 @@ test("loadBundle re-roots every gather/write into the plan's worktree", async ()
 // ---------------------------------------------------------------------------
 // op: backlog
 
+test("backlog writer persists sequential visible-set selections", () => {
+	const root = makeRepo();
+	try {
+		const idea = applyOp(
+			{
+				op: "backlog",
+				action: "create",
+				kind: "idea",
+				title: "Idea",
+				details: "",
+			},
+			root,
+		).item;
+		const bug = applyOp(
+			{
+				op: "backlog",
+				action: "create",
+				kind: "bug",
+				title: "Bug",
+				details: "",
+			},
+			root,
+		).item;
+		let result;
+		for (const item of [idea, bug]) {
+			result = applyOp(
+				{ op: "backlog", action: "select", id: item.id, selected: true },
+				root,
+			);
+		}
+		assert.ok(result.items.every((item) => item.selected));
+		result = applyOp(
+			{ op: "backlog", action: "select", id: idea.id, selected: false },
+			root,
+		);
+		assert.equal(
+			result.items.find((item) => item.id === idea.id).selected,
+			false,
+		);
+		assert.equal(
+			result.items.find((item) => item.id === bug.id).selected,
+			true,
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("backlog writer saves, validates, selects, edits, and deletes candidates", () => {
 	const root = makeRepo();
 	try {

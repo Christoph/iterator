@@ -374,6 +374,17 @@ test("planning backlog submits scoped CRUD actions and hands selected candidates
 	assert.match(html, /selectedBacklogGoal/);
 	assert.match(html, /<div class="at-wrap"><textarea/);
 	assert.match(html, /wireAtMenu\(details, detailsMenu\)/);
+	assert.match(html, /data-kind="all">All/);
+	assert.match(html, /data-kind="idea">Ideas/);
+	assert.match(html, /data-kind="bug">Bugs/);
+	assert.match(html, /Select visible/);
+	assert.match(html, /Deselect visible/);
+	assert.match(html, /const visibleItems =/);
+	assert.match(
+		html,
+		/backlogAction\(\{ action:'select', id:item\.id, selected \}/,
+	);
+	assert.match(html, /refreshHandoff/);
 	// Long history feeds scroll within their own region; headings and controls
 	// remain available outside it.
 	assert.match(html, /backlog-list bounded-list/);

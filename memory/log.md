@@ -1,6 +1,8 @@
 # iterator update log
 
 ## 2026-07-20
+* **Implementation**: Committed feature(backlog-filter-and-bulk-select) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Review**: Reviewed [Reliable backlog saves](/features/backlog-save-during-work.md); approved (agent).
 * **Review**: Accepted [Reliable backlog saves](/features/backlog-save-during-work.md) (committed as feature(backlog-save-during-work)).
 * **Implementation**: Committed feature(backlog-save-during-work) on branch iterator/safe-role-model-handoff; awaiting review.
 * **Review**: Reviewed [Backlog file mentions](/features/backlog-file-mentions.md); approved (agent).
