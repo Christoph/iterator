@@ -2,12 +2,12 @@
 type: Feature
 title: Fresh implementation session
 description: Start every manual, ready-wave, and automatic feature implementation in a new Pi session seeded only with the named feature command and deterministic bundle context.
-status: implemented
+status: done
 size: large
 depends_on: []
 files: ["extensions/iterator.js", "lib/pi-tools.mjs", "skills/iterator-implement/SKILL.md", "test/pi-tools.test.mjs", "test/extension-fresh-session.test.mjs"]
 memories: [architecture/package-and-skill-layout, decisions/backlog-planning-and-feature-waves, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset, decisions/memory-relevance-usage-and-dashboard-recovery, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows, decisions/powerline-shows-sandbox-ui-port]
-timestamp: "2026-07-20T14:05:38.005Z"
+timestamp: "2026-07-20T14:06:33.938Z"
 tags: []
 commits:
   - sha: e7a69a4ee3dd962817c766d39109012284a0e530
@@ -17,6 +17,7 @@ commits:
     kind: implement
     date: 2026-07-20
 reviewed: 2026-07-20
+done: 2026-07-20
 ---
 
 # Implementation notes
