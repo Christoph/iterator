@@ -8,12 +8,13 @@ depends_on: [fresh-implementation-session]
 files: ["lib/views/hub.mjs", "lib/views/planning.mjs", "extensions/iterator.js", "test/ui.test.mjs", "test/client-js-parse.test.mjs", "test/session-server.test.mjs"]
 memories: [pitfalls/cancel-now-after-grace-timer, pitfalls/client-js-template-literal-escaping, architecture/package-and-skill-layout, architecture/workflow-state-ownership, patterns/safe-browser-rendering, decisions/backlog-planning-and-feature-waves, decisions/consume-accepted-backlog-ideas, decisions/iterator-dashboard-feature-workflow]
 conflicts: "[{\"decision\":\"decisions/review-navigation-and-work-context\",\"note\":\"The accepted plan intentionally moves plan lifecycle controls from Planning to Work, revising the recorded split where Planning owned those actions.\"}]"
-timestamp: "2026-07-20T14:18:42.491Z"
+timestamp: "2026-07-20T14:23:31.442Z"
 tags: []
 commits:
   - sha: c5f6915bf82dc6914b8a02a707422a0c67b1a26a
     kind: implement
     date: 2026-07-20
+reviewed: 2026-07-20
 ---
 
 # Implementation notes
@@ -45,3 +46,8 @@ Planning/Work navigation, all active plan lifecycle actions, and post-approval l
 # Decision conflicts
 
 * [decisions/review-navigation-and-work-context](/decisions/review-navigation-and-work-context.md) — The accepted plan intentionally moves plan lifecycle controls from Planning to Work, revising the recorded split where Planning owned those actions.
+
+# Review
+
+## 2026-07-20
+* **Needs changes** _(agent review: openai/gpt-5.2)_ — Update lib/views/hub.mjs’s module contract and plan-bar comments (and the synced skill copy) to reflect that Work now owns plan lifecycle actions; they currently still state that Planning owns those controls and omit plan/feature/review-plan/retire/cancel-plan from the output contract. Add extension-level coverage proving plan approval and accepted feature breakdown call refreshHub with activateWork:true, rather than only testing session.showView’s generic activate option.

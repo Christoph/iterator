@@ -2,6 +2,9 @@
 
 ## 2026-07-20
 * **Implementation**: Committed feature(active-plan-workspace) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Review**: Reviewed [Active plan workspace](/features/active-plan-workspace.md); changes (agent).
+* **Update**: Memorized [Work owns active plan context and lifecycle](/decisions/review-navigation-and-work-context.md).
+* **Implementation**: Committed feature(active-plan-workspace) on branch iterator/safe-role-model-handoff; awaiting review.
 * **Review**: Reviewed [Fresh implementation session](/features/fresh-implementation-session.md); approved (agent).
 * **Review**: Accepted [Fresh implementation session](/features/fresh-implementation-session.md) (committed as feature(fresh-implementation-session)).
 * **Implementation**: Committed feature(fresh-implementation-session) on branch iterator/safe-role-model-handoff; awaiting review.
