@@ -9,10 +9,12 @@ Generates tests at the **feature** level: pick a feature, review a proposed test
 plan in the browser, then write focused tests for exactly the behavior that
 feature covers. The mode is decided by the feature's `status`:
 
-- **Red mode** (`pending`) — no implementation exists yet. Tests are written
-  from the feature's *contract* (description, implementation notes, snippets,
-  the module paths in `files`) and are **expected to fail**. Red tests become
-  the goal `/iterator-implement` drives to green.
+- **Red mode** (`pending`) — no implementation exists yet. Draft the exact
+  test files from the feature's *contract* (description, implementation notes,
+  snippets, and module paths in `files`) before opening review. The user sees
+  and approves that complete executable source; the accepted files are then
+  written unchanged and are **expected to fail**. Red tests become the goal
+  `/iterator-implement` drives to green.
 - **Green mode** (`done`) — tests are written against the real code and must
   pass.
 
@@ -64,40 +66,64 @@ a couple of the `existingTests` files to match the assertion/mocking style
 exactly. If `runner` is null there is no test setup — recommend one and
 confirm before adding a dev dependency or config.
 
-Derive the cases:
+Derive the cases and, in red mode, their exact source artifacts:
 
 - **Red mode:** use the contract — import from the paths the feature *will*
-  own; assert the behavior the notes promise.
+  own; assert the behavior the notes promise. Before review, draft the complete
+  content of every proposed test file, including its target path, imports,
+  setup, helpers, and assertions. Each case carries a stable `id`, `path`, and
+  the exact executable `code` block for that test; each block must occur
+  verbatim in the matching `draftFiles[{path,content}]` artifact. Do not write
+  these files yet.
 - **Green mode:** for each file in the contract's `files` (expand globs
   against `git ls-files`), read the current implementation and its public
   surface.
 - In both modes, consider the failure modes implied by the feature's
   `dependsOn`.
 
-Then open the test-plan UI — the server gathers the payload itself; your
-drafted `cases` are the only thing you pass (each
-`{ "title": ..., "kind": "happy|edge|integration", "rationale": ... }`):
+Then open the test-plan UI — the server gathers the payload itself. Green mode
+passes the existing metadata-only `cases`. Red mode also passes each case's
+`id`, `path`, and `code`, plus `draftFiles` containing the complete exact files
+the user is approving:
 
 ```sh
 node <skill-dir>/../iterator/server.mjs << 'TEST_DATA'
 { "gather": true, "step": "test", "feature": "<slug>",
-  "extra": { "cases": [ { "title": "...", "kind": "happy", "rationale": "..." } ] } }
+  "extra": {
+    "cases": [ { "id": "reject-empty", "title": "Reject empty input",
+      "kind": "edge", "rationale": "Contract requirement",
+      "path": "test/feature.test.mjs", "code": "test('rejects empty input', () => { ... });" } ],
+    "draftFiles": [ { "path": "test/feature.test.mjs",
+      "content": "import test from 'node:test';\n..." } ]
+  } }
 TEST_DATA
 ```
 
+The red-mode gate refuses approval unless every included case maps to source in
+its matching complete file. Unticking a case or commenting sends feedback so
+you can regenerate a coherent exact draft before the next approval round.
+
 ### 3. Process the test-plan output (one JSON line)
 
-- `{ "type": "test-approved", "cases": [...] }` → write tests for exactly the
-  included cases (step 4).
-- `{ "type": "test-feedback", "cases": [...], "comment": "..." }` → revise
-  the plan per the comments and re-run step 2's serve.
+- `{ "type": "test-approved", "cases": [...], "draftFiles": [...] }` → in
+  red mode write the returned `draftFiles` byte-for-byte (step 4); they are the
+  reviewed source of truth. In green mode, write tests for exactly the included
+  metadata-only cases as before.
+- `{ "type": "test-feedback", "cases": [...], "draftFiles": [...],
+  "comment": "..." }` → revise both the cases and exact files per the comments,
+  then re-run step 2's serve. Never carry excluded test code into the next
+  draft.
 - `cancel` / `timeout` → relay the result's `report` and stop; no files
   written.
 
 ### 4. Write the tests, run them, and verify the expected color
 
-- Place test files at `suggestedTestPath` (or the detected convention). Reuse
-  existing helpers/fixtures rather than inventing new ones.
+- In **red mode**, write each approved `draftFiles[].content` unchanged to its
+  approved path. Do not regenerate, reinterpret, or materially alter source
+  after acceptance; if an approved artifact is inconsistent, return to review.
+- In **green mode**, place generated test files at `suggestedTestPath` (or the
+  detected convention). In both modes, reuse existing helpers/fixtures rather
+  than inventing new ones.
 - Keep each feature's tests in their own file(s) so coverage maps back to the
   feature.
 - Do **not** weaken assertions to make tests pass — if the implementation

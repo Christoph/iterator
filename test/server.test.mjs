@@ -662,14 +662,29 @@ const SMOKE = [
 	],
 	[
 		"test",
-		"test cases Claude proposes",
+		"Verify the real source for every test",
 		{
 			step: "test",
 			branch: "test",
+			mode: "red",
 			feature: { name: "auth-middleware", description: "JWT middleware" },
 			runner: "vitest",
 			cases: [
-				{ title: "passes a valid token", kind: "happy", rationale: "core" },
+				{
+					id: "valid-token",
+					title: "passes a valid token",
+					kind: "happy",
+					rationale: "core",
+					path: "test/auth.test.mjs",
+					code: "test('valid token', () => expect(authenticate()).toBe(true));",
+				},
+			],
+			draftFiles: [
+				{
+					path: "test/auth.test.mjs",
+					content:
+						"test('valid token', () => expect(authenticate()).toBe(true));\n",
+				},
 			],
 		},
 	],

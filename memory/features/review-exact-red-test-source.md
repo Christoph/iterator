@@ -2,12 +2,12 @@
 type: Feature
 title: Review exact red test source
 description: Users can inspect and approve the complete executable source for every proposed red-mode test before files are written.
-status: pending
+status: implemented
 size: medium
 depends_on: []
 files: ["skills/iterator-test/SKILL.md", "lib/views/test.mjs", "test/ui.test.mjs", "test/client-js-parse.test.mjs"]
 memories: [pitfalls/client-js-template-literal-escaping, decisions/iterator-dashboard-feature-workflow, decisions/parallel-feature-waves-and-consolidated-review, decisions/review-navigation-and-work-context, decisions/settings-close-returns-to-work, decisions/streamline-backlog-planning-and-knowledge-actions]
-timestamp: "2026-07-20T16:13:44.335Z"
+timestamp: "2026-07-20T16:25:46.746Z"
 tags: []
 ---
 

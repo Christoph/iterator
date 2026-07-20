@@ -78,7 +78,28 @@ const MIN_DATA = {
 		],
 	},
 	settings: { branch: "main", plan: "P", settings: {}, schema: [] },
-	test: { branch: "main", feature: { name: "f" }, tests: [] },
+	test: {
+		branch: "main",
+		mode: "red",
+		feature: { name: "f" },
+		cases: [
+			{
+				id: "works",
+				title: "Works",
+				kind: "happy",
+				rationale: "Contract",
+				path: "test/f.test.mjs",
+				code: "test('works', () => assert.equal(run(), '<ok>'));",
+			},
+		],
+		draftFiles: [
+			{
+				path: "test/f.test.mjs",
+				content:
+					"import test from 'node:test';\ntest('works', () => assert.equal(run(), '<ok>'));\n",
+			},
+		],
+	},
 	usage: { branch: "main", plan: "P", usage: { steps: [] } },
 };
 

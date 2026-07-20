@@ -128,6 +128,43 @@ test("shared client JS wires read-only mode while the agent works", () => {
 	);
 });
 
+test("red test review exposes and preserves exact source artifacts", async () => {
+	const { render } = await import("../lib/views/test.mjs");
+	const caseCode = "test('rejects <empty>', () => assert.throws(() => parse('')));";
+	const html = render({
+		branch: "main",
+		mode: "red",
+		feature: { name: "parser", description: "Parse input" },
+		runner: "npm test",
+		cases: [
+			{
+				id: "reject-empty",
+				title: "Reject empty input",
+				kind: "edge",
+				rationale: "Required by the contract.",
+				path: "test/parser.test.mjs",
+				code: caseCode,
+			},
+		],
+		draftFiles: [
+			{
+				path: "test/parser.test.mjs",
+				content: `import test from 'node:test';\n${caseCode}\n`,
+			},
+		],
+	});
+	assert.match(html, /Verify the real source for every test/);
+	assert.match(html, /Complete proposed test files/);
+	assert.match(html, /f\.content\.includes\(c\.code\)/);
+	assert.match(html, /btn\.disabled=!\(ready\|\|hasChanges\(\)\)/);
+	assert.match(html, /if\(!sourceReady\(\) && !changed\)/);
+	assert.match(html, /draftFiles:reviewedFiles/);
+	assert.match(html, /code:c\.code/);
+	assert.match(html, /Accepted — Agent is writing reviewed tests/);
+	assert.match(html, /\\u003cempty>/, "embedded source remains inert");
+	assert.doesNotMatch(html, /Claude/);
+});
+
 test("mdToHtml preserves query strings while escaping href quotes", () => {
 	const html = renderPage({
 		step: "t",
