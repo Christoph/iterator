@@ -6,6 +6,7 @@ import { join } from "node:path";
 import {
 	actionToCommand,
 	activityTextFromMessage,
+	implementationCommand,
 	bundleExists,
 	featuresDirEntries,
 	composeAmbientContext,
@@ -43,7 +44,7 @@ test("actionToCommand maps hub actions to skill commands", () => {
 	);
 	assert.equal(
 		actionToCommand({ type: "action", action: "implement", feature: "auth" }),
-		"/skill:iterator-implement auth",
+		"/iterator-implement auth",
 	);
 	assert.equal(
 		actionToCommand({ type: "action", action: "review", feature: "auth" }),
@@ -52,6 +53,14 @@ test("actionToCommand maps hub actions to skill commands", () => {
 	assert.equal(
 		actionToCommand({ type: "action", action: "review-all" }),
 		"/skill:iterator-review --all",
+	);
+});
+
+test("implementationCommand creates fresh-session command invocations", () => {
+	assert.equal(implementationCommand("auth"), "/iterator-implement auth");
+	assert.equal(
+		implementationCommand("auth", { auto: true, guidance: "keep tests red" }),
+		"/iterator-implement auth --auto — keep tests red",
 	);
 });
 

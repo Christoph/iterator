@@ -1,6 +1,18 @@
 # iterator update log
 
 ## 2026-07-20
+* **Implementation**: Committed feature(fresh-implementation-session) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Update**: Applied 4 feature adjustment(s).
+* **Creation**: 4 feature(s) written.
+* **Creation**: Plan "Focus feature execution and dashboard ownership" approved on branch iterator/safe-role-model-handoff. Consumed 5 selected backlog candidate(s).
+* **Backlog**: select openeing-setting-should-be-an-overaly (selected).
+* **Backlog**: select it-looks-as-if-the-agent-isnt-using-new-before-a-new-feature-is-implemented-in-either-auto-or-manual-mode (selected).
+* **Backlog**: select move-all-active-plan-related-infos-to-work (selected).
+* **Backlog**: select after-feature-show-work-tab (selected).
+* **Backlog**: select after-adding-tests-its-not-clear-that-they-are-there (selected).
+* **Retirement**: Plan "Fix post-test role model credential corruption" condensed into [Safely restore configured Iterator role models](/decisions/safe-role-model-restoration.md).
+* **Backlog**: create save-candidate-should-alsways-work-as-its-a-save-to-file.
+* **Backlog**: create memroy-update-needs-foxus.
 * **Update**: Memorized [Apply role models to manual turns and reset stale runtime state](/decisions/manual-role-models-and-runtime-reset.md).
 * **Review**: Accepted [Safe role-model handoff](/features/safe-role-model-handoff.md) (committed as feature(safe-role-model-handoff)).
 * **Implementation**: Committed feature(safe-role-model-handoff) on branch iterator/safe-role-model-handoff; awaiting review.

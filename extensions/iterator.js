@@ -60,6 +60,7 @@ import {
 	completeFeatureWaveAbort,
 	extractPathsFromBash,
 	footerText,
+	implementationCommand,
 	mergePayload,
 	nextAutoAction,
 	nextFeatureWaveAction,
@@ -663,7 +664,9 @@ export default function iteratorExtension(pi) {
 				phase: "implementing",
 				active_feature: action.feature,
 			});
-			await applyRole(action.role, settings);
+			// The replacement session applies the implementer role when its final
+			// skill command starts; switching here would leak a role model into a
+			// session that is about to be torn down.
 			attribution = { step: action.step, feature: action.feature };
 			session?.showWorking({
 				text: `Wave: implementing ${action.feature} (${featureWave.results.length}/${featureWave.results.length + featureWave.queue.length + 1} finished)…`,
@@ -671,7 +674,7 @@ export default function iteratorExtension(pi) {
 				feature: action.feature,
 			});
 			await pushStatus(cwd);
-			await dispatch(action.cmd);
+			await dispatch(implementationCommand(action.feature, { auto: true }));
 		} catch (error) {
 			featureWave = null;
 			await writeState({
@@ -781,29 +784,11 @@ export default function iteratorExtension(pi) {
 				});
 				invalidateSession();
 			}
-			// Fresh context per feature: when the next implement round targets a
-			// DIFFERENT feature than the previous one, clear the conversation
-			// context if the runtime supports it. Correctness never depends on
-			// this — the implement gather payload (contract, relevantMemories,
-			// finishedFeatures) is self-contained by design.
-			if (
-				action.step === "implement" &&
-				action.feature &&
-				sess.state?.active_feature &&
-				sess.state.active_feature !== action.feature
-			) {
-				try {
-					if (typeof pi.clearContext === "function") await pi.clearContext();
-					else if (typeof pi.compact === "function") await pi.compact();
-				} catch {
-					/* best-effort only */
-				}
-			}
 			await writeState({
 				phase: AUTO_PHASE_FOR_STEP[action.step] || "implementing",
 				active_feature: action.feature || null,
 			});
-			await applyRole(action.role, sess.settings);
+			if (action.step !== "implement") await applyRole(action.role, sess.settings);
 			attribution = { step: action.step, feature: action.feature || null };
 			const p = sess.hub?.progress || {};
 			// Structured working state: the shell renders step/feature and a
@@ -816,7 +801,11 @@ export default function iteratorExtension(pi) {
 			});
 			await pushStatus(cwd);
 			try {
-				await dispatch(action.cmd);
+				await dispatch(
+					action.step === "implement"
+						? implementationCommand(action.feature, { auto: true })
+						: action.cmd,
+				);
 			} catch (err) {
 				// Recoverable, never a silent stall: keep mode:auto but pause, so
 				// the control strip's Continue re-enters kickAuto and re-dispatches.
@@ -945,7 +934,10 @@ export default function iteratorExtension(pi) {
 			session?.showWorking?.("Resuming with your guidance…");
 			dispatch(
 				feature
-					? `/skill:iterator-implement ${feature} --auto — user guidance: ${guidance}`
+					? implementationCommand(feature, {
+							auto: true,
+							guidance: `user guidance: ${guidance}`,
+						})
 					: guidance,
 			);
 		} catch (e) {
@@ -1064,24 +1056,58 @@ export default function iteratorExtension(pi) {
 	};
 
 	// ---------------------------------------------------------------------
-	// Friendly commands (skills stay the source of the flow logic).
-	// /iterator-implement with no argument turns into a TUI feature picker.
+	// Friendly commands (skills stay the source of the flow logic). An
+	// implementation is the one exception: it replaces the Pi session before
+	// sending the skill command, so the fresh agent sees the feature contract
+	// rather than the accumulated conversation.
+
+	const startImplementationSession = async (args, ctx) => {
+		const rawArgs = String(args || "").trim();
+		const [commandArgs, guidance] = rawArgs.split(/\s+—\s+/, 2);
+		const tokens = commandArgs.split(/\s+/).filter(Boolean);
+		let feature = tokens.find((token) => !token.startsWith("--")) || null;
+		const auto = tokens.includes("--auto");
+		if (!feature) {
+			const picked = await pickReadyFeature(ctx);
+			if (picked === undefined) return;
+			feature = picked;
+		}
+		const command = `/skill:iterator-implement ${feature}${auto ? " --auto" : ""}${guidance ? ` — ${guidance}` : ""}`;
+		const handoff = {
+			feature,
+			auto,
+			// A ready-wave lives in extension memory; preserve only its plain,
+			// immutable snapshot so the replacement runtime can finish the wave.
+			featureWave: featureWave
+				? {
+						...featureWave,
+						queue: [...featureWave.queue],
+						results: [...featureWave.results],
+					}
+				: null,
+		};
+		const result = await ctx.newSession({
+			parentSession: ctx.sessionManager?.getSessionFile?.(),
+			setup: async (manager) => {
+				manager.appendCustomEntry("iterator-implementation-handoff", handoff);
+			},
+			withSession: async (replacementCtx) => {
+				await replacementCtx.sendUserMessage(command);
+			},
+		});
+		if (result?.cancelled && ctx.hasUI)
+			ctx.ui.notify("iterator: fresh implementation session cancelled", "info");
+	};
 
 	for (const command of COMMANDS) {
 		pi.registerCommand(command.name, {
 			description: command.description,
 			handler: async (args = "", ctx) => {
-				const trimmedArgs = String(args).trim();
-				if (
-					command.name === "iterator-implement" &&
-					!trimmedArgs &&
-					ctx?.hasUI
-				) {
-					const picked = await pickReadyFeature(ctx);
-					if (picked === undefined) return; // dismissed / nothing ready
-					dispatch(`/skill:iterator-implement ${picked}`.trim());
+				if (command.name === "iterator-implement") {
+					await startImplementationSession(args, ctx);
 					return;
 				}
+				const trimmedArgs = String(args).trim();
 				dispatch(
 					`/skill:${command.name}${trimmedArgs ? ` ${trimmedArgs}` : ""}`,
 				);
@@ -1105,7 +1131,7 @@ export default function iteratorExtension(pi) {
 
 	pi.registerCommand("iterator-next", {
 		description:
-			"Implement the next dependency-ready feature, no questions asked.",
+			"Implement the next dependency-ready feature in a fresh session.",
 		handler: async (_args, ctx) => {
 			try {
 				const imp = await gatherPayload(ctx.cwd, "implement");
@@ -1119,7 +1145,7 @@ export default function iteratorExtension(pi) {
 						ctx.ui.notify(`iterator: nothing to implement — ${why}`, "warning");
 					return;
 				}
-				dispatch(`/skill:iterator-implement ${imp.next.name}`);
+				await startImplementationSession(imp.next.name, ctx);
 			} catch (e) {
 				if (ctx.hasUI) ctx.ui.notify(`iterator: ${e.message}`, "error");
 			}
@@ -1587,8 +1613,25 @@ export default function iteratorExtension(pi) {
 	// plan-less project lands on Planning's goal/init hero rather than an empty
 	// Work tab.
 
-	pi.on("session_start", async (_event, ctx) => {
+	pi.on("session_start", async (event, ctx) => {
 		rememberCtx(ctx);
+		const sessionEntries = ctx.sessionManager?.getEntries?.() || [];
+		let handoff = null;
+		// A persisted marker is only a handoff during the session replacement
+		// that created it. On reload/restart, retain the normal auto safety pause.
+		if (event?.reason === "new") {
+			for (let index = sessionEntries.length - 1; index >= 0; index -= 1) {
+				const entry = sessionEntries[index];
+				if (
+					entry.type === "custom" &&
+					entry.customType === "iterator-implementation-handoff"
+				) {
+					handoff = entry.data;
+					break;
+				}
+			}
+		}
+		if (handoff?.featureWave) featureWave = handoff.featureWave;
 		await refreshStatus(ctx);
 		try {
 			await ensureServer(ctx);
@@ -1596,6 +1639,7 @@ export default function iteratorExtension(pi) {
 			// pause it and let the human press Continue in the dashboard.
 			const { state } = await gatherSession(ctx.cwd);
 			if (
+				!handoff &&
 				state?.mode === "auto" &&
 				!state.paused &&
 				["testing", "implementing", "reviewing"].includes(state.phase)
