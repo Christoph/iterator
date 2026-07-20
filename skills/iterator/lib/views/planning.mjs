@@ -36,9 +36,11 @@ const PLANNING_CSS = `
 .backlog{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);box-shadow:var(--shadow-card);padding:var(--sp-4);margin-top:var(--sp-6)}
 .backlog-head{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);flex-wrap:wrap;margin-bottom:var(--sp-3)}
 .backlog-head h2{font-size:var(--fs-md);font-weight:600}.backlog-head p{font-size:var(--fs-xs);color:var(--text-muted)}
+.backlog-tools{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap}.backlog-tools .filters{display:flex;gap:var(--sp-1)}
+.backlog-tools button.sel{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
 .backlog-form{display:grid;grid-template-columns:120px minmax(180px,1fr);gap:var(--sp-2);align-items:start}
 .backlog-form select,.backlog-form input,.backlog-form textarea{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;color:var(--text);font:inherit;font-size:var(--fs-sm)}
-.backlog-form textarea{min-height:64px;resize:vertical;grid-column:1/-1}.backlog-form .btns{grid-column:1/-1}.backlog-list{display:grid;gap:var(--sp-2);margin-top:var(--sp-4)}
+.backlog-form textarea{min-height:64px;resize:vertical;grid-column:1/-1}.backlog-form .at-wrap{position:relative;grid-column:1/-1}.backlog-form .at-wrap textarea{grid-column:auto}.backlog-form .btns{grid-column:1/-1}.backlog-list{display:grid;gap:var(--sp-2);margin-top:var(--sp-4)}
 .backlog-item{border-top:1px solid var(--border);padding-top:var(--sp-3)}.backlog-item:first-child{border-top:0;padding-top:0}
 .backlog-item-main{display:flex;gap:var(--sp-2);align-items:flex-start}.backlog-item-main input{margin-top:4px}.backlog-item-title{font-size:var(--fs-sm);font-weight:600}.backlog-item-details{font-size:var(--fs-xs);color:var(--text-muted);margin-top:2px;white-space:pre-wrap}.backlog-empty{font-size:var(--fs-sm);color:var(--text-muted)}
 .retired{margin-top:var(--sp-6)}.retired .sec-title{margin-top:0}.retired-list{display:grid;gap:var(--sp-3)}
@@ -56,17 +58,55 @@ function clearPlanDraft(){ try { localStorage.removeItem(PLAN_DRAFT_KEY); } catc
 
 async function backlogAction(payload, button, message){
   if(button){ button.disabled = true; button.dataset.label = button.textContent; button.textContent = 'Saving…'; }
-  await post({ type:'backlog', ...payload }, message || 'Saved', { allowWhileWorking:true });
+  const saved = await post({ type:'backlog', ...payload }, message || 'Saved', { allowWhileWorking:true });
   // During an agent turn the server deliberately does not refresh this view:
   // doing so would clear the model-working guard. Restore the local control so
   // more filesystem-only backlog edits remain possible until turn-end refresh.
   if(button){ button.disabled = false; if(button.dataset.label) button.textContent = button.dataset.label; delete button.dataset.label; }
+  return saved;
 }
 function selectedBacklogGoal(){
   const selected = (D.backlog || []).filter(item => item.selected);
   if(!selected.length) return null;
   return 'Create a plan from these saved backlog candidates:\\n\\n' + selected.map(item =>
     '[' + item.kind + '] ' + item.title + (item.details ? '\\n' + item.details : '')).join('\\n\\n');
+}
+function parseStructuredPlan(value){
+  const lines = String(value || '').replaceAll('\\r', '').split('\\n');
+  const sections = {goal:[], architecture:[], keyDecisions:[], dependencies:[]};
+  let title = '', active = null, found = 0;
+  const heading = line => {
+    let text = line.trim();
+    const markdown = text.startsWith('#');
+    while(text.startsWith('#')) text = text.slice(1).trim();
+    if(text.endsWith(':')) text = text.slice(0, -1).trim();
+    const compact = text.toLowerCase().replaceAll(' ', '').replaceAll('-', '');
+    const keys = {goal:'goal',architecture:'architecture',keydecisions:'keyDecisions',decisions:'keyDecisions',dependencies:'dependencies',externaldependencies:'dependencies'};
+    return (markdown || line.trim().endsWith(':')) ? (keys[compact] || null) : null;
+  };
+  for(const raw of lines){
+    const trimmed = raw.trim();
+    const key = heading(raw);
+    if(key){ active = key; found++; continue; }
+    if(!title && trimmed.toLowerCase().startsWith('title:')){
+      title = trimmed.slice(6).trim(); continue;
+    }
+    if(!title && trimmed.startsWith('#') && !active){
+      title = trimmed.slice(1).trim(); continue;
+    }
+    if(active) sections[active].push(raw);
+  }
+  const clean = key => sections[key].join('\\n').trim();
+  const goal = clean('goal'), architecture = clean('architecture'), keyDecisions = clean('keyDecisions');
+  if(found < 3 || !goal || !architecture || !keyDecisions) return null;
+  if(!title) title = goal.split('\\n').find(Boolean).slice(0, 80);
+  const dependencies = sections.dependencies.map(line => {
+    let item = line.trim();
+    if(item.startsWith('- ') || item.startsWith('* ')) item = item.slice(2).trim();
+    return item;
+  }).filter(item => item && !['none','n/a','no new dependencies'].includes(item.toLowerCase()));
+  const description = goal.split('\\n').map(line => line.trim()).find(Boolean).slice(0, 160);
+  return {title, description, plan:{goal, architecture, keyDecisions}, dependencies};
 }
 
 // Minimal @-file suggestions on the goal box: substring filter over the
@@ -136,7 +176,7 @@ function render(){
       '<h2>No plan yet</h2><p>iterator keeps its state in a memory/ bundle in your repo.<br>Type a goal and start turning it into a reviewable plan.</p>';
     const goal = document.createElement('textarea');
     goal.className = 'goal';
-    goal.placeholder = 'What are you building and why? (1\\u20133 sentences \\u2014 optional, saves a question round; @ mentions repo files)';
+    goal.placeholder = 'Describe a goal, or paste a complete plan with Goal, Architecture, and Key Decisions headings. @ mentions repo files.';
     // The iframe is recreated on every tab switch/refresh — keep the unsent
     // goal in browser storage, cleared only once a plan actually starts.
     try { goal.value = localStorage.getItem(PLAN_DRAFT_KEY) || ''; } catch(e){}
@@ -172,9 +212,18 @@ function render(){
     }
     const b = document.createElement('button');
     b.className = 'act' + (D.knowledgeInitialized ? ' primary-act' : ''); b.textContent = 'Create plan';
-    b.addEventListener('click', () =>
-      post({ type:'action', action:'plan', feature:null, prompt: goal.value.trim() || null }, 'Starting /iterator-plan')
-        .then(() => { if(__submitted) clearPlanDraft(); }));
+    b.addEventListener('click', () => {
+      const prompt = goal.value.trim() || null;
+      const structuredPlan = parseStructuredPlan(prompt);
+      return post({
+        type:'action',
+        action:structuredPlan ? 'plan-fast-track' : 'plan',
+        feature:null,
+        prompt,
+        structuredPlan
+      }, structuredPlan ? 'Opening plan review' : 'Starting /iterator-plan')
+        .then(() => { if(__submitted && !structuredPlan) clearPlanDraft(); });
+    });
     btns.appendChild(b);
     hero.appendChild(btns);
     w.appendChild(hero);
@@ -183,65 +232,17 @@ function render(){
     return;
   }
 
-  // Plan bar: title, status, progress count, and the stage-driven lifecycle
-  // buttons. Execution controls (auto mode, Test/Implement/Review) live on
-  // the Work surface.
-  const done = (D.progress&&D.progress.done)||0, total = (D.progress&&D.progress.total)||CH.length;
-  const bar = document.createElement('div');
-  bar.className = 'planbar';
-  bar.innerHTML = '<span class="pt">'+esc(D.plan.title||'Plan')+'</span>'+
-    '<span class="pst '+(D.plan.status==='approved'?'approved':'draft')+'">'+esc(D.plan.status||'draft')+'</span>'+
-    (total
-      ? '<span class="pcount">'+done+' / '+total+' features done</span>'
-      : '<span class="pcount">not broken into features yet</span>');
-  const revise = document.createElement('button');
-  revise.className='act'; revise.textContent='Revise plan';
-  revise.addEventListener('click', () => action('plan', null, 'Starting /iterator-plan'));
-  bar.appendChild(revise);
-  // Before featuring, this button IS the continue action — make it read and
-  // look like one instead of a "Re-feature" that has nothing to redo.
-  const refeature = document.createElement('button');
-  refeature.className = D.stage==='needs-features' ? 'act primary-act' : 'act';
-  refeature.textContent = D.stage==='needs-features' ? 'Feature the plan' : 'Re-feature';
-  refeature.title = D.stage==='needs-features'
-    ? 'Next step: break the approved plan into small, dependency-ordered features (/iterator-feature)'
-    : 'Redraw the feature set from the plan (/iterator-feature)';
-  refeature.addEventListener('click', () => action('feature', null, 'Starting /iterator-feature'));
-  bar.appendChild(refeature);
-  // Everything landed → the whole-plan review; every feature done → retire.
-  // Both derive from the server-computed stage, never recomputed here.
-  if(D.stage==='awaiting-plan-review' || D.stage==='retirable'){
-    const rp = document.createElement('button');
-    rp.className = 'act primary-act';
-    rp.textContent = D.plan.planReviewed ? 'Re-review plan' : 'Review plan';
-    rp.title = D.plan.planReviewed
-      ? 'Plan reviewed '+D.plan.planReviewed+' \\u2014 run the whole-plan review again'
-      : 'Review all changes and commits against the plan\\u2019s goals and decisions';
-    rp.addEventListener('click', () => action('review-plan', null, 'Starting /iterator-review-plan'));
-    bar.appendChild(rp);
-  }
-  if(D.stage==='retirable'){
-    const retire = document.createElement('button');
-    retire.className='act primary-act'; retire.textContent='Retire plan';
-    retire.title='Condense the finished plan into a decisions/ memory and archive its features';
-    confirmButton(retire, 'Retires the plan \\u2014 click again', () =>
-      action('retire', null, 'Starting plan retirement'));
-    bar.appendChild(retire);
-  }
-  // Cancel: abandon the plan entirely — archives the bundle side and deletes
-  // the plan branch/worktree, so the armed label spells out what is at stake.
-  const cancelPlan = document.createElement('button');
-  cancelPlan.className = 'act danger';
-  cancelPlan.textContent = 'Cancel plan';
-  const dirtyWarn = (D.dirty && D.dirty.count)
-    ? D.dirty.count + ' uncommitted file' + (D.dirty.count!==1?'s':'') + ' + '
-    : '';
-  cancelPlan.title = 'Abandon this plan: archive it and DELETE its branch/worktree'
-    + (dirtyWarn ? ' \\u2014 \\u26a0 ' + dirtyWarn + 'unmerged commits will be lost' : '');
-  confirmButton(cancelPlan, '\\u26a0 Deletes ' + dirtyWarn + 'branch \\u2014 click again', () =>
-    action('cancel-plan', null, 'Cancelling plan'));
-  bar.appendChild(cancelPlan);
-  w.appendChild(bar);
+  // Planning is a staging surface once a plan exists. Active lifecycle,
+  // progress, and feature controls stay together on Work.
+  const hero = document.createElement('div');
+  hero.className = 'hero';
+  hero.innerHTML = '<h2>Planning is staged</h2><p><strong>'+esc(D.plan.title||'This plan')+'</strong> is active on Work.<br>Use Work for progress, feature actions, and plan lifecycle controls.</p>';
+  const open = document.createElement('button');
+  open.className = 'act primary-act';
+  open.textContent = 'Open Work';
+  open.addEventListener('click', () => action('hub', null, 'Opening Work'));
+  hero.appendChild(open);
+  w.appendChild(hero);
   renderBacklog(w);
   renderRetired(w);
 }
@@ -250,13 +251,15 @@ function render(){
 function renderBacklog(w){
   const items = Array.isArray(D.backlog) ? D.backlog : [];
   const section = document.createElement('section'); section.className = 'backlog backlog-active';
-  section.innerHTML = '<div class="backlog-head"><div><h2>Idea backlog</h2><p>Saved ideas and bugs stay separate from active plan features.</p></div></div>';
+  section.innerHTML = '<div class="backlog-head"><div><h2>Idea backlog</h2><p>Saved ideas and bugs stay separate from active plan features.</p></div><div class="backlog-tools"><div class="filters" aria-label="Filter backlog"><button class="act sel" type="button" data-kind="all">All</button><button class="act" type="button" data-kind="idea">Ideas</button><button class="act" type="button" data-kind="bug">Bugs</button></div><button class="act" type="button" data-bulk="select">Select visible</button><button class="act" type="button" data-bulk="deselect">Deselect visible</button></div></div>';
   const form = document.createElement('form'); form.className = 'backlog-form';
   form.innerHTML = '<select aria-label="Candidate type"><option value="idea">Idea</option><option value="bug">Bug</option></select>'+
     '<input required maxlength="160" placeholder="Short title" aria-label="Backlog title">'+
-    '<textarea maxlength="4000" placeholder="Why it matters, context, or a repro" aria-label="Backlog details"></textarea>'+
+    '<div class="at-wrap"><textarea maxlength="4000" placeholder="Why it matters, context, or a repro" aria-label="Backlog details"></textarea><div class="at-menu"></div></div>'+
     '<div class="btns"><button class="act primary-act" type="submit">Save candidate</button><button class="act" type="button" hidden>Cancel edit</button></div>';
   const [kind, title, details] = form.querySelectorAll('select,input,textarea');
+  const detailsMenu = form.querySelector('.at-menu');
+  wireAtMenu(details, detailsMenu);
   const [save, cancel] = form.querySelectorAll('button');
   let editing = null;
   const reset = () => { editing = null; form.reset(); save.textContent = 'Save candidate'; cancel.hidden = true; };
@@ -267,12 +270,21 @@ function renderBacklog(w){
   cancel.addEventListener('click', reset);
   section.appendChild(form);
   const list = document.createElement('div'); list.className = 'backlog-list bounded-list';
+  const rows = new Map();
+  let filter = 'all';
+  let refreshHandoff = () => {};
   if(!items.length) list.innerHTML = '<p class="backlog-empty">No saved candidates yet.</p>';
   for(const item of items){
-    const row = document.createElement('div'); row.className = 'backlog-item';
+    const row = document.createElement('div'); row.className = 'backlog-item'; row.dataset.kind = item.kind;
+    rows.set(item.id, row);
     row.innerHTML = '<div class="backlog-item-main"><input type="checkbox" aria-label="Select '+esc(item.title)+'" '+(item.selected?'checked':'')+'><div><div class="backlog-item-title">'+esc(item.title)+' <span class="chip cmut">'+esc(item.kind)+'</span></div><div class="backlog-item-details">'+esc(item.details || '')+'</div></div></div>';
     const toggle = row.querySelector('input');
-    toggle.addEventListener('change', () => backlogAction({ action:'select', id:item.id, selected:toggle.checked }, toggle, toggle.checked ? 'Candidate selected' : 'Candidate deselected'));
+    toggle.addEventListener('change', async () => {
+      const selected = toggle.checked;
+      const saved = await backlogAction({ action:'select', id:item.id, selected }, toggle, selected ? 'Candidate selected' : 'Candidate deselected');
+      if(saved){ item.selected = selected; refreshHandoff(); }
+      else toggle.checked = !selected;
+    });
     const buttons = document.createElement('div'); buttons.className = 'btns';
     const edit = document.createElement('button'); edit.className = 'act'; edit.type = 'button'; edit.textContent = 'Edit';
     edit.addEventListener('click', () => { editing = item.id; kind.value = item.kind; title.value = item.title; details.value = item.details || ''; save.textContent = 'Update candidate'; cancel.hidden = false; title.focus(); });
@@ -280,16 +292,43 @@ function renderBacklog(w){
     confirmButton(remove, 'Really delete — click again', () => backlogAction({ action:'delete', id:item.id }, remove, 'Candidate deleted'));
     buttons.append(edit, remove); row.appendChild(buttons); list.appendChild(row);
   }
+  const visibleItems = () => items.filter(item => filter==='all' || item.kind===filter);
+  const applyFilter = kind => {
+    filter = kind;
+    section.querySelectorAll('.filters [data-kind]').forEach(button => button.classList.toggle('sel', button.dataset.kind===kind));
+    rows.forEach((row, id) => { row.hidden = !visibleItems().some(item => item.id===id); });
+  };
+  section.querySelectorAll('.filters [data-kind]').forEach(button =>
+    button.addEventListener('click', () => applyFilter(button.dataset.kind)));
+  const bulkSelect = async (selected, button) => {
+    const targets = visibleItems().filter(item => Boolean(item.selected)!==selected);
+    if(!targets.length) return;
+    const saved = await backlogAction(
+      { action:'select-many', ids:targets.map(item => item.id), selected },
+      button,
+      selected ? 'Visible candidates selected' : 'Visible candidates deselected'
+    );
+    if(!saved) return;
+    for(const item of targets){
+      item.selected = selected;
+      const checkbox = rows.get(item.id).querySelector('input'); checkbox.checked = selected;
+    }
+    refreshHandoff();
+  };
+  section.querySelector('[data-bulk="select"]').addEventListener('click', event => bulkSelect(true, event.currentTarget));
+  section.querySelector('[data-bulk="deselect"]').addEventListener('click', event => bulkSelect(false, event.currentTarget));
   section.appendChild(list);
-  const goal = selectedBacklogGoal();
-  if(goal){
-    const handoff = document.createElement('button'); handoff.className = 'act primary-act'; handoff.type = 'button';
-    handoff.textContent = D.plan ? 'Selected candidates saved' : 'Plan selected candidates';
-    handoff.title = D.plan ? 'Retire or finish the active plan before starting a new one.' : 'Start a new plan with the selected candidates as its initial goal. They are removed from the backlog only after the plan is approved.';
-    handoff.disabled = Boolean(D.plan);
-    handoff.addEventListener('click', () => action('plan', null, 'Starting /iterator-plan from backlog', goal));
-    section.appendChild(handoff);
-  }
+  const handoff = document.createElement('button'); handoff.className = 'act primary-act'; handoff.type = 'button';
+  handoff.textContent = D.plan ? 'Selected candidates saved' : 'Plan selected candidates';
+  handoff.title = D.plan ? 'Retire or finish the active plan before starting a new one.' : 'Start a new plan with the selected candidates as its initial goal. They are removed from the backlog only after the plan is approved.';
+  handoff.disabled = Boolean(D.plan);
+  handoff.addEventListener('click', () => {
+    const goal = selectedBacklogGoal();
+    if(goal) action('plan', null, 'Starting /iterator-plan from backlog', goal);
+  });
+  refreshHandoff = () => { handoff.hidden = !selectedBacklogGoal(); };
+  refreshHandoff();
+  section.appendChild(handoff);
   w.appendChild(section);
 }
 

@@ -22,74 +22,98 @@
  * change nothing) | keep (leave the existing file untouched) | delete (remove
  * the existing concept file).
  */
-import { renderPage, escHtml } from '../ui.mjs';
+import { renderPage, escHtml } from "../ui.mjs";
 
 const ACTION_BADGE = {
-  create: ['new', 'NEW'],
-  update: ['upd', 'UPDATE'],
-  delete: ['del', 'DELETE'],
-  keep: ['keep', 'KEEP'],
+	create: ["new", "NEW"],
+	update: ["upd", "UPDATE"],
+	delete: ["del", "DELETE"],
+	keep: ["keep", "KEEP"],
 };
 
 function banner(data, memories) {
-  const mode = data.mode;
-  const staleCount = memories.filter(m => m.stale).length;
-  const conflictCount = memories.filter(m => m.conflict).length;
-  const draftCount = memories.filter(m => m.action !== 'keep').length;
-  if (mode === 'init') {
-    return `Drafted <strong>${memories.length}</strong> memories from codebase analysis — review, comment, accept.`;
-  }
-  if (mode === 'consolidate') {
-    return `Reviewing <strong>${memories.length}</strong> existing memories`
-      + (staleCount ? ` — <span class="amber"><strong>${staleCount}</strong> stale</span>` : ' — none stale')
-      + '.';
-  }
-  const commitCount = Number(data.commitCount) || 0;
-  const draftLabel = draftCount === 1 ? 'draft' : 'drafts';
-  const commitLabel = commitCount === 1 ? 'commit' : 'commits';
-  const conflictLabel = conflictCount === 1 ? 'conflict' : 'conflicts';
-  const conflictHtml = conflictCount
-    ? ` — <span class="red"><strong>${conflictCount}</strong> ${conflictLabel}</span>`
-    : ' — no conflicts';
-  return `<strong>${draftCount}</strong> ${draftLabel} from `
-    + `<strong>${commitCount || '?'}</strong> ${commitLabel}` + conflictHtml + '.';
+	const mode = data.mode;
+	const staleCount = memories.filter((m) => m.stale).length;
+	const conflictCount = memories.filter((m) => m.conflict).length;
+	const draftCount = memories.filter((m) => m.action !== "keep").length;
+	if (mode === "init") {
+		return `Drafted <strong>${memories.length}</strong> memories from codebase analysis — review, comment, accept.`;
+	}
+	if (mode === "consolidate") {
+		return (
+			`Reviewing <strong>${memories.length}</strong> existing memories` +
+			(staleCount
+				? ` — <span class="amber"><strong>${staleCount}</strong> stale</span>`
+				: " — none stale") +
+			"."
+		);
+	}
+	const commitCount = Number(data.commitCount) || 0;
+	const draftLabel = draftCount === 1 ? "draft" : "drafts";
+	const commitLabel = commitCount === 1 ? "commit" : "commits";
+	const conflictLabel = conflictCount === 1 ? "conflict" : "conflicts";
+	const conflictHtml = conflictCount
+		? ` — <span class="red"><strong>${conflictCount}</strong> ${conflictLabel}</span>`
+		: " — no conflicts";
+	return (
+		`<strong>${draftCount}</strong> ${draftLabel} from ` +
+		`<strong>${commitCount || "?"}</strong> ${commitLabel}` +
+		conflictHtml +
+		"."
+	);
 }
 
 function verdictButtons(m) {
-  const btn = (verdict, label) =>
-    `<button type="button" data-verdict="${verdict}">${label}</button>`;
-  if (m.action === 'keep') return btn('keep', 'Keep') + btn('delete', 'Delete');
-  if (m.action === 'delete') return btn('delete', 'Delete') + btn('keep', 'Keep');
-  return btn('accept', 'Accept') + btn('reject', 'Reject');
+	const btn = (verdict, label) =>
+		`<button type="button" data-verdict="${verdict}">${label}</button>`;
+	if (m.action === "keep") return btn("keep", "Keep") + btn("delete", "Delete");
+	if (m.action === "delete")
+		return btn("delete", "Delete") + btn("keep", "Keep");
+	return btn("accept", "Accept") + btn("reject", "Reject");
 }
 
 function cardHtml(m) {
-  const [cls, label] = ACTION_BADGE[m.action] || ACTION_BADGE.keep;
-  const tags = Array.isArray(m.tags) && m.tags.length
-    ? ' · ' + m.tags.map(t => `<span class="tag">${escHtml(t)}</span>`).join(' ')
-    : '';
-  const commits = Array.isArray(m.sourceCommits) && m.sourceCommits.length
-    ? ` · <span class="commits">${escHtml(m.sourceCommits.map(c => String(c).slice(0, 7)).join(', '))}</span>`
-    : '';
-  const showExisting = m.existingBody !== null && m.existingBody !== undefined
-    && ['update', 'delete', 'keep'].includes(m.action);
-  return `<article class="card" data-id="${escHtml(m.id)}">
+	const [cls, label] = ACTION_BADGE[m.action] || ACTION_BADGE.keep;
+	const tags =
+		Array.isArray(m.tags) && m.tags.length
+			? " · " +
+				m.tags.map((t) => `<span class="tag">${escHtml(t)}</span>`).join(" ")
+			: "";
+	const commits =
+		Array.isArray(m.sourceCommits) && m.sourceCommits.length
+			? ` · <span class="commits">${escHtml(m.sourceCommits.map((c) => String(c).slice(0, 7)).join(", "))}</span>`
+			: "";
+	const showExisting =
+		m.existingBody !== null &&
+		m.existingBody !== undefined &&
+		["update", "delete", "keep"].includes(m.action);
+	return `<article class="card" data-id="${escHtml(m.id)}">
   <div class="card-head">
     <span class="card-title">${escHtml(m.title || m.id)}</span>
-    <span class="chip">${escHtml(m.type || '')}</span>
+    <span class="chip">${escHtml(m.type || "")}</span>
     <span class="badge ${cls}">${label}</span>
-    ${m.stale ? '<span class="badge stale">STALE</span>' : ''}
-    ${m.conflict ? `<button type="button" class="badge conflict conflict-btn" data-with="${escHtml(m.conflict.with || '')}">CONFLICT ⇄</button>` : ''}
+    ${m.stale ? '<span class="badge stale">STALE</span>' : ""}
+    ${m.conflict ? `<button type="button" class="badge conflict conflict-btn" data-with="${escHtml(m.conflict.with || "")}">CONFLICT ⇄</button>` : ""}
   </div>
   <div class="meta"><code>${escHtml(m.id)}.md</code>${tags}${commits}</div>
-  ${m.description ? `<div class="desc">${escHtml(m.description)}</div>` : ''}
-  ${m.stale && Array.isArray(m.staleReasons) && m.staleReasons.length
-    ? `<div class="stale-panel">${m.staleReasons.map(r => `<div>⚠ ${escHtml(r)}</div>`).join('')}</div>` : ''}
-  ${m.conflict
-    ? `<div class="conflict-panel" hidden>Conflicts with <code>${escHtml(m.conflict.with || '')}</code> — ${escHtml(m.conflict.summary || '')}</div>` : ''}
+  ${m.description ? `<div class="desc">${escHtml(m.description)}</div>` : ""}
+  ${m.reason ? `<div class="request-context"><strong>Why this change:</strong> ${escHtml(m.reason)}</div>` : ""}
+  ${
+		m.stale && Array.isArray(m.staleReasons) && m.staleReasons.length
+			? `<div class="stale-panel">${m.staleReasons.map((r) => `<div>⚠ ${escHtml(r)}</div>`).join("")}</div>`
+			: ""
+	}
+  ${
+		m.conflict
+			? `<div class="conflict-panel" hidden>Conflicts with <code>${escHtml(m.conflict.with || "")}</code> — ${escHtml(m.conflict.summary || "")}</div>`
+			: ""
+	}
   <div class="body md" data-body-id="${escHtml(m.id)}"></div>
-  ${showExisting
-    ? `<details class="existing"><summary>Current version on disk</summary><div class="md" data-existing-id="${escHtml(m.id)}"></div></details>` : ''}
+  ${
+		showExisting
+			? `<details class="existing"><summary>Current version on disk</summary><div class="md" data-existing-id="${escHtml(m.id)}"></div></details>`
+			: ""
+	}
   <div class="controls">
     <div class="verdicts" data-id="${escHtml(m.id)}">${verdictButtons(m)}</div>
     <textarea class="comment" data-id="${escHtml(m.id)}" rows="1"
@@ -99,27 +123,27 @@ function cardHtml(m) {
 }
 
 function areaSections(data, memories) {
-  const areas = Array.isArray(data.areas) ? data.areas : [];
-  const byArea = new Map(areas.map(a => [a.id, []]));
-  const other = [];
-  for (const m of memories) {
-    (byArea.get(m.area) || other).push(m);
-  }
-  let html = '';
-  for (const a of areas) {
-    const cards = byArea.get(a.id);
-    if (!cards.length && data.mode !== 'init') continue;
-    html += `<section class="area">
+	const areas = Array.isArray(data.areas) ? data.areas : [];
+	const byArea = new Map(areas.map((a) => [a.id, []]));
+	const other = [];
+	for (const m of memories) {
+		(byArea.get(m.area) || other).push(m);
+	}
+	let html = "";
+	for (const a of areas) {
+		const cards = byArea.get(a.id);
+		if (!cards.length && data.mode !== "init") continue;
+		html += `<section class="area">
 <h2>${escHtml(a.title || a.id)} <span class="count">${cards.length}</span></h2>
-${a.description ? `<p class="area-desc">${escHtml(a.description)}</p>` : ''}
-${cards.length ? cards.map(cardHtml).join('\n') : '<p class="empty">No memories drafted for this area.</p>'}
+${a.description ? `<p class="area-desc">${escHtml(a.description)}</p>` : ""}
+${cards.length ? cards.map(cardHtml).join("\n") : '<p class="empty">No memories drafted for this area.</p>'}
 </section>`;
-  }
-  if (other.length) {
-    html += `<section class="area"><h2>Other <span class="count">${other.length}</span></h2>
-${other.map(cardHtml).join('\n')}</section>`;
-  }
-  return html;
+	}
+	if (other.length) {
+		html += `<section class="area"><h2>Other <span class="count">${other.length}</span></h2>
+${other.map(cardHtml).join("\n")}</section>`;
+	}
+	return html;
 }
 
 const CSS = `
@@ -149,9 +173,15 @@ const CSS = `
 .meta code{font-size:12px}
 .tag{border:1px solid var(--border);border-radius:8px;padding:0 6px;font-size:11px}
 .desc{font-size:13px;color:var(--text-muted);font-style:italic;margin:2px 0 6px}
+.request-context{font-size:var(--fs-xs);line-height:1.45;background:var(--accent-soft);border-left:3px solid var(--accent);padding:6px 9px;margin:6px 0}.request-context strong{color:var(--accent)}
 .stale-panel{border-left:3px solid var(--dot-yellow);padding:4px 10px;margin:6px 0;font-size:13px;color:var(--dot-yellow)}
 .conflict-panel{border-left:3px solid var(--dot-red);padding:6px 10px;margin:6px 0;font-size:13px;color:var(--dot-red)}
 .body.md{border-top:1px solid var(--border);margin-top:8px;padding-top:4px;font-size:14px;overflow:hidden}
+.change-block{position:relative;margin:8px 0;padding:8px 10px;border-left:3px solid transparent;border-radius:0 var(--radius-sm) var(--radius-sm) 0}
+.change-block.added,.change-block.modified{background:var(--add-bg);border-left-color:var(--dot-green)}
+.change-block.removed{background:var(--del-bg);border-left-color:var(--dot-red);color:var(--del-fg)}
+.change-block.unchanged{padding-block:2px;opacity:.72}.change-label{font:600 10px var(--font-mono);letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px}
+.change-block.added .change-label,.change-block.modified .change-label{color:var(--add-fg)}.change-block.removed .change-label{color:var(--del-fg)}
 .body.md.collapsed{max-height:280px;-webkit-mask-image:linear-gradient(black 75%,transparent);mask-image:linear-gradient(black 75%,transparent)}
 .show-more{display:block;margin:4px 0;font-size:12px;padding:2px 10px}
 details.existing{margin:8px 0;font-size:14px}
@@ -171,6 +201,7 @@ footer.general{margin:30px 0 60px}
 footer.general label{display:block;font-weight:600;margin-bottom:6px}
 #general-comment{width:100%;min-height:70px}
 .hint{color:var(--text-muted);font-size:12px;margin-top:6px}
+@media(max-width:640px){.change-block{margin-inline:0;padding:7px 8px}.controls{flex-direction:column}.verdicts{max-width:100%}}
 `;
 
 // Step client JS. No backticks / dollar-brace; data only via D.
@@ -206,7 +237,10 @@ function onReady() {
     var el = document.querySelector('[data-body-id="' + CSS.escape(m.id) + '"]');
     if (el) {
       var main = (m.action === 'keep' || m.body == null) ? (m.existingBody != null ? m.existingBody : m.body) : m.body;
-      el.innerHTML = mdToHtml(main == null ? '' : main);
+      var focusChanges = (m.action === 'create' || m.action === 'update') && m.body != null;
+      el.innerHTML = focusChanges
+        ? markdownChangeHtml(m.body, m.existingBody == null ? '' : m.existingBody, m.action === 'create')
+        : mdToHtml(main == null ? '' : main);
     }
     var ex = document.querySelector('[data-existing-id="' + CSS.escape(m.id) + '"]');
     if (ex) ex.innerHTML = mdToHtml(m.existingBody == null ? '' : m.existingBody);
@@ -257,16 +291,20 @@ onReady();
 `;
 
 export function render(data) {
-  const mode = ['init', 'consolidate', 'memorize'].includes(data.mode) ? data.mode : 'init';
-  const memories = Array.isArray(data.memories) ? data.memories : [];
-  const round = data.round || 1;
+	const mode = ["init", "consolidate", "memorize"].includes(data.mode)
+		? data.mode
+		: "init";
+	const memories = Array.isArray(data.memories) ? data.memories : [];
+	const round = data.round || 1;
 
-  const subtitleParts = [`/ ${mode} review`, `round ${round}`];
-  if (mode === 'memorize' && data.baseCommit && data.headCommit) {
-    subtitleParts.push(`${String(data.baseCommit).slice(0, 7)}..${String(data.headCommit).slice(0, 7)}`);
-  }
+	const subtitleParts = [`/ ${mode} review`, `round ${round}`];
+	if (mode === "memorize" && data.baseCommit && data.headCommit) {
+		subtitleParts.push(
+			`${String(data.baseCommit).slice(0, 7)}..${String(data.headCommit).slice(0, 7)}`,
+		);
+	}
 
-  const BODY = `<div class="wrap">
+	const BODY = `<div class="wrap">
 <div class="banner">${banner({ ...data, mode }, memories)}</div>
 <div id="areas">
 ${areaSections({ ...data, mode }, memories)}
@@ -280,16 +318,20 @@ ${areaSections({ ...data, mode }, memories)}
 </footer>
 </div>`;
 
-  return renderPage({
-    step: 'memory-review',
-    subtitle: subtitleParts.join(' · '),
-    branch: data.branch,
-    title: `${mode} review`,
-    data: { mode, memories, areas: Array.isArray(data.areas) ? data.areas : [] },
-    css: CSS,
-    body: BODY,
-    clientJs: JS,
-    primaryIdle: 'Accept',
-    primaryChanged: 'Send review',
-  });
+	return renderPage({
+		step: "memory-review",
+		subtitle: subtitleParts.join(" · "),
+		branch: data.branch,
+		title: `${mode} review`,
+		data: {
+			mode,
+			memories,
+			areas: Array.isArray(data.areas) ? data.areas : [],
+		},
+		css: CSS,
+		body: BODY,
+		clientJs: JS,
+		primaryIdle: "Accept",
+		primaryChanged: "Send review",
+	});
 }

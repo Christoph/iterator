@@ -14,7 +14,13 @@ commits its own files, unrelated working-tree churn never pollutes a review,
 and several independent features can be implemented back to back and reviewed
 afterwards.
 
-**pi mode:** see `<skill-dir>/../iterator/PI.md`.
+**pi mode:** see `<skill-dir>/../iterator/PI.md`. The friendly
+`/iterator-implement` and `/iterator-next` commands create a replacement Pi
+session before running the feature skill. That session receives only the named
+implementation command and rebuilds its context from the deterministic
+implement gather contract. Dashboard and auto-mode implementation dispatches
+use the same command. A direct `/skill:iterator-implement` invocation remains
+available for harnesses that already started the dedicated session.
 
 **Claude Code mode:** Use gather/write directly instead of the Pi dashboard.
 Implement only `next`, commit it through `commit-feature`, and report it as

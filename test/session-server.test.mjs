@@ -44,6 +44,33 @@ const viewHtml = (marker) =>
 	`<!DOCTYPE html><html><body>${marker} run=${srvMod.RUN_ID}</body></html>`;
 
 /** Read the first SSE event from /events. */
+function sseEvent(origin, wanted) {
+	return new Promise((resolve, reject) => {
+		const req = http.get(`${origin}/events`, (res) => {
+			let buf = "";
+			res.on("data", (d) => {
+				buf += d;
+				for (const packet of buf.split("\n\n")) {
+					const m = packet.match(/event: (\w+)\ndata: (.*)/);
+					if (!m || m[1] !== wanted) continue;
+					try {
+						const data = JSON.parse(m[2]);
+						req.destroy();
+						resolve({ event: m[1], data });
+						return;
+					} catch (error) {
+						req.destroy();
+						reject(error);
+						return;
+					}
+				}
+			});
+		});
+		req.on("error", () => {});
+		setTimeout(() => reject(new Error(`no ${wanted} SSE event`)), 3000).unref();
+	});
+}
+
 function firstSseEvent(origin) {
 	return new Promise((resolve, reject) => {
 		const req = http.get(`${origin}/events`, (res) => {
@@ -282,11 +309,40 @@ test("backlog writes remain available while an agent is working", async () => {
 			action: "create",
 			title: "Next idea",
 		});
+		const bulk = await fetch(`${origin}/submit?r=${srvMod.RUN_ID}`, {
+			method: "POST",
+			body: JSON.stringify({
+				type: "backlog",
+				action: "select-many",
+				ids: ["first-idea", "second-bug"],
+				selected: true,
+			}),
+		});
+		assert.equal(bulk.status, 200);
+		await sleep(20);
+		assert.deepEqual(unsolicited, {
+			type: "backlog",
+			action: "select-many",
+			ids: ["first-idea", "second-bug"],
+			selected: true,
+		});
 		assert.equal(
 			session.isWorking(),
 			true,
 			"backlog writes preserve the active model guard",
 		);
+		// The extension refreshes both tabs after the deterministic write. A
+		// refresh while working must update stored Planning HTML without releasing
+		// or replacing the active claim.
+		session.showView({
+			step: "planning",
+			render: () => viewHtml("PLANNING-WITH-SAVED-CANDIDATE"),
+		});
+		assert.match(
+			await (await fetch(`${origin}/view?tab=planning`)).text(),
+			/PLANNING-WITH-SAVED-CANDIDATE/,
+		);
+		assert.equal(session.isWorking(), true);
 		const blocked = await fetch(`${origin}/submit?r=${srvMod.RUN_ID}`, {
 			method: "POST",
 			body: '{"type":"action","action":"implement","feature":"other"}',
@@ -551,6 +607,92 @@ test("stop() resolves a pending round, frees the port, and removes the registry 
 	);
 });
 
+test("shell-owned Settings preserves the active tab and replays on reconnect", async () => {
+	const { session, origin } = await startSession();
+	try {
+		session.showView({
+			step: "planning",
+			render: () => viewHtml("PLANNING-UNDER-MODAL"),
+			activate: true,
+		});
+		session.showModal({ render: () => viewHtml("SETTINGS-MODAL") });
+		assert.match(
+			await (await fetch(origin + "/settings")).text(),
+			/SETTINGS-MODAL/,
+		);
+		assert.match(
+			await (await fetch(origin + "/view?tab=planning")).text(),
+			/PLANNING-UNDER-MODAL/,
+		);
+		assert.match(
+			await (await fetch(origin + "/")).text(),
+			/let tab = "planning"/,
+		);
+		const replay = await sseEvent(origin, "modal");
+		assert.deepEqual(replay.data, { open: true, v: 1 });
+		assert.equal(session.closeModal(), true);
+		assert.match(
+			await (await fetch(origin + "/settings")).text(),
+			/waiting for the next step/,
+		);
+	} finally {
+		await session.stop();
+	}
+});
+
+test("Settings submit does not settle the pending round beneath the modal", async () => {
+	let unsolicited = null;
+	const { session, origin } = await startSession({
+		onUnsolicited: (result) => (unsolicited = result),
+	});
+	try {
+		const round = session.showStep({
+			step: "review",
+			render: () => viewHtml("REVIEW"),
+		});
+		session.showModal({ render: () => viewHtml("SETTINGS") });
+		const response = await fetch(`${origin}/submit`, {
+			method: "POST",
+			body: '{"type":"settings","values":{"auto_mode":"on"}}',
+		});
+		assert.equal(response.status, 200);
+		await sleep(20);
+		assert.deepEqual(unsolicited, {
+			type: "settings",
+			values: { auto_mode: "on" },
+		});
+		assert.equal(session.hasPending(), true);
+		await fetch(`${origin}/submit?r=${srvMod.RUN_ID}`, {
+			method: "POST",
+			body: '{"type":"review-approved"}',
+		});
+		assert.deepEqual(await round, { type: "review-approved" });
+	} finally {
+		await session.stop();
+	}
+});
+
+test("Settings dismissal remains available while Work is blocked", async () => {
+	let unsolicited = null;
+	const { session, origin } = await startSession({
+		onUnsolicited: (result) => (unsolicited = result),
+	});
+	try {
+		session.showView({ step: "hub", render: () => viewHtml("WORK") });
+		session.showWorking("AI is working…");
+		const response = await fetch(`${origin}/submit`, {
+			method: "POST",
+			body: '{"type":"settings-close"}',
+		});
+		assert.equal(response.status, 200);
+		await sleep(20);
+		assert.deepEqual(unsolicited, { type: "settings-close" });
+		assert.equal(session.isWorking(), true);
+	} finally {
+		await session.stop();
+	}
+});
+
 test("showView can intentionally activate Planning for the startup landing page", async () => {
 	const { session, origin } = await startSession();
 	try {
@@ -572,6 +714,23 @@ test("showView can intentionally activate Planning for the startup landing page"
 				'let tab = "planning"',
 			),
 		);
+	} finally {
+		await session.stop();
+	}
+});
+
+test("showView can intentionally activate Work after an approved transition", async () => {
+	const { session, origin } = await startSession();
+	try {
+		session.showView({
+			step: "hub",
+			render: () => viewHtml("ACTIVE-WORK"),
+			activate: true,
+		});
+		const sse = await firstSseEvent(origin);
+		assert.equal(sse.event, "view");
+		assert.equal(sse.data.tab, "work");
+		assert.match(await (await fetch(origin + "/")).text(), /let tab = "work"/);
 	} finally {
 		await session.stop();
 	}
@@ -698,6 +857,39 @@ test("an idle submit from a stale-run view still dispatches as unsolicited", asy
 			type: "action",
 			action: "iterator-memorize",
 		});
+	} finally {
+		await session.stop();
+	}
+});
+
+test("an idle structured plan is forwarded intact for direct review", async () => {
+	let unsolicited = null;
+	const { session, origin } = await startSession({
+		onUnsolicited: (r) => (unsolicited = r),
+	});
+	try {
+		session.showView({ step: "planning", render: () => viewHtml("PLANNING") });
+		const payload = {
+			type: "action",
+			action: "plan-fast-track",
+			prompt: "# Complete plan",
+			structuredPlan: {
+				title: "Complete plan",
+				plan: {
+					goal: "Ship it.",
+					architecture: "- Existing seams.",
+					keyDecisions: "- Keep review.",
+				},
+				dependencies: [],
+			},
+		};
+		const res = await fetch(`${origin}/submit?r=${srvMod.RUN_ID}`, {
+			method: "POST",
+			body: JSON.stringify(payload),
+		});
+		assert.equal(res.status, 200);
+		await sleep(20);
+		assert.deepEqual(unsolicited, payload);
 	} finally {
 		await session.stop();
 	}

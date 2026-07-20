@@ -1,23 +1,30 @@
 ---
 type: Usage
 title: Token usage
-description: Per-step model/token ledger for the active plan — written only by the usage op.
-totals: "{\"steps\":{\"hub\":{\"openai-codex/gpt-5.6-terra\":{\"input\":261034,\"output\":1116,\"cacheRead\":1795072,\"cacheWrite\":0,\"turns\":8}}},\"features\":{\"retire-plan\":{\"input\":261034,\"output\":1116,\"cacheRead\":1795072,\"cacheWrite\":0,\"turns\":8}}}"
-timestamp: 2026-07-19T07:33:07.539Z
+description: Per-step model/token ledger and optional project-owned pricing for the active plan — written only by the usage op.
+totals: "{\"steps\":{\"hub\":{\"openai-codex/gpt-5.6-terra\":{\"input\":38403,\"output\":1157,\"cacheRead\":217088,\"cacheWrite\":0,\"turns\":8}},\"plan\":{\"openai-codex/gpt-5.6-sol\":{\"input\":36212,\"output\":221,\"cacheRead\":0,\"cacheWrite\":0,\"turns\":2}}},\"features\":{\"retire-plan\":{\"input\":38403,\"output\":1157,\"cacheRead\":217088,\"cacheWrite\":0,\"turns\":8}},\"featureModels\":{\"retire-plan\":{\"openai-codex/gpt-5.6-terra\":{\"input\":38403,\"output\":1157,\"cacheRead\":217088,\"cacheWrite\":0,\"turns\":8}}}}"
+prices: "{}"
+timestamp: 2026-07-20T16:04:49.832Z
 ---
 
 # Usage
 
 ## hub
 
-| model | input | output | cache read | cache write | turns |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| openai-codex/gpt-5.6-terra | 261034 | 1116 | 1795072 | 0 | 8 |
+| model | input | output | cache read | cache write | turns | cost |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| openai-codex/gpt-5.6-terra | 38403 | 1157 | 217088 | 0 | 8 | — |
+
+## plan
+
+| model | input | output | cache read | cache write | turns | cost |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| openai-codex/gpt-5.6-sol | 36212 | 221 | 0 | 0 | 2 | — |
 
 ## Per feature
 
-| feature | input | output | cache read | cache write | turns |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| retire-plan | 261034 | 1116 | 1795072 | 0 | 8 |
+| feature | input | output | cache read | cache write | turns | cost |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| retire-plan | 38403 | 1157 | 217088 | 0 | 8 | — |
 
-Total: 261034 in / 1116 out / 1795072 cache-read / 0 cache-write over 8 turns.
+Total: 74615 in / 1378 out / 217088 cache-read / 0 cache-write over 10 turns. Cost unavailable: add every used model rate.

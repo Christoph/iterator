@@ -6,6 +6,9 @@ import { join } from "node:path";
 import {
 	actionToCommand,
 	activityTextFromMessage,
+	implementationCommand,
+	implementationHandoffState,
+	shouldApplyRole,
 	bundleExists,
 	featuresDirEntries,
 	composeAmbientContext,
@@ -43,7 +46,7 @@ test("actionToCommand maps hub actions to skill commands", () => {
 	);
 	assert.equal(
 		actionToCommand({ type: "action", action: "implement", feature: "auth" }),
-		"/skill:iterator-implement auth",
+		"/iterator-implement auth",
 	);
 	assert.equal(
 		actionToCommand({ type: "action", action: "review", feature: "auth" }),
@@ -52,6 +55,60 @@ test("actionToCommand maps hub actions to skill commands", () => {
 	assert.equal(
 		actionToCommand({ type: "action", action: "review-all" }),
 		"/skill:iterator-review --all",
+	);
+});
+
+test("implementationCommand creates fresh-session command invocations", () => {
+	assert.equal(implementationCommand("auth"), "/iterator-implement auth");
+	assert.equal(
+		implementationCommand("auth", { auto: true, guidance: "keep tests red" }),
+		"/iterator-implement auth --auto — keep tests red",
+	);
+});
+
+test("implementationHandoffState preserves auto and wave lifecycle state only for new sessions", () => {
+	const featureWave = { queue: ["b"], active: "a", results: [] };
+	const entries = [
+		{ type: "custom", customType: "other", data: {} },
+		{
+			type: "custom",
+			customType: "iterator-implementation-handoff",
+			data: { feature: "a", auto: true, autoSteps: 17, featureWave },
+		},
+	];
+	assert.deepEqual(implementationHandoffState(entries, "new"), {
+		feature: "a",
+		auto: true,
+		autoSteps: 17,
+		featureWave,
+	});
+	assert.equal(implementationHandoffState(entries, "reload"), null);
+	assert.equal(implementationHandoffState([], "new"), null);
+});
+
+test("implementationHandoffState defaults malformed circuit-breaker state", () => {
+	const entries = [
+		{
+			type: "custom",
+			customType: "iterator-implementation-handoff",
+			data: { feature: "a", autoSteps: -1 },
+		},
+	];
+	assert.equal(implementationHandoffState(entries, "new").autoSteps, 0);
+});
+
+test("shouldApplyRole lets fresh auto and wave implementers own their role", () => {
+	assert.equal(shouldApplyRole("implementer", { mode: "auto" }), true);
+	assert.equal(
+		shouldApplyRole("implementer", {
+			mode: "manual",
+			featureWave: { active: "auth" },
+		}),
+		true,
+	);
+	assert.equal(
+		shouldApplyRole("tester", { mode: "manual", featureWave: null }),
+		true,
 	);
 });
 
@@ -186,7 +243,11 @@ test("composeAmbientContext builds the state line and anchored-knowledge list", 
 		plan: { title: "Add JWT auth", status: "approved" },
 		progress: { done: 3, total: 7 },
 		features: [
-			{ name: "auth-middleware", testsStatus: "red" },
+			{
+				name: "auth-middleware",
+				testsStatus: "red",
+				tests: ["test/auth.test.mjs", "test/auth-policy.test.mjs"],
+			},
 			{ name: "config-module", testsStatus: "green" },
 		],
 	};
@@ -202,7 +263,10 @@ test("composeAmbientContext builds the state line and anchored-knowledge list", 
 	const out = composeAmbientContext(hub, implement, concepts);
 	assert.match(out, /Plan "Add JWT auth" — 3\/7 features done/);
 	assert.match(out, /next ready: auth-middleware/);
-	assert.match(out, /tests red: auth-middleware/);
+	assert.match(
+		out,
+		/committed red tests: auth-middleware \(test\/auth\.test\.mjs, test\/auth-policy\.test\.mjs\)/,
+	);
 	assert.match(
 		out,
 		/\[pitfalls\/token-clock-skew\] JWT clock skew — Fresh tokens fail without leeway\. \(memory\/pitfalls\/token-clock-skew\.md\)/,

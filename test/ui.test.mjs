@@ -128,10 +128,35 @@ test("shared client JS wires read-only mode while the agent works", () => {
 	);
 });
 
-test("mdToHtml refuses javascript: links", () => {
-	const html = renderPage({ step: "t", data: {}, body: "", clientJs: "" });
-	// The linkify branch must be guarded by a protocol whitelist.
-	assert.ok(html.includes("https?:|mailto:"));
+test("mdToHtml preserves query strings while escaping href quotes", () => {
+	const html = renderPage({
+		step: "t",
+		data: {},
+		body: "",
+		clientJs: `globalThis.renderedLink = mdToHtml('[safe](https://example.test/?a=1&b="two")');`,
+	});
+	const script = html.match(/<script>\n([\s\S]*?)\n<\/script>/)[1];
+	const branch = { textContent: "" };
+	const classList = { contains: () => false, toggle: () => {} };
+	const window = { addEventListener: () => {}, close: () => {} };
+	window.parent = window;
+	const ctx = vm.createContext({
+		window,
+		document: {
+			documentElement: { dataset: { theme: "dark" } },
+			body: { classList },
+			getElementById: (id) => (id === "branch" ? branch : null),
+		},
+		navigator: { sendBeacon: () => true },
+		fetch: async () => ({ status: 200 }),
+		alert: () => {},
+	});
+	vm.runInContext(script, ctx);
+	assert.match(
+		ctx.renderedLink,
+		/href="https:\/\/example\.test\/\?a=1&amp;b=&quot;two&quot;"/,
+	);
+	assert.doesNotMatch(ctx.renderedLink, /&amp;amp;/);
 });
 
 test("CSS exports are non-empty and themed", () => {
@@ -313,8 +338,11 @@ test("plan-less Planning exposes init and plan actions without losing the goal",
 	assert.match(html, /Initialize memory/);
 	assert.match(html, /Create plan/);
 	assert.match(html, /action:'iterator-init'/);
-	assert.match(html, /action:'plan'/);
-	assert.match(html, /prompt: goal\.value\.trim\(\) \|\| null/);
+	assert.match(html, /action:structuredPlan \? 'plan-fast-track' : 'plan'/);
+	assert.match(html, /const prompt = goal\.value\.trim\(\) \|\| null/);
+	assert.match(html, /function parseStructuredPlan/);
+	assert.match(html, /found < 3/);
+	assert.match(html, /plan:\{goal, architecture, keyDecisions\}/);
 	assert.match(html, /PLAN_DRAFT_KEY/);
 	assert.match(html, /if\(D\.plan\) clearPlanDraft\(\)/);
 	const initHandler = html.slice(
@@ -372,6 +400,18 @@ test("planning backlog submits scoped CRUD actions and hands selected candidates
 	);
 	assert.match(html, /Plan selected candidates/);
 	assert.match(html, /selectedBacklogGoal/);
+	assert.match(html, /<div class="at-wrap"><textarea/);
+	assert.match(html, /wireAtMenu\(details, detailsMenu\)/);
+	assert.match(html, /data-kind="all">All/);
+	assert.match(html, /data-kind="idea">Ideas/);
+	assert.match(html, /data-kind="bug">Bugs/);
+	assert.match(html, /Select visible/);
+	assert.match(html, /Deselect visible/);
+	assert.match(html, /const visibleItems =/);
+	assert.match(html, /action:'select-many'/);
+	assert.match(html, /ids:targets\.map\(item => item\.id\)/);
+	assert.doesNotMatch(html, /for\(const item of targets\)\{\s*const saved/);
+	assert.match(html, /refreshHandoff/);
 	// Long history feeds scroll within their own region; headings and controls
 	// remain available outside it.
 	assert.match(html, /backlog-list bounded-list/);
@@ -446,15 +486,95 @@ test("hub gates Implement/Review on status and renders escalation + review-plan 
 	assert.match(html, /Review all/);
 	assert.match(html, /action\('review-all'/);
 	assert.match(html, /Array\.isArray\(D\.reviewWave\)/);
-	// Active feature context and management live on Work.
+	// Active feature and plan lifecycle management live on Work.
 	assert.match(html, /renderGraphInto/);
 	assert.match(html, /action\('cancel-feature'/);
-	// Plan-lifecycle controls live on the Planning surface, not Work.
-	assert.doesNotMatch(html, /action\('review-plan'/);
-	assert.doesNotMatch(html, /Retires the plan/);
+	assert.match(html, /action\('review-plan'/);
+	assert.match(html, /Retires the plan/);
+	assert.match(html, /action\('cancel-plan'/);
 });
 
-test("planning drives plan-lifecycle controls from the server-derived stage", async () => {
+test("Work routes decision conflicts through reviewed knowledge updates", async () => {
+	const { render: hub } = await import("../lib/views/hub.mjs");
+	const html = hub({
+		step: "hub",
+		branch: "iterator/p",
+		plan: { title: "P", status: "approved" },
+		stage: "implementing",
+		progress: { done: 0, total: 1 },
+		features: [
+			{
+				name: "orm-feature",
+				title: "ORM feature",
+				description: "Uses an ORM",
+				status: "pending",
+				size: "small",
+				testsStatus: "none",
+				dependsOn: [],
+				ready: true,
+				conflicts: [
+					{
+						decision: "decisions/no-orm",
+						title: "No ORM",
+						note: "Introduces an ORM",
+						files: ["src/db/*.ts"],
+					},
+				],
+			},
+		],
+		readyWave: [],
+		reviewWave: [],
+		state: {},
+		dirty: { count: 0, files: [] },
+		retired: [],
+	});
+	assert.match(html, /Review decision/);
+	assert.match(html, /resolve-memory-conflict/);
+	assert.match(html, /target:conflict\.decision/);
+	assert.match(html, /anchors:Array\.isArray\(conflict\.files\)/);
+	assert.match(html, /review it before implementation/);
+});
+
+test("Work presents committed red tests as the implementation target", async () => {
+	const { render: hub } = await import("../lib/views/hub.mjs");
+	const html = hub({
+		step: "hub",
+		branch: "iterator/p",
+		plan: { title: "P", status: "approved" },
+		stage: "implementing",
+		progress: { done: 0, total: 1 },
+		features: [
+			{
+				name: "auth",
+				title: "Auth",
+				status: "pending",
+				size: "small",
+				testsStatus: "red",
+				tests: ["test/auth.test.mjs"],
+				testCount: 1,
+				dependsOn: [],
+				ready: true,
+				waitingOn: [],
+				hasDiff: false,
+				hasCommits: true,
+				conflicts: 0,
+			},
+		],
+		state: { mode: "manual", paused: false, phase: "idle", strikes: {} },
+		settings: {},
+		dirty: { count: 0, files: [] },
+		retired: [],
+		backlog: [],
+	});
+	assert.match(html, /tests committed · intentionally red/);
+	assert.match(html, /Committed red tests — implementation target/);
+	assert.match(html, /c\.tests\.map/);
+	assert.match(html, /Drive tests green/);
+	assert.match(html, /Tests committed \(red\)/);
+	assert.match(html, /Committed red tests are the implementation target/);
+});
+
+test("planning keeps active work staged while Work drives lifecycle controls", async () => {
 	const { render: planning } = await import("../lib/views/planning.mjs");
 	const html = planning({
 		step: "planning",
@@ -496,15 +616,15 @@ test("planning drives plan-lifecycle controls from the server-derived stage", as
 		],
 		backlog: [],
 	});
-	// Lifecycle buttons key off the server-derived stage.
-	assert.match(html, /D\.stage==='retirable'/);
-	assert.match(html, /action\('review-plan'/);
-	assert.match(html, /Retires the plan/);
-	assert.match(html, /action\('cancel-plan'/);
-	// Active features and their dependency graph live on Work, not Planning.
+	assert.match(html, /Planning is staged/);
+	assert.match(html, /Open Work/);
+	assert.match(html, /action\('hub'/);
+	// Active lifecycle, features, and execution controls are absent from Planning.
+	assert.doesNotMatch(html, /action\('review-plan'/);
+	assert.doesNotMatch(html, /Retires the plan/);
+	assert.doesNotMatch(html, /action\('cancel-plan'/);
 	assert.doesNotMatch(html, /action\('cancel-feature'/);
 	assert.doesNotMatch(html, /renderGraphInto/);
-	// The execution controls live on Work, not here.
 	assert.doesNotMatch(html, /action\('implement'/);
 	assert.doesNotMatch(html, /auto-implement/);
 	// Retired-plan browsing remains a planning concern.
@@ -580,12 +700,80 @@ test("planning hero goal box persists an unsent draft and clears it on plan star
 	assert.match(html, /iterator:plan-goal-draft/);
 	assert.match(html, /localStorage\.getItem\(PLAN_DRAFT_KEY\)/);
 	assert.match(html, /goal\.addEventListener\('input', saveDraft\)/);
-	// Direct planning clears on accepted submit; initialization retains the goal
-	// until the continued plan actually appears.
-	assert.match(html, /if\(__submitted\) clearPlanDraft\(\)/);
+	// Goal-only planning clears after dispatch as before. A complete plan keeps
+	// its draft through browser review and clears when the approved plan appears.
+	assert.match(html, /if\(__submitted && !structuredPlan\) clearPlanDraft\(\)/);
 	assert.match(html, /if\(D\.plan\) clearPlanDraft\(\)/);
 	// The larger input within the saved design parameters.
 	assert.match(html, /textarea\.goal\{[^}]*min-height:132px/);
+});
+
+test("Settings closes through the shell modal without a cancellation beacon", async () => {
+	const { render: settings } = await import("../lib/views/settings.mjs");
+	const html = settings({
+		branch: "main",
+		plan: "P",
+		defined: true,
+		settings: {},
+	});
+	assert.doesNotMatch(html, /onclick="cancelFlow\(\)"/);
+	assert.match(html, /type:'settings-close'/);
+	assert.match(html, /allowWhileWorking:true/);
+	assert.match(html, /id="primary" onclick="primaryClick\(\)">Close/);
+});
+
+test("memory review highlights changed markdown sections without changing verdicts", async () => {
+	const { render } = await import("../lib/views/memory-review.mjs");
+	const html = render({
+		branch: "main",
+		mode: "consolidate",
+		round: 1,
+		areas: [{ name: "patterns", description: "Patterns" }],
+		memories: [
+			{
+				id: "patterns/safe",
+				area: "patterns",
+				action: "update",
+				title: "Safe rendering",
+				type: "Pattern",
+				reason: "Resolve the Work decision conflict.",
+				body: "# Kept\nSame.\n\n# Changed\nNew <value>.",
+				existingBody:
+					"# Kept\nSame.\n\n# Changed\nOld value.\n\n# Removed\nGone.",
+			},
+		],
+	});
+	assert.match(html, /function markdownBlocks/);
+	assert.match(html, /function markdownChangeHtml/);
+	assert.match(html, /Changed section/);
+	assert.match(html, /Removed section/);
+	assert.match(html, /Why this change:/);
+	assert.match(html, /Resolve the Work decision conflict\./);
+	assert.match(html, /change-block\.added,\.change-block\.modified/);
+	assert.match(html, /m\.action === 'create' \|\| m\.action === 'update'/);
+	assert.match(html, /type: 'review-approved'/);
+	assert.match(html, /decisions: decisions/);
+	assert.match(html, /\\u003cvalue>/, "embedded proposal data stays inert");
+});
+
+test("structured plan review accepts direct edits without a planner feedback round", async () => {
+	const { render: plan } = await import("../lib/views/plan.mjs");
+	const html = plan({
+		branch: "main",
+		title: "Complete plan",
+		fastTrack: true,
+		plan: {
+			goal: "Ship it.",
+			architecture: "- Use existing seams.",
+			keyDecisions: "- Keep approval.",
+		},
+		dependencies: [],
+	});
+	assert.match(html, /Structured plan · ready for review/);
+	assert.match(html, /if\(D\.fastTrack\)/);
+	assert.match(html, /if\(D\.fastTrack\) return false/);
+	assert.match(html, /type: changed \? 'plan-feedback' : 'plan-approved'/);
+	assert.match(html, /body\.fast-plan \.cmt-btn/);
 });
 
 test("idle dashboard tabs omit the header Cancel button; round views keep it with a tooltip", async () => {

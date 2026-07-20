@@ -3215,6 +3215,73 @@ test("loadBundle re-roots every gather/write into the plan's worktree", async ()
 // ---------------------------------------------------------------------------
 // op: backlog
 
+test("backlog writer atomically persists visible-set selections", () => {
+	const root = makeRepo();
+	try {
+		const idea = applyOp(
+			{
+				op: "backlog",
+				action: "create",
+				kind: "idea",
+				title: "Idea",
+				details: "",
+			},
+			root,
+		).item;
+		const bug = applyOp(
+			{
+				op: "backlog",
+				action: "create",
+				kind: "bug",
+				title: "Bug",
+				details: "",
+			},
+			root,
+		).item;
+		let result = applyOp(
+			{
+				op: "backlog",
+				action: "select-many",
+				ids: [idea.id, bug.id],
+				selected: true,
+			},
+			root,
+		);
+		assert.deepEqual(
+			result.changedItems.map((item) => item.id),
+			[idea.id, bug.id],
+		);
+		assert.ok(result.items.every((item) => item.selected));
+		result = applyOp(
+			{ op: "backlog", action: "select", id: idea.id, selected: false },
+			root,
+		);
+		assert.equal(
+			result.items.find((item) => item.id === idea.id).selected,
+			false,
+		);
+		assert.equal(
+			result.items.find((item) => item.id === bug.id).selected,
+			true,
+		);
+		assert.throws(
+			() =>
+				applyOp(
+					{
+						op: "backlog",
+						action: "select-many",
+						ids: [idea.id, "missing"],
+						selected: false,
+					},
+					root,
+				),
+			/no backlog item 'missing'/,
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("backlog writer saves, validates, selects, edits, and deletes candidates", () => {
 	const root = makeRepo();
 	try {

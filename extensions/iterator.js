@@ -60,6 +60,8 @@ import {
 	completeFeatureWaveAbort,
 	extractPathsFromBash,
 	footerText,
+	implementationCommand,
+	implementationHandoffState,
 	mergePayload,
 	nextAutoAction,
 	nextFeatureWaveAction,
@@ -68,6 +70,7 @@ import {
 	roleFromInput,
 	roleModelSpec,
 	runJson,
+	shouldApplyRole,
 	scriptPath,
 	shouldNudge,
 	uiPort,
@@ -318,7 +321,10 @@ export default function iteratorExtension(pi) {
 	};
 
 	/** Refresh the idle dashboard tabs (no pending round). */
-	const refreshHub = async (cwd, { preferPlanning = false } = {}) => {
+	const refreshHub = async (
+		cwd,
+		{ preferPlanning = false, activateWork = false } = {},
+	) => {
 		if (!session || !session.isRunning() || session.hasPending()) return;
 		try {
 			// Inactive tabs first: their refreshes are stored silently. On first
@@ -340,7 +346,11 @@ export default function iteratorExtension(pi) {
 				render: () => VIEWS.planning({ ...hub, step: "planning" }),
 				activate: landOnPlanning,
 			});
-			session.showView({ step: "hub", render: () => VIEWS.hub(hub) });
+			session.showView({
+				step: "hub",
+				render: () => VIEWS.hub(hub),
+				activate: activateWork,
+			});
 			await pushStatus(cwd);
 		} catch {
 			/* a broken bundle read must never take pi down */
@@ -376,7 +386,8 @@ export default function iteratorExtension(pi) {
 					"info",
 				);
 			}
-			await refreshHub(cwd);
+			session?.closeModal?.();
+			await refreshStatus(cwd);
 		} catch (e) {
 			if (lastCtx?.hasUI)
 				lastCtx.ui.notify(
@@ -390,8 +401,8 @@ export default function iteratorExtension(pi) {
 	const saveBacklog = async (input) => {
 		const cwd = ctxCwd();
 		// Backlog writes are allowed during a model turn, but must not replace or
-		// clear that turn's working guard. The normal turn-end refresh will pick up
-		// the filesystem change; idle saves still refresh immediately.
+		// clear that turn's working guard. Refresh both stored dashboard tabs after
+		// every save; session.showView keeps the owned overlay intact.
 		const preserveAgentWorking = session?.isWorking?.() === true;
 		if (!preserveAgentWorking)
 			session?.showWorking?.("Saving backlog candidate…");
@@ -402,6 +413,7 @@ export default function iteratorExtension(pi) {
 					op: "backlog",
 					action: input.action,
 					id: input.id,
+					ids: input.ids,
 					title: input.title,
 					details: input.details,
 					kind: input.kind,
@@ -409,14 +421,65 @@ export default function iteratorExtension(pi) {
 				}),
 			});
 			invalidateSession();
-			notifyUi(`backlog ${result.action}d: ${result.item.title}`, "info");
+			const savedLabel =
+				result.action === "select-many"
+					? `${result.changedItems.length} backlog candidates updated`
+					: `backlog ${result.action}d: ${result.item.title}`;
+			notifyUi(savedLabel, "info");
 		} catch (e) {
 			notifyUi(`backlog not saved — ${e.message}`, "error");
 		} finally {
-			if (!preserveAgentWorking) {
-				session?.clearWorking?.();
+			if (!preserveAgentWorking) session?.clearWorking?.();
+			await refreshHub(cwd);
+		}
+	};
+
+	/** Review and apply a complete pasted plan without spending a planner turn. */
+	const startFastPlan = async (input) => {
+		const cwd = ctxCwd();
+		const draft = input?.structuredPlan;
+		if (
+			!draft?.title ||
+			!draft?.plan?.goal ||
+			!draft?.plan?.architecture ||
+			!draft?.plan?.keyDecisions
+		) {
+			notifyUi("structured plan is missing a required section", "error");
+			return;
+		}
+		try {
+			const gathered = await gatherPayload(cwd, "plan");
+			const payload = mergePayload(gathered, { ...draft, fastTrack: true });
+			const result = await session.showStep({
+				step: "plan",
+				render: () => VIEWS.plan(payload),
+			});
+			// This direct path has no planner agent waiting behind the review round.
+			session.clearWorking?.();
+			if (result?.type !== "plan-approved") {
 				await refreshHub(cwd);
+				return;
 			}
+			const applied = await runJson(scriptPath("write"), [], {
+				cwd,
+				stdin: JSON.stringify({
+					op: "plan",
+					title: payload.title,
+					...(payload.description ? { description: payload.description } : {}),
+					sections: result.sections,
+					dependencies: result.dependencies || [],
+				}),
+			});
+			invalidateSession();
+			if (!applied?.ok)
+				throw new Error(applied?.error || "plan was not applied");
+			await refreshHub(cwd, { activateWork: true });
+			session.showWorking("Plan approved — preparing feature breakdown…");
+			dispatch("/skill:iterator-feature");
+		} catch (e) {
+			session?.clearWorking?.();
+			notifyUi(`structured plan not saved — ${e.message}`, "error");
+			await refreshHub(cwd);
 		}
 	};
 
@@ -436,15 +499,18 @@ export default function iteratorExtension(pi) {
 		}
 	};
 
-	/** Show the settings view as an idle dashboard page (unsolicited round). */
+	/** Open Settings above the shell without replacing its tab or pending round. */
 	const openSettings = async () => {
 		const cwd = ctxCwd();
 		try {
 			const payload = await gatherPayload(cwd, "settings");
 			const models = await modelOptions();
-			session.showView({
-				step: "settings",
-				render: () => VIEWS.settings(models ? { ...payload, models } : payload),
+			session.showModal({
+				render: () =>
+					VIEWS.settings({
+						...(models ? { ...payload, models } : payload),
+						modal: true,
+					}),
 			});
 		} catch (e) {
 			if (lastCtx?.hasUI) lastCtx.ui.notify(`iterator: ${e.message}`, "error");
@@ -535,7 +601,9 @@ export default function iteratorExtension(pi) {
 	let featureWave = null; // fixed ready-feature snapshot; review stays manual
 	let preAutoModel = null; // the user's model before the first role switch
 	let pendingRole = null; // exact role command captured from the current input
-	let manualRoleActive = false; // this turn switched a manual role model
+	// A before_agent_start/agent_end pair can overlap a queued follow-up. Keep
+	// restoration ownership in FIFO order instead of a shared boolean.
+	const manualRoleTurns = [];
 
 	const notifyUi = (msg, level = "info") => {
 		if (lastCtx?.hasUI) lastCtx.ui.notify(`iterator: ${msg}`, level);
@@ -556,9 +624,43 @@ export default function iteratorExtension(pi) {
 			streamingBehavior: "followUp", // older runtimes take the raw option name
 		});
 
-	/** Apply a role's model/thinking overrides; remember the user's model once. */
+	const startConflictResolution = (result) => {
+		const feature = String(result?.feature || "").trim();
+		const target = String(result?.target || "").trim();
+		if (
+			!/^[a-z0-9][a-z0-9-]*$/.test(feature) ||
+			!/^[a-z-]+\/[a-z0-9][a-z0-9-]*$/.test(target)
+		) {
+			notifyUi("invalid feature or decision conflict target", "error");
+			return;
+		}
+		const note = String(result.prompt || "Recorded decision conflict")
+			.replace(/\s+/g, " ")
+			.trim()
+			.slice(0, 500);
+		const anchors = (Array.isArray(result.anchors) ? result.anchors : [])
+			.map(String)
+			.filter(Boolean)
+			.slice(0, 12)
+			.join(", ");
+		const followUp =
+			`Resolve the conflict recorded on feature ${feature}: ${note}. ` +
+			`Use the existing reviewed update-memory flow for ${target}; no durable knowledge may change before an explicit memory verdict. ` +
+			(anchors ? `Re-check against anchored files ${anchors}. ` : "") +
+			`After an accepted memory update, continue into /skill:iterator-feature with guidance to re-check only ${feature} against ${target}, preserving every unrelated feature and conflict flag.`;
+		session.showWorking("Opening reviewed decision conflict resolution…");
+		dispatch(`/skill:iterator-knowledge update-memory ${target} — ${followUp}`);
+	};
+
+	/**
+	 * Apply a role's model/thinking overrides and report whether the model
+	 * actually changed. Only a successful switch may arm restoration: a failed
+	 * provider lookup must leave the active session model (and its credentials)
+	 * completely untouched.
+	 */
 	const applyRole = async (role, settings) => {
 		const spec = roleModelSpec(settings, role);
+		let switchedModel = false;
 		try {
 			if (spec.model) {
 				const slash = spec.model.indexOf("/");
@@ -566,13 +668,17 @@ export default function iteratorExtension(pi) {
 				const id = spec.model.slice(slash + 1);
 				const m = lastCtx?.modelRegistry?.find?.(provider, id);
 				if (m) {
-					if (!preAutoModel) preAutoModel = lastCtx?.model || null;
+					const previousModel = preAutoModel || lastCtx?.model || null;
 					const ok = await pi.setModel(m);
-					if (!ok)
+					if (ok) {
+						if (!preAutoModel) preAutoModel = previousModel;
+						switchedModel = true;
+					} else {
 						notifyUi(
 							`no API key for ${spec.model} — staying on the active model`,
 							"warning",
 						);
+					}
 				} else {
 					notifyUi(
 						`unknown model ${spec.model} for ${role} — staying on the active model`,
@@ -587,6 +693,7 @@ export default function iteratorExtension(pi) {
 				"warning",
 			);
 		}
+		return switchedModel;
 	};
 
 	/** Restore the user's model after an automatic or manual role turn. */
@@ -650,7 +757,9 @@ export default function iteratorExtension(pi) {
 				phase: "implementing",
 				active_feature: action.feature,
 			});
-			await applyRole(action.role, settings);
+			// The replacement session applies the implementer role when its final
+			// skill command starts; switching here would leak a role model into a
+			// session that is about to be torn down.
 			attribution = { step: action.step, feature: action.feature };
 			session?.showWorking({
 				text: `Wave: implementing ${action.feature} (${featureWave.results.length}/${featureWave.results.length + featureWave.queue.length + 1} finished)…`,
@@ -658,7 +767,7 @@ export default function iteratorExtension(pi) {
 				feature: action.feature,
 			});
 			await pushStatus(cwd);
-			await dispatch(action.cmd);
+			await dispatch(implementationCommand(action.feature, { auto: true }));
 		} catch (error) {
 			featureWave = null;
 			await writeState({
@@ -768,29 +877,12 @@ export default function iteratorExtension(pi) {
 				});
 				invalidateSession();
 			}
-			// Fresh context per feature: when the next implement round targets a
-			// DIFFERENT feature than the previous one, clear the conversation
-			// context if the runtime supports it. Correctness never depends on
-			// this — the implement gather payload (contract, relevantMemories,
-			// finishedFeatures) is self-contained by design.
-			if (
-				action.step === "implement" &&
-				action.feature &&
-				sess.state?.active_feature &&
-				sess.state.active_feature !== action.feature
-			) {
-				try {
-					if (typeof pi.clearContext === "function") await pi.clearContext();
-					else if (typeof pi.compact === "function") await pi.compact();
-				} catch {
-					/* best-effort only */
-				}
-			}
 			await writeState({
 				phase: AUTO_PHASE_FOR_STEP[action.step] || "implementing",
 				active_feature: action.feature || null,
 			});
-			await applyRole(action.role, sess.settings);
+			if (action.step !== "implement")
+				await applyRole(action.role, sess.settings);
 			attribution = { step: action.step, feature: action.feature || null };
 			const p = sess.hub?.progress || {};
 			// Structured working state: the shell renders step/feature and a
@@ -803,7 +895,11 @@ export default function iteratorExtension(pi) {
 			});
 			await pushStatus(cwd);
 			try {
-				await dispatch(action.cmd);
+				await dispatch(
+					action.step === "implement"
+						? implementationCommand(action.feature, { auto: true })
+						: action.cmd,
+				);
 			} catch (err) {
 				// Recoverable, never a silent stall: keep mode:auto but pause, so
 				// the control strip's Continue re-enters kickAuto and re-dispatches.
@@ -932,7 +1028,10 @@ export default function iteratorExtension(pi) {
 			session?.showWorking?.("Resuming with your guidance…");
 			dispatch(
 				feature
-					? `/skill:iterator-implement ${feature} --auto — user guidance: ${guidance}`
+					? implementationCommand(feature, {
+							auto: true,
+							guidance: `user guidance: ${guidance}`,
+						})
 					: guidance,
 			);
 		} catch (e) {
@@ -972,8 +1071,12 @@ export default function iteratorExtension(pi) {
 						void saveUsagePrices(result.prices);
 						return;
 					}
-					// Settings is an idle page: its Close button emits cancel, which
-					// must restore the dashboard rather than leave its view in place.
+					// Settings is shell-owned: dismissal leaves the originating tab,
+					// pending round, and Work overlay untouched.
+					if (result?.type === "settings-close") {
+						session.closeModal();
+						return;
+					}
 					if (result?.type === "cancel") {
 						void refreshHub(ctxCwd());
 						return;
@@ -986,13 +1089,31 @@ export default function iteratorExtension(pi) {
 						void openArchive(result.feature);
 						return;
 					}
+					if (
+						result?.type === "action" &&
+						result.action === "plan-fast-track"
+					) {
+						void startFastPlan(result);
+						return;
+					}
+					if (
+						result?.type === "action" &&
+						result.action === "resolve-memory-conflict"
+					) {
+						startConflictResolution(result);
+						return;
+					}
 					// Knowledge's page-level Close mirrors Settings: back to Work
 					// (decisions/settings-close-returns-to-work) — never a model turn.
 					// "planning" is pure navigation too: refresh both dashboard tabs
 					// (the shell's Planning tab already holds the view).
+					if (result?.type === "action" && result.action === "hub") {
+						void refreshHub(ctxCwd(), { activateWork: true });
+						return;
+					}
 					if (
 						result?.type === "action" &&
-						["hub", "close", "planning"].includes(result.action)
+						["close", "planning"].includes(result.action)
 					) {
 						void refreshHub(ctxCwd());
 						return;
@@ -1051,24 +1172,62 @@ export default function iteratorExtension(pi) {
 	};
 
 	// ---------------------------------------------------------------------
-	// Friendly commands (skills stay the source of the flow logic).
-	// /iterator-implement with no argument turns into a TUI feature picker.
+	// Friendly commands (skills stay the source of the flow logic). An
+	// implementation is the one exception: it replaces the Pi session before
+	// sending the skill command, so the fresh agent sees the feature contract
+	// rather than the accumulated conversation.
+
+	const startImplementationSession = async (args, ctx) => {
+		const rawArgs = String(args || "").trim();
+		const [commandArgs, guidance] = rawArgs.split(/\s+—\s+/, 2);
+		const tokens = commandArgs.split(/\s+/).filter(Boolean);
+		let feature = tokens.find((token) => !token.startsWith("--")) || null;
+		const auto = tokens.includes("--auto");
+		if (!feature) {
+			const picked = await pickReadyFeature(ctx);
+			if (picked === undefined) return;
+			feature = picked;
+		}
+		const command = `/skill:iterator-implement ${feature}${auto ? " --auto" : ""}${guidance ? ` — ${guidance}` : ""}`;
+		const handoff = {
+			feature,
+			auto,
+			autoSteps,
+			// A ready-wave lives in extension memory; preserve only its plain,
+			// immutable snapshot so the replacement runtime can finish the wave.
+			featureWave: featureWave
+				? {
+						...featureWave,
+						queue: [...featureWave.queue],
+						results: [...featureWave.results],
+					}
+				: null,
+		};
+		// A tester/reviewer role belongs to the old session. Return to the user's
+		// model before replacement so an `active` implementer never inherits it.
+		await restoreModel();
+		const result = await ctx.newSession({
+			parentSession: ctx.sessionManager?.getSessionFile?.(),
+			setup: async (manager) => {
+				manager.appendCustomEntry("iterator-implementation-handoff", handoff);
+			},
+			withSession: async (replacementCtx) => {
+				await replacementCtx.sendUserMessage(command);
+			},
+		});
+		if (result?.cancelled && ctx.hasUI)
+			ctx.ui.notify("iterator: fresh implementation session cancelled", "info");
+	};
 
 	for (const command of COMMANDS) {
 		pi.registerCommand(command.name, {
 			description: command.description,
 			handler: async (args = "", ctx) => {
-				const trimmedArgs = String(args).trim();
-				if (
-					command.name === "iterator-implement" &&
-					!trimmedArgs &&
-					ctx?.hasUI
-				) {
-					const picked = await pickReadyFeature(ctx);
-					if (picked === undefined) return; // dismissed / nothing ready
-					dispatch(`/skill:iterator-implement ${picked}`.trim());
+				if (command.name === "iterator-implement") {
+					await startImplementationSession(args, ctx);
 					return;
 				}
+				const trimmedArgs = String(args).trim();
 				dispatch(
 					`/skill:${command.name}${trimmedArgs ? ` ${trimmedArgs}` : ""}`,
 				);
@@ -1092,7 +1251,7 @@ export default function iteratorExtension(pi) {
 
 	pi.registerCommand("iterator-next", {
 		description:
-			"Implement the next dependency-ready feature, no questions asked.",
+			"Implement the next dependency-ready feature in a fresh session.",
 		handler: async (_args, ctx) => {
 			try {
 				const imp = await gatherPayload(ctx.cwd, "implement");
@@ -1106,7 +1265,7 @@ export default function iteratorExtension(pi) {
 						ctx.ui.notify(`iterator: nothing to implement — ${why}`, "warning");
 					return;
 				}
-				dispatch(`/skill:iterator-implement ${imp.next.name}`);
+				await startImplementationSession(imp.next.name, ctx);
 			} catch (e) {
 				if (ctx.hasUI) ctx.ui.notify(`iterator: ${e.message}`, "error");
 			}
@@ -1247,7 +1406,13 @@ export default function iteratorExtension(pi) {
 				const approved =
 					(params.op === "adjustments" || params.type === "plan-approved") &&
 					(params.accept === true || params.type === "plan-approved");
+				if (params.op === "commit-tests" && result?.ok) {
+					// Red tests are an intentional implementation handoff: return to
+					// Work so their paths and target state are immediately visible.
+					void refreshHub(ctx.cwd, { activateWork: true });
+				}
 				if (approved) {
+					void refreshHub(ctx.cwd, { activateWork: true });
 					try {
 						const { settings, state } = await gatherSession(ctx.cwd);
 						if (settings?.auto_mode === "on" && state?.mode !== "auto") {
@@ -1465,6 +1630,7 @@ export default function iteratorExtension(pi) {
 						applied = { ok: false, error: e.message };
 					}
 					invalidateSession();
+					if (applied?.ok) await refreshHub(ctx.cwd, { activateWork: true });
 					return asText({ ...result, applied });
 				}
 				return asText(result);
@@ -1484,11 +1650,19 @@ export default function iteratorExtension(pi) {
 		rememberCtx(ctx);
 		const workOwner = session?.ensureWorking?.("AI is working…") ?? null;
 		agentWorkOwners.push(workOwner);
+		const manualRoleTurn = { switched: false };
+		manualRoleTurns.push(manualRoleTurn);
 		try {
 			const { hub, implement, settings, state } = await gatherSession(ctx.cwd);
-			if (pendingRole && state?.mode !== "auto" && !featureWave) {
-				await applyRole(pendingRole, settings);
-				manualRoleActive = true;
+			const role = pendingRole;
+			pendingRole = null; // role input belongs to exactly one agent turn
+			if (
+				shouldApplyRole(role, {
+					mode: state?.mode,
+					featureWave,
+				})
+			) {
+				manualRoleTurn.switched = await applyRole(role, settings);
 			}
 			// Model selection also applies to /iterator-plan before a bundle exists;
 			// only the ambient bundle context depends on durable plan state.
@@ -1571,8 +1745,14 @@ export default function iteratorExtension(pi) {
 	// plan-less project lands on Planning's goal/init hero rather than an empty
 	// Work tab.
 
-	pi.on("session_start", async (_event, ctx) => {
+	pi.on("session_start", async (event, ctx) => {
 		rememberCtx(ctx);
+		const sessionEntries = ctx.sessionManager?.getEntries?.() || [];
+		// A persisted marker is only a handoff during the session replacement
+		// that created it. On reload/restart, retain the normal auto safety pause.
+		const handoff = implementationHandoffState(sessionEntries, event?.reason);
+		if (handoff?.featureWave) featureWave = handoff.featureWave;
+		if (handoff) autoSteps = handoff.autoSteps;
 		await refreshStatus(ctx);
 		try {
 			await ensureServer(ctx);
@@ -1580,6 +1760,7 @@ export default function iteratorExtension(pi) {
 			// pause it and let the human press Continue in the dashboard.
 			const { state } = await gatherSession(ctx.cwd);
 			if (
+				!handoff &&
 				state?.mode === "auto" &&
 				!state.paused &&
 				["testing", "implementing", "reviewing"].includes(state.phase)
@@ -1609,13 +1790,11 @@ export default function iteratorExtension(pi) {
 	pi.on("agent_end", async (_event, ctx) => {
 		rememberCtx(ctx);
 		const endedWorkOwner = agentWorkOwners.shift() ?? null;
+		const manualRoleTurn = manualRoleTurns.shift();
 		try {
 			invalidateSession(); // the turn may have changed files/commits
 			await flushUsage(ctx.cwd);
-			if (manualRoleActive) {
-				manualRoleActive = false;
-				await restoreModel();
-			}
+			if (manualRoleTurn?.switched) await restoreModel();
 			await refreshHub(ctx.cwd);
 			await refreshStatus(ctx);
 			// Keep abortPending set until this stale agent_end reaches its final

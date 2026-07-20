@@ -1,5 +1,96 @@
 # iterator update log
 
+## 2026-07-20
+* **Backlog**: select remove-text-erferences-to-claude (selected).
+* **Backlog**: select red-mode-tests-should-show-the-real-test-code-for-verification-2 (selected).
+* **Backlog**: select red-mode-tests-should-show-the-real-test-code-for-verification (selected).
+* **Backlog**: create remove-text-erferences-to-claude.
+* **Retirement**: Plan "Streamline backlog planning and knowledge actions" condensed into [Streamline backlog planning and knowledge actions](/decisions/streamline-backlog-planning-and-knowledge-actions.md).
+* **Plan review**: Whole-plan review recorded (agent).
+* **Review**: Reviewed [Work conflict memory resolution](/features/work-conflict-memory-resolution.md); approved (agent).
+* **Review**: Accepted [Work conflict memory resolution](/features/work-conflict-memory-resolution.md) (committed as feature(work-conflict-memory-resolution)).
+* **Implementation**: Committed feature(work-conflict-memory-resolution) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Review**: Reviewed [Focused memory review changes](/features/memory-review-change-focus.md); approved (agent).
+* **Review**: Accepted [Focused memory review changes](/features/memory-review-change-focus.md) (committed as feature(memory-review-change-focus)).
+* **Implementation**: Committed feature(memory-review-change-focus) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Review**: Reviewed [Focused memory review changes](/features/memory-review-change-focus.md); changes (agent).
+* **Implementation**: Committed feature(memory-review-change-focus) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Review**: Reviewed [Full-plan fast track](/features/full-plan-fast-track.md); approved (agent).
+* **Review**: Accepted [Full-plan fast track](/features/full-plan-fast-track.md) (committed as feature(full-plan-fast-track)).
+* **Implementation**: Committed feature(full-plan-fast-track) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Review**: Reviewed [Backlog filtering and bulk selection](/features/backlog-filter-and-bulk-select.md); approved (agent).
+* **Review**: Accepted [Backlog filtering and bulk selection](/features/backlog-filter-and-bulk-select.md) (committed as feature(backlog-filter-and-bulk-select)).
+* **Implementation**: Committed feature(backlog-filter-and-bulk-select) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Review**: Reviewed [Backlog filtering and bulk selection](/features/backlog-filter-and-bulk-select.md); changes (agent).
+* **Implementation**: Committed feature(backlog-filter-and-bulk-select) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Review**: Reviewed [Reliable backlog saves](/features/backlog-save-during-work.md); approved (agent).
+* **Review**: Accepted [Reliable backlog saves](/features/backlog-save-during-work.md) (committed as feature(backlog-save-during-work)).
+* **Implementation**: Committed feature(backlog-save-during-work) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Review**: Reviewed [Backlog file mentions](/features/backlog-file-mentions.md); approved (agent).
+* **Review**: Accepted [Backlog file mentions](/features/backlog-file-mentions.md) (committed as feature(backlog-file-mentions)).
+* **Implementation**: Committed feature(backlog-file-mentions) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Update**: Applied 6 feature adjustment(s).
+* **Creation**: 6 feature(s) written.
+* **Creation**: Plan "Streamline backlog planning and knowledge actions" approved on branch iterator/safe-role-model-handoff. Consumed 6 selected backlog candidate(s).
+* **Backlog**: select when-adding-a-plan-just-create-the-features (selected).
+* **Backlog**: select like-in-plan-allow-in-the-idea-baclkog-inputs-the-same-file-seleciton-logic-with (selected).
+* **Backlog**: select memroy-update-needs-foxus (selected).
+* **Backlog**: select save-candidate-should-alsways-work-as-its-a-save-to-file (selected).
+* **Backlog**: select in-work-ifeature-warning-that-it-conflics-with-a-memory-add-a-accept-button (selected).
+* **Backlog**: select idea-backlog-needs-filter-by-feature-and-bug-and-selecte-deselect-all-buttons (selected).
+* **Backlog**: create idea-backlog-needs-filter-by-feature-and-bug-and-selecte-deselect-all-buttons.
+* **Backlog**: select in-work-ifeature-warning-that-it-conflics-with-a-memory-add-a-accept-button (deselected).
+* **Backlog**: select in-work-ifeature-warning-that-it-conflics-with-a-memory-add-a-accept-button (selected).
+* **Retirement**: Plan "Focus feature execution and dashboard ownership" condensed into [Focus feature execution and dashboard ownership](/decisions/focus-feature-execution-and-dashboard-ownership.md).
+* **Plan review**: Whole-plan review recorded (agent).
+* **Review**: Reviewed [Visible red-test handoff](/features/visible-red-test-handoff.md); approved.
+* **Review**: Accepted [Visible red-test handoff](/features/visible-red-test-handoff.md) (committed as feature(visible-red-test-handoff)).
+* **Implementation**: Committed feature(visible-red-test-handoff) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Backlog**: create in-work-ifeature-warning-that-it-conflics-with-a-memory-add-a-accept-button.
+* **Review**: Reviewed [Settings dashboard modal](/features/settings-dashboard-modal.md); approved.
+* **Review**: Accepted [Settings dashboard modal](/features/settings-dashboard-modal.md) (committed as feature(settings-dashboard-modal)).
+* **Update**: Memorized [Settings modal preserves originating dashboard context](/decisions/settings-close-returns-to-work.md).
+* **Implementation**: Committed feature(settings-dashboard-modal) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Review**: Reviewed [Active plan workspace](/features/active-plan-workspace.md); approved (agent).
+* **Review**: Accepted [Active plan workspace](/features/active-plan-workspace.md) (committed as feature(active-plan-workspace)).
+* **Implementation**: Committed feature(active-plan-workspace) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Review**: Reviewed [Active plan workspace](/features/active-plan-workspace.md); changes (agent).
+* **Update**: Memorized [Work owns active plan context and lifecycle](/decisions/review-navigation-and-work-context.md).
+* **Implementation**: Committed feature(active-plan-workspace) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Review**: Reviewed [Fresh implementation session](/features/fresh-implementation-session.md); approved (agent).
+* **Review**: Accepted [Fresh implementation session](/features/fresh-implementation-session.md) (committed as feature(fresh-implementation-session)).
+* **Implementation**: Committed feature(fresh-implementation-session) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Review**: Reviewed [Fresh implementation session](/features/fresh-implementation-session.md); changes (agent).
+* **Implementation**: Committed feature(fresh-implementation-session) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Update**: Applied 4 feature adjustment(s).
+* **Creation**: 4 feature(s) written.
+* **Creation**: Plan "Focus feature execution and dashboard ownership" approved on branch iterator/safe-role-model-handoff. Consumed 5 selected backlog candidate(s).
+* **Backlog**: select openeing-setting-should-be-an-overaly (selected).
+* **Backlog**: select it-looks-as-if-the-agent-isnt-using-new-before-a-new-feature-is-implemented-in-either-auto-or-manual-mode (selected).
+* **Backlog**: select move-all-active-plan-related-infos-to-work (selected).
+* **Backlog**: select after-feature-show-work-tab (selected).
+* **Backlog**: select after-adding-tests-its-not-clear-that-they-are-there (selected).
+* **Retirement**: Plan "Fix post-test role model credential corruption" condensed into [Safely restore configured Iterator role models](/decisions/safe-role-model-restoration.md).
+* **Backlog**: create save-candidate-should-alsways-work-as-its-a-save-to-file.
+* **Backlog**: create memroy-update-needs-foxus.
+* **Update**: Memorized [Apply role models to manual turns and reset stale runtime state](/decisions/manual-role-models-and-runtime-reset.md).
+* **Review**: Accepted [Safe role-model handoff](/features/safe-role-model-handoff.md) (committed as feature(safe-role-model-handoff)).
+* **Implementation**: Committed feature(safe-role-model-handoff) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Backlog**: create red-mode-tests-should-show-the-real-test-code-for-verification-2.
+* **Backlog**: create red-mode-tests-should-show-the-real-test-code-for-verification.
+* **Update**: Applied 1 feature adjustment(s).
+* **Creation**: 1 feature(s) written.
+* **Creation**: Plan "Fix post-test role model credential corruption" approved on branch main. Consumed 1 selected backlog candidate(s).
+* **Backlog**: select after-red-mode-test-creation-iterator-doesnt-work (selected).
+* **Backlog**: create after-red-mode-test-creation-iterator-doesnt-work.
+* **Backlog**: create after-adding-tests-its-not-clear-that-they-are-there.
+* **Backlog**: create openeing-setting-should-be-an-overaly.
+* **Backlog**: create move-all-active-plan-related-infos-to-work.
+* **Backlog**: create after-feature-show-work-tab.
+* **Backlog**: create like-in-plan-allow-in-the-idea-baclkog-inputs-the-same-file-seleciton-logic-with.
+* **Backlog**: create when-adding-a-plan-just-create-the-features.
+* **Backlog**: create it-looks-as-if-the-agent-isnt-using-new-before-a-new-feature-is-implemented-in-either-auto-or-manual-mode.
+
 ## 2026-07-19
 * **Retirement**: Plan "Improve memory relevance, usage costs, and dashboard recovery" condensed into [Memory relevance, usage costs, and dashboard recovery](/decisions/memory-relevance-usage-and-dashboard-recovery.md).
 
