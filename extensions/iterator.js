@@ -53,6 +53,7 @@ import {
 	actionToCommand,
 	activityTextFromMessage,
 	attributionFromInput,
+	autoCompleteMessage,
 	AUTO_PHASE_FOR_STEP,
 	bundleExists,
 	featuresDirEntries,
@@ -821,11 +822,7 @@ export default function iteratorExtension(pi) {
 				});
 				autoSteps = 0;
 				await restoreModel();
-				notifyUi(
-					sess.settings?.auto_retire_prompt === "on"
-						? "auto mode: plan complete — every feature landed. Consider retiring the plan from the dashboard."
-						: "auto mode: plan complete — every feature landed.",
-				);
+				notifyUi(autoCompleteMessage(sess.settings));
 				await refreshHub(cwd);
 				return;
 			}
@@ -1418,9 +1415,8 @@ export default function iteratorExtension(pi) {
 					autoSteps = 0;
 					await restoreModel();
 					session?.clearWorking?.();
-					notifyUi(
-						"auto mode: plan complete — every feature landed. Consider retiring the plan from the dashboard.",
-					);
+					const { settings } = await gatherSession(ctx.cwd);
+					notifyUi(autoCompleteMessage(settings));
 					await refreshHub(ctx.cwd, { activateWork: true });
 				}
 				if (approved) {

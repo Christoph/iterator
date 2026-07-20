@@ -2675,7 +2675,11 @@ test("record-plan-review appends the report and sets plan_reviewed", () => {
 			{ op: "record-plan-review", report: "Second look, still clean." },
 			root,
 		);
-		assert.equal(human.autoCompleted, false, "human reviews retain runtime state");
+		assert.equal(
+			human.autoCompleted,
+			false,
+			"human reviews retain runtime state",
+		);
 		assert.equal(frontmatter(read(root, "state.md")).mode, "auto");
 		const twice = read(root, "plan.md");
 		assert.ok(

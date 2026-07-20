@@ -493,6 +493,7 @@ test("usageRowFromMessage extracts assistant usage with attribution", async () =
 // Auto mode state machine
 
 const {
+	autoCompleteMessage,
 	completeFeatureWaveAbort,
 	nextAutoAction,
 	nextFeatureWaveAction,
@@ -500,6 +501,14 @@ const {
 	roleModelSpec,
 	AUTO_PHASE_FOR_STEP,
 } = await import("../lib/pi-tools.mjs");
+
+test("auto completion messaging honors the retirement prompt setting", () => {
+	assert.match(autoCompleteMessage({ auto_retire_prompt: "on" }), /retiring/);
+	assert.doesNotMatch(
+		autoCompleteMessage({ auto_retire_prompt: "off" }),
+		/retiring/,
+	);
+});
 
 const S = (over = {}) => ({
 	auto_mode: "on",

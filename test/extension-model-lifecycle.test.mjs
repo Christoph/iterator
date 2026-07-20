@@ -27,8 +27,19 @@ test("agent plan review completion converges the auto dashboard immediately", ()
 		"utf8",
 	);
 	assert.match(extension, /if \(result\?\.autoCompleted\)/);
-	assert.match(extension, /await restoreModel\(\);\n\s+session\?\.clearWorking\?\.\(\);/);
-	assert.match(extension, /await refreshHub\(ctx\.cwd, \{ activateWork: true \}\);/);
+	assert.match(
+		extension,
+		/await restoreModel\(\);\n\s+session\?\.clearWorking\?\.\(\);/,
+	);
+	assert.match(
+		extension,
+		/const \{ settings \} = await gatherSession\(ctx\.cwd\);/,
+	);
+	assert.match(extension, /notifyUi\(autoCompleteMessage\(settings\)\);/);
+	assert.match(
+		extension,
+		/await refreshHub\(ctx\.cwd, \{ activateWork: true \}\);/,
+	);
 });
 
 const require = createRequire(import.meta.url);
