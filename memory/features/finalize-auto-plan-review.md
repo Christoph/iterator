@@ -7,9 +7,13 @@ size: medium
 depends_on: []
 files: ["lib/write.mjs", "lib/pi-tools.mjs", "extensions/iterator.js", "test/write.test.mjs", "test/pi-tools.test.mjs", "test/extension-model-lifecycle.test.mjs"]
 memories: [architecture/package-and-skill-layout, architecture/workflow-state-ownership, decisions/backlog-planning-and-feature-waves, decisions/code-exact-red-test-review-and-agent-wording, decisions/consume-accepted-backlog-ideas, decisions/focus-feature-execution-and-dashboard-ownership, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset]
-timestamp: "2026-07-20T18:15:09.239Z"
+timestamp: "2026-07-20T18:15:09.323Z"
 tags: []
 tests_status: green
+commits:
+  - sha: a0f4243efa31abc254a6dc4cff1ae11876f7ba7b
+    kind: implement
+    date: 2026-07-20
 ---
 
 # Implementation notes
