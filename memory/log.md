@@ -2,6 +2,8 @@
 
 ## 2026-07-20
 * **Implementation**: Committed feature(memory-review-change-focus) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Review**: Reviewed [Focused memory review changes](/features/memory-review-change-focus.md); changes (agent).
+* **Implementation**: Committed feature(memory-review-change-focus) on branch iterator/safe-role-model-handoff; awaiting review.
 * **Review**: Reviewed [Full-plan fast track](/features/full-plan-fast-track.md); approved (agent).
 * **Review**: Accepted [Full-plan fast track](/features/full-plan-fast-track.md) (committed as feature(full-plan-fast-track)).
 * **Implementation**: Committed feature(full-plan-fast-track) on branch iterator/safe-role-model-handoff; awaiting review.

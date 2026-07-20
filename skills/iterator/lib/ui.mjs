@@ -217,7 +217,10 @@ async function post(payload, okMsg, options){
 function mdToHtml(src){
   if(!src || !src.trim()) return '<span class="empty">Empty.</span>';
   const escc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const attr = s => escc(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  // inline() already escaped &, <, and > before link matching; only quotes
+  // remain unsafe in the captured href. Escaping the whole URL again would
+  // turn &amp; into &amp;amp; and corrupt query parameters.
+  const attr = s => s.replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   const inline = s => escc(s)
     .replace(/\`([^\`]+)\`/g, (m,c)=>'<code>'+c+'</code>')
     .replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>')

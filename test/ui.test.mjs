@@ -128,13 +128,36 @@ test("shared client JS wires read-only mode while the agent works", () => {
 	);
 });
 
-test("mdToHtml refuses unsafe links and escapes allowed href attributes", () => {
-	const html = renderPage({ step: "t", data: {}, body: "", clientJs: "" });
-	// The linkify branch must be guarded by a protocol whitelist, and quotes in
-	// otherwise-allowed targets cannot escape the href attribute.
-	assert.ok(html.includes("https?:|mailto:"));
-	assert.ok(html.includes("attr(u)"));
-	assert.ok(html.includes("&quot;"));
+test("mdToHtml preserves query strings while escaping href quotes", () => {
+	const html = renderPage({
+		step: "t",
+		data: {},
+		body: "",
+		clientJs:
+			`globalThis.renderedLink = mdToHtml('[safe](https://example.test/?a=1&b="two")');`,
+	});
+	const script = html.match(/<script>\n([\s\S]*?)\n<\/script>/)[1];
+	const branch = { textContent: "" };
+	const classList = { contains: () => false, toggle: () => {} };
+	const window = { addEventListener: () => {}, close: () => {} };
+	window.parent = window;
+	const ctx = vm.createContext({
+		window,
+		document: {
+			documentElement: { dataset: { theme: "dark" } },
+			body: { classList },
+			getElementById: (id) => (id === "branch" ? branch : null),
+		},
+		navigator: { sendBeacon: () => true },
+		fetch: async () => ({ status: 200 }),
+		alert: () => {},
+	});
+	vm.runInContext(script, ctx);
+	assert.match(
+		ctx.renderedLink,
+		/href="https:\/\/example\.test\/\?a=1&amp;b=&quot;two&quot;"/,
+	);
+	assert.doesNotMatch(ctx.renderedLink, /&amp;amp;/);
 });
 
 test("CSS exports are non-empty and themed", () => {
@@ -674,7 +697,8 @@ test("memory review highlights changed markdown sections without changing verdic
 				title: "Safe rendering",
 				type: "Pattern",
 				body: "# Kept\nSame.\n\n# Changed\nNew <value>.",
-				existingBody: "# Kept\nSame.\n\n# Changed\nOld value.\n\n# Removed\nGone.",
+				existingBody:
+					"# Kept\nSame.\n\n# Changed\nOld value.\n\n# Removed\nGone.",
 			},
 		],
 	});
