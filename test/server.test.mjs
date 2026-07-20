@@ -7,11 +7,16 @@ import { randomUUID } from "node:crypto";
 import { networkInterfaces, tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { isRemoteSession } from "../lib/server.mjs";
+import { doneHtml, isRemoteSession } from "../lib/server.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SERVER = join(root, "skills", "iterator", "server.mjs");
 const CANCEL_GRACE_MS = 250;
+
+test("completion page identifies the active Agent", () => {
+	assert.match(doneHtml(), /Sent to Agent/);
+	assert.doesNotMatch(doneHtml(), /Sent to Claude/);
+});
 
 /**
  * Spawn the shared UI server with a payload on stdin; resolve once it prints
@@ -989,7 +994,7 @@ test("POST /submit with a non-JSON body emits a JSON error line, never garbage",
 	});
 	const code = await waitExit(io.child);
 	assert.equal(code, 0);
-	const line = JSON.parse(io.stdout().trim());
+	const line = parseJson(io.stdout().trim());
 	assert.equal(line.type, "error");
 	assert.match(line.error, /malformed/);
 });

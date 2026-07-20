@@ -11,6 +11,7 @@ last_memorized_commit: c5b75e3e4b034bc80a1600e57249e162639d32a8
 * [Backlog](backlog/index.md) - Saved ideas and bugs outside active plan features.
 * [Settings](settings.md) - Project settings (auto mode, models, git flow).
 * [Features](features/) - One document per implementation feature.
+* [Plan](plan.md) - Make red-mode test review code-exact and replace user-facing Claude labels with Agent.
 * [Architecture](/architecture/) - How the system is structured.
 * [Decisions](/decisions/) - Durable product and implementation choices agents should preserve.
 * [Patterns & Conventions](/patterns/) - How code and workflows are written in this repo.

@@ -2,9 +2,24 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+	mkdtempSync,
+	mkdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+test("dashboard dispatch identifies the active Agent", () => {
+	const extension = readFileSync(
+		new URL("../extensions/iterator.js", import.meta.url),
+		"utf8",
+	);
+	assert.match(extension, /Dispatched \$\{cmd\} — Agent is working…/);
+	assert.doesNotMatch(extension, /Dispatched \$\{cmd\} — Claude is working…/);
+});
 
 const require = createRequire(import.meta.url);
 const extensionDependenciesAvailable = (() => {

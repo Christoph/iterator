@@ -1,6 +1,10 @@
 # iterator update log
 
 ## 2026-07-20
+* **Implementation**: Committed feature(agent-neutral-shell-copy) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Update**: Applied 3 feature adjustment(s).
+* **Creation**: 3 feature(s) written.
+* **Creation**: Plan "Verify red test code and use Agent wording" approved on branch iterator/safe-role-model-handoff. Consumed 3 selected backlog candidate(s).
 * **Backlog**: select remove-text-erferences-to-claude (selected).
 * **Backlog**: select red-mode-tests-should-show-the-real-test-code-for-verification-2 (selected).
 * **Backlog**: select red-mode-tests-should-show-the-real-test-code-for-verification (selected).

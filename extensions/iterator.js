@@ -1161,7 +1161,7 @@ export default function iteratorExtension(pi) {
 					}
 					const cmd = actionToCommand(result);
 					if (!cmd) return;
-					session.showWorking(`Dispatched ${cmd} — Claude is working…`);
+					session.showWorking(`Dispatched ${cmd} — Agent is working…`);
 					dispatch(cmd);
 				},
 				onControl,
