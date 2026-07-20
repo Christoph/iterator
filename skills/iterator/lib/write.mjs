@@ -1373,9 +1373,7 @@ function writeUsage(payload, root) {
 	if (hasPrices) regenerate(root);
 	return {
 		op: "usage",
-		written: hasPrices
-			? ["settings.md", "usage.md", "index.md"]
-			: ["usage.md"],
+		written: hasPrices ? ["settings.md", "usage.md", "index.md"] : ["usage.md"],
 		rows: rows.length,
 		prices: Object.keys(prices).length,
 		grand: usageGrandTotal(totals),

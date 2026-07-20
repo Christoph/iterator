@@ -2,12 +2,12 @@
 type: Feature
 title: Persist budget prices across plans
 description: Budget saves a project-wide model price table that survives retirement, prefills later plans, and remains updateable or clearable.
-status: implemented
+status: done
 size: medium
 depends_on: []
 files: ["lib/settings.mjs", "lib/gather.mjs", "lib/write.mjs", "lib/views/usage.mjs", "test/settings.test.mjs", "test/write.test.mjs"]
 memories: [architecture/workflow-state-ownership, decisions/backlog-planning-and-feature-waves, decisions/consume-accepted-backlog-ideas, decisions/focus-feature-execution-and-dashboard-ownership, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset, decisions/memory-relevance-usage-and-dashboard-recovery, decisions/parallel-feature-waves-and-consolidated-review]
-timestamp: "2026-07-20T18:05:09.337Z"
+timestamp: "2026-07-20T18:05:48.942Z"
 tags: []
 tests_status: green
 commits:
@@ -18,6 +18,7 @@ commits:
     kind: implement
     date: 2026-07-20
 reviewed: 2026-07-20
+done: 2026-07-20
 ---
 
 # Implementation notes

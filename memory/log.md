@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-20
+* **Review**: Accepted [Persist budget prices across plans](/features/persistent-budget-prices.md) (committed as feature(persistent-budget-prices)).
 * **Implementation**: Committed feature(persistent-budget-prices) on branch iterator/safe-role-model-handoff; awaiting review.
 * **Review**: Reviewed [Persist budget prices across plans](/features/persistent-budget-prices.md); changes (agent).
 * **Implementation**: Committed feature(persistent-budget-prices) on branch iterator/safe-role-model-handoff; awaiting review.
