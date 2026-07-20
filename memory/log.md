@@ -1,5 +1,22 @@
 # iterator update log
 
+## 2026-07-20
+* **Implementation**: Committed feature(safe-role-model-handoff) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Backlog**: create red-mode-tests-should-show-the-real-test-code-for-verification-2.
+* **Backlog**: create red-mode-tests-should-show-the-real-test-code-for-verification.
+* **Update**: Applied 1 feature adjustment(s).
+* **Creation**: 1 feature(s) written.
+* **Creation**: Plan "Fix post-test role model credential corruption" approved on branch main. Consumed 1 selected backlog candidate(s).
+* **Backlog**: select after-red-mode-test-creation-iterator-doesnt-work (selected).
+* **Backlog**: create after-red-mode-test-creation-iterator-doesnt-work.
+* **Backlog**: create after-adding-tests-its-not-clear-that-they-are-there.
+* **Backlog**: create openeing-setting-should-be-an-overaly.
+* **Backlog**: create move-all-active-plan-related-infos-to-work.
+* **Backlog**: create after-feature-show-work-tab.
+* **Backlog**: create like-in-plan-allow-in-the-idea-baclkog-inputs-the-same-file-seleciton-logic-with.
+* **Backlog**: create when-adding-a-plan-just-create-the-features.
+* **Backlog**: create it-looks-as-if-the-agent-isnt-using-new-before-a-new-feature-is-implemented-in-either-auto-or-manual-mode.
+
 ## 2026-07-19
 * **Retirement**: Plan "Improve memory relevance, usage costs, and dashboard recovery" condensed into [Memory relevance, usage costs, and dashboard recovery](/decisions/memory-relevance-usage-and-dashboard-recovery.md).
 

@@ -535,7 +535,9 @@ export default function iteratorExtension(pi) {
 	let featureWave = null; // fixed ready-feature snapshot; review stays manual
 	let preAutoModel = null; // the user's model before the first role switch
 	let pendingRole = null; // exact role command captured from the current input
-	let manualRoleActive = false; // this turn switched a manual role model
+	// A before_agent_start/agent_end pair can overlap a queued follow-up. Keep
+	// restoration ownership in FIFO order instead of a shared boolean.
+	const manualRoleTurns = [];
 
 	const notifyUi = (msg, level = "info") => {
 		if (lastCtx?.hasUI) lastCtx.ui.notify(`iterator: ${msg}`, level);
@@ -556,9 +558,15 @@ export default function iteratorExtension(pi) {
 			streamingBehavior: "followUp", // older runtimes take the raw option name
 		});
 
-	/** Apply a role's model/thinking overrides; remember the user's model once. */
+	/**
+	 * Apply a role's model/thinking overrides and report whether the model
+	 * actually changed. Only a successful switch may arm restoration: a failed
+	 * provider lookup must leave the active session model (and its credentials)
+	 * completely untouched.
+	 */
 	const applyRole = async (role, settings) => {
 		const spec = roleModelSpec(settings, role);
+		let switchedModel = false;
 		try {
 			if (spec.model) {
 				const slash = spec.model.indexOf("/");
@@ -566,13 +574,17 @@ export default function iteratorExtension(pi) {
 				const id = spec.model.slice(slash + 1);
 				const m = lastCtx?.modelRegistry?.find?.(provider, id);
 				if (m) {
-					if (!preAutoModel) preAutoModel = lastCtx?.model || null;
+					const previousModel = preAutoModel || lastCtx?.model || null;
 					const ok = await pi.setModel(m);
-					if (!ok)
+					if (ok) {
+						if (!preAutoModel) preAutoModel = previousModel;
+						switchedModel = true;
+					} else {
 						notifyUi(
 							`no API key for ${spec.model} — staying on the active model`,
 							"warning",
 						);
+					}
 				} else {
 					notifyUi(
 						`unknown model ${spec.model} for ${role} — staying on the active model`,
@@ -587,6 +599,7 @@ export default function iteratorExtension(pi) {
 				"warning",
 			);
 		}
+		return switchedModel;
 	};
 
 	/** Restore the user's model after an automatic or manual role turn. */
@@ -1484,11 +1497,14 @@ export default function iteratorExtension(pi) {
 		rememberCtx(ctx);
 		const workOwner = session?.ensureWorking?.("AI is working…") ?? null;
 		agentWorkOwners.push(workOwner);
+		const manualRoleTurn = { switched: false };
+		manualRoleTurns.push(manualRoleTurn);
 		try {
 			const { hub, implement, settings, state } = await gatherSession(ctx.cwd);
-			if (pendingRole && state?.mode !== "auto" && !featureWave) {
-				await applyRole(pendingRole, settings);
-				manualRoleActive = true;
+			const role = pendingRole;
+			pendingRole = null; // role input belongs to exactly one agent turn
+			if (role && state?.mode !== "auto" && !featureWave) {
+				manualRoleTurn.switched = await applyRole(role, settings);
 			}
 			// Model selection also applies to /iterator-plan before a bundle exists;
 			// only the ambient bundle context depends on durable plan state.
@@ -1609,13 +1625,11 @@ export default function iteratorExtension(pi) {
 	pi.on("agent_end", async (_event, ctx) => {
 		rememberCtx(ctx);
 		const endedWorkOwner = agentWorkOwners.shift() ?? null;
+		const manualRoleTurn = manualRoleTurns.shift();
 		try {
 			invalidateSession(); // the turn may have changed files/commits
 			await flushUsage(ctx.cwd);
-			if (manualRoleActive) {
-				manualRoleActive = false;
-				await restoreModel();
-			}
+			if (manualRoleTurn?.switched) await restoreModel();
 			await refreshHub(ctx.cwd);
 			await refreshStatus(ctx);
 			// Keep abortPending set until this stale agent_end reaches its final
