@@ -1,6 +1,8 @@
 # iterator update log
 
 ## 2026-07-20
+* **Review**: Accepted [Settings dashboard modal](/features/settings-dashboard-modal.md) (committed as feature(settings-dashboard-modal)).
+* **Update**: Memorized [Settings modal preserves originating dashboard context](/decisions/settings-close-returns-to-work.md).
 * **Implementation**: Committed feature(settings-dashboard-modal) on branch iterator/safe-role-model-handoff; awaiting review.
 * **Review**: Reviewed [Active plan workspace](/features/active-plan-workspace.md); approved (agent).
 * **Review**: Accepted [Active plan workspace](/features/active-plan-workspace.md) (committed as feature(active-plan-workspace)).

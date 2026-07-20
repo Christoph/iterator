@@ -2,18 +2,19 @@
 type: Feature
 title: Settings dashboard modal
 description: Open project Settings as a modal above any dashboard tab and return to the exact originating context on save or close.
-status: implemented
+status: done
 size: medium
 depends_on: [active-plan-workspace]
 files: ["lib/session-server.mjs", "lib/views/settings.mjs", "extensions/iterator.js", "test/session-server.test.mjs", "test/ui.test.mjs"]
 memories: [pitfalls/cancel-now-after-grace-timer, architecture/browser-server-contract, architecture/package-and-skill-layout, decisions/backlog-planning-and-feature-waves, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset, decisions/memory-relevance-usage-and-dashboard-recovery, decisions/parallel-feature-waves-and-consolidated-review]
 conflicts: "[{\"decision\":\"decisions/settings-close-returns-to-work\",\"note\":\"The accepted plan replaces forced Work restoration with modal dismissal back to whichever tab and round opened Settings.\"}]"
-timestamp: "2026-07-20T14:35:16.061Z"
+timestamp: "2026-07-20T14:36:21.979Z"
 tags: []
 commits:
   - sha: 791f0a75c5cae0a78ca6839fa63f131d293597f5
     kind: implement
     date: 2026-07-20
+done: 2026-07-20
 ---
 
 # Implementation notes

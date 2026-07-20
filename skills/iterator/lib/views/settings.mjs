@@ -12,8 +12,8 @@
  *     { type:"settings", values:{<changed key>:<value>} }
  *     | { type:"settings-close" } when the shell-owned modal is dismissed.
  */
-import { renderPage } from '../ui.mjs';
-import { SETTINGS_DEFS } from '../settings.mjs';
+import { renderPage } from "../ui.mjs";
+import { SETTINGS_DEFS } from "../settings.mjs";
 
 const CSS = `
 .main{max-width:760px;margin:0 auto;padding:28px var(--sp-5)}
@@ -48,11 +48,41 @@ const BODY = `
 
 // Render order: behavior first, then models, then the knobs.
 const GROUPS = [
-  ['Flow', ['auto_mode', 'testing_default', 'review_required', 'branch_per_plan', 'worktree_per_plan', 'auto_retire_prompt']],
-  ['Models', ['planner_model', 'planner_thinking', 'implementer_model', 'implementer_thinking',
-    'tester_model', 'tester_thinking', 'reviewer_model', 'reviewer_thinking',
-    'plan_reviewer_model', 'plan_reviewer_thinking']],
-  ['Limits & bookkeeping', ['max_review_iterations', 'block_commit_on_leftovers', 'memorize_nudge', 'usage_ledger']],
+	[
+		"Flow",
+		[
+			"auto_mode",
+			"testing_default",
+			"review_required",
+			"branch_per_plan",
+			"worktree_per_plan",
+			"auto_retire_prompt",
+		],
+	],
+	[
+		"Models",
+		[
+			"planner_model",
+			"planner_thinking",
+			"implementer_model",
+			"implementer_thinking",
+			"tester_model",
+			"tester_thinking",
+			"reviewer_model",
+			"reviewer_thinking",
+			"plan_reviewer_model",
+			"plan_reviewer_thinking",
+		],
+	],
+	[
+		"Limits & bookkeeping",
+		[
+			"max_review_iterations",
+			"block_commit_on_leftovers",
+			"memorize_nudge",
+			"usage_ledger",
+		],
+	],
 ];
 
 const JS = `
@@ -162,9 +192,17 @@ function onPrimary(){
 `;
 
 export function render(data) {
-  return renderPage({
-    step: 'settings', subtitle: '/ settings', branch: data.branch, title: data.plan,
-    data, css: CSS, body: BODY, clientJs: JS,
-    primaryIdle: 'Close', primaryChanged: 'Save settings', cancel: false,
-  });
+	return renderPage({
+		step: "settings",
+		subtitle: "/ settings",
+		branch: data.branch,
+		title: data.plan,
+		data,
+		css: CSS,
+		body: BODY,
+		clientJs: JS,
+		primaryIdle: "Close",
+		primaryChanged: "Save settings",
+		cancel: false,
+	});
 }
