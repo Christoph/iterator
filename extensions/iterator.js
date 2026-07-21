@@ -366,10 +366,17 @@ export default function iteratorExtension(pi) {
 	const modelOptions = async () => {
 		try {
 			const models = (await lastCtx?.modelRegistry?.getAvailable?.()) || [];
-			const out = models.map((m) => ({
-				id: `${m.provider}/${m.id}`,
-				label: `${m.provider}/${m.id}`,
-			}));
+			// Carry the same verdict the save gate applies, so the form can show
+			// an unusable choice instead of letting it fail at provider call time.
+			const out = models.map((m) => {
+				const id = `${m.provider}/${m.id}`;
+				const verdict = classifyRoleModel(id, lastCtx?.model, models);
+				return {
+					id,
+					label: id,
+					...(verdict.ok ? {} : { unusable: true, note: verdict.detail }),
+				};
+			});
 			return out.length ? out : null;
 		} catch {
 			return null;
