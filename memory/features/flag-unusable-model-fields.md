@@ -2,17 +2,18 @@
 type: Feature
 title: Show unusable model choices in settings
 description: The settings model fields visibly mark a value the current session cannot use, and say so when the registry is unavailable.
-status: implemented
+status: done
 size: small
 depends_on: [validate-role-model-on-save]
 files: ["lib/views/settings.mjs", "test/ui.test.mjs", "test/client-js-parse.test.mjs"]
 memories: [pitfalls/client-js-template-literal-escaping, decisions/code-exact-red-test-review-and-agent-wording, decisions/focus-feature-execution-and-dashboard-ownership, decisions/iterator-dashboard-feature-workflow, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows, decisions/review-navigation-and-work-context, decisions/settings-close-returns-to-work]
-timestamp: "2026-07-21T20:17:54.559Z"
+timestamp: "2026-07-21T20:22:50.834Z"
 tags: []
 commits:
   - sha: 68facc8941e6b7cab9d48023b5e2e4d26f645c94
     kind: implement
     date: 2026-07-21
+done: 2026-07-21
 ---
 
 # Implementation notes

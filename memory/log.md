@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-21
+* **Review**: Accepted [Show unusable model choices in settings](/features/flag-unusable-model-fields.md) (committed as feature(flag-unusable-model-fields)).
 * **Implementation**: Committed feature(flag-unusable-model-fields) on branch iterator/make-configuration-and-memory-self-explanatory; awaiting review.
 * **Review**: Accepted [Reject unusable role models at save time](/features/validate-role-model-on-save.md) (committed as feature(validate-role-model-on-save)).
 * **Review**: Accepted [Teach the bundle to explain its own use](/features/self-describing-bundle-usage.md) (committed as feature(self-describing-bundle-usage)).
