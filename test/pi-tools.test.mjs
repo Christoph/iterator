@@ -809,17 +809,12 @@ test("runtime role model resolution preserves managed model objects", () => {
 		baseUrl: "https://api.openai.com",
 	};
 	let registryLookups = 0;
-	const target = resolveRoleModel(
-		"openai-codex/gpt-5.6-sol",
-		active,
-		null,
-		{
-			find() {
-				registryLookups += 1;
-				return direct;
-			},
+	const target = resolveRoleModel("openai-codex/gpt-5.6-sol", active, null, {
+		find() {
+			registryLookups += 1;
+			return direct;
 		},
-	);
+	});
 	assert.equal(target.model, active);
 	assert.equal(target.switchRequired, false);
 	assert.equal(registryLookups, 0);
@@ -832,12 +827,9 @@ test("runtime role model resolution reuses the restoration model before registry
 		id: "gpt-5.6-sol",
 		baseUrl: "https://managed-proxy.test",
 	};
-	const target = resolveRoleModel(
-		"openai-codex/gpt-5.6-sol",
-		active,
-		restore,
-		{ find: () => assert.fail("registry should not replace runtime model") },
-	);
+	const target = resolveRoleModel("openai-codex/gpt-5.6-sol", active, restore, {
+		find: () => assert.fail("registry should not replace runtime model"),
+	});
 	assert.equal(target.model, restore);
 	assert.equal(target.switchRequired, true);
 });

@@ -5,7 +5,8 @@ description: Move active plan creation to Work immediately and preserve Pi runti
 status: approved
 branch: iterator/safe-role-model-handoff
 created: 2026-07-21
-timestamp: 2026-07-21T13:59:28.635Z
+timestamp: "2026-07-21T14:12:11.619Z"
+plan_reviewed: 2026-07-21
 ---
 
 # Goal
@@ -36,3 +37,16 @@ Make Iterator plan creation visibly move from Planning to the Work progress surf
 
 * [Activate Work when planning starts](/features/activate-work-on-plan-start.md) - Starting a plan from Planning immediately opens the Work progress surface while preserving the later plan review and approval landings.
 * [Preserve runtime role-model authentication](/features/preserve-runtime-role-model.md) - Configured Iterator roles retain Pi’s active runtime model routing and correctly recognize modern void-returning model switches.
+
+# Plan review
+
+## 2026-07-21 _(agent review: openai-codex/gpt-5.6-sol)_
+
+## Clean bill
+
+- **Goal coverage:** `eadb89b` and `37a06f5` intentionally activate Work before plan dispatch and preserve the requested action through refresh/reporting failures. `dc8a42c` prevents an exact configured provider/id from replacing Pi’s active or restorable runtime model object with a direct registry object.
+- **Architecture and key decisions:** Dashboard activation remains an explicit extension-owned landing; ordinary refresh behavior and later plan-review/approval navigation are unchanged. Model identity/resolution is pure in `lib/pi-tools.mjs`, modern void `setModel()` success and legacy failure behavior are explicit, and no credential sentinel, provider probe, workflow status, setting, dependency, or visual redesign was introduced.
+- **Verification:** Focused behavioral tests cover refresh rejection, runtime model preservation, restoration-object reuse, registry fallback, void/boolean switch results, and thrown failures. The synchronized full suite passed with 400 tests and 6 environment-dependent skips.
+- **Scope and loose ends:** All two features are accepted as done; the three feature commits contain only the planned extension, helper, and regression-test changes, with no introduced TODO markers or unexplained scope drift.
+
+The completed work matches the approved plan with no findings.

@@ -54,11 +54,7 @@ test("plan dispatch survives a failed Work refresh exactly once", async () => {
 		() => calls.push("dispatch"),
 		(error) => calls.push(`warning: ${error.message}`),
 	);
-	assert.deepEqual(calls, [
-		"refresh",
-		"warning: gather failed",
-		"dispatch",
-	]);
+	assert.deepEqual(calls, ["refresh", "warning: gather failed", "dispatch"]);
 });
 
 test("plan dispatch survives a broken refresh reporter", async () => {

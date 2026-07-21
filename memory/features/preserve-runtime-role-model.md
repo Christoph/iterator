@@ -7,13 +7,14 @@ size: medium
 depends_on: []
 files: ["lib/pi-tools.mjs", "extensions/iterator.js", "test/pi-tools.test.mjs", "test/extension-model-lifecycle.test.mjs"]
 memories: [architecture/package-and-skill-layout, decisions/auto-plan-review-terminal-reset, decisions/backlog-planning-and-feature-waves, decisions/code-exact-red-test-review-and-agent-wording, decisions/focus-feature-execution-and-dashboard-ownership, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset, decisions/memory-relevance-usage-and-dashboard-recovery]
-timestamp: "2026-07-21T14:11:21.481Z"
+timestamp: "2026-07-21T14:11:25.612Z"
 tags: []
 commits:
   - sha: dc8a42c454df3c803ddae9b2959cab01abaa004d
     kind: implement
     date: 2026-07-21
 done: 2026-07-21
+reviewed: 2026-07-21
 ---
 
 # Implementation notes
@@ -40,3 +41,8 @@ export function roleModelSpec(settings, role) {
 # Blast radius
 
 Manual role turns, automatic role handoffs, model restoration, and Settings-selected planner/tester/implementer/reviewer models.
+
+# Review
+
+## 2026-07-21
+* **Approved** _(agent review: openai-codex/gpt-5.6-sol)_ — Approved: role resolution now preserves active or restorable runtime model objects before registry fallback, avoids redundant proxy-breaking switches, treats void `setModel` resolution as success, and retains explicit-false/throw failure isolation with focused regressions.
