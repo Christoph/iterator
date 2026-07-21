@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-21
+* **Review**: Accepted [Preserve runtime role-model authentication](/features/preserve-runtime-role-model.md) (committed as feature(preserve-runtime-role-model)).
 * **Implementation**: Committed feature(preserve-runtime-role-model) on branch iterator/safe-role-model-handoff; awaiting review.
 * **Review**: Reviewed [Activate Work when planning starts](/features/activate-work-on-plan-start.md); approved (agent).
 * **Review**: Accepted [Activate Work when planning starts](/features/activate-work-on-plan-start.md) (committed as feature(activate-work-on-plan-start)).
