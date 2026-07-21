@@ -2,12 +2,12 @@
 type: Feature
 title: Activate Work when planning starts
 description: Starting a plan from Planning immediately opens the Work progress surface while preserving the later plan review and approval landings.
-status: implemented
+status: done
 size: small
 depends_on: []
 files: ["extensions/iterator.js", "test/extension-work-activation.test.mjs"]
 memories: [architecture/package-and-skill-layout, decisions/auto-plan-review-terminal-reset, decisions/backlog-planning-and-feature-waves, decisions/code-exact-red-test-review-and-agent-wording, decisions/focus-feature-execution-and-dashboard-ownership, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset, decisions/memory-relevance-usage-and-dashboard-recovery]
-timestamp: "2026-07-21T14:05:11.641Z"
+timestamp: "2026-07-21T14:05:59.326Z"
 tags: []
 commits:
   - sha: eadb89bf9ca7fc3e753bb78d11cc2f4fb114971b
@@ -17,6 +17,7 @@ commits:
     kind: implement
     date: 2026-07-21
 reviewed: 2026-07-21
+done: 2026-07-21
 ---
 
 # Implementation notes

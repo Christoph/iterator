@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-21
+* **Review**: Accepted [Activate Work when planning starts](/features/activate-work-on-plan-start.md) (committed as feature(activate-work-on-plan-start)).
 * **Implementation**: Committed feature(activate-work-on-plan-start) on branch iterator/safe-role-model-handoff; awaiting review.
 * **Backlog**: create after-initial-install-no-update-possible.
 * **Review**: Reviewed [Activate Work when planning starts](/features/activate-work-on-plan-start.md); changes (agent).
