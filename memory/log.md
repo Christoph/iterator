@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-21
+* **Retirement**: Plan "Focus plan starts and preserve managed model authentication" condensed into [Start plans in Work and reuse runtime models](/decisions/work-first-plan-start-and-runtime-model-reuse.md).
 * **Plan review**: Whole-plan review recorded (agent).
 * **Review**: Reviewed [Preserve runtime role-model authentication](/features/preserve-runtime-role-model.md); approved (agent).
 * **Review**: Accepted [Preserve runtime role-model authentication](/features/preserve-runtime-role-model.md) (committed as feature(preserve-runtime-role-model)).
