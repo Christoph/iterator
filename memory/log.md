@@ -1,6 +1,10 @@
 # iterator update log
 
 ## 2026-07-21
+* **Implementation**: Committed feature(self-describing-bundle-usage) on branch iterator/make-configuration-and-memory-self-explanatory; awaiting review.
+* **Update**: Applied 3 feature adjustment(s).
+* Feature breakdown drafted in Claude Code for the self-explanatory configuration and memory plan
+* Plan approved in Claude Code: settings-time role model validation and a self-describing memory bundle
 * **Retirement**: Plan "Focus plan starts and preserve managed model authentication" condensed into [Start plans in Work and reuse runtime models](/decisions/work-first-plan-start-and-runtime-model-reuse.md).
 * **Plan review**: Whole-plan review recorded (agent).
 * **Review**: Reviewed [Preserve runtime role-model authentication](/features/preserve-runtime-role-model.md); approved (agent).

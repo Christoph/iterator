@@ -335,6 +335,57 @@ export const OKF_AREAS = {
 
 export const OKF_AREA_NAMES = Object.keys(OKF_AREAS);
 
+// ---------------------------------------------------------------------------
+// The agent-facing bundle contract (memory/EXTENSIONS.md)
+
+/**
+ * The body of memory/EXTENSIONS.md. It lives here rather than in write.mjs so
+ * gather can diff a bundle's stored copy against it (`contractStale`) without
+ * importing the writer — write.mjs already imports gather, so the reverse
+ * direction would be a cycle.
+ *
+ * This is the one document that must make the bundle usable by an agent with
+ * no iterator extension loaded, so it states the read order, which files are
+ * machine-owned, and how to discover the writer's ops.
+ */
+export const EXTENSIONS_BODY = `Guidance for agents and extensions reading or updating this bundle.
+
+# Reading
+
+* Start at \`memory/index.md\`, follow the area indexes, then open only the
+  relevant concept files (progressive disclosure — never bulk-read the bundle).
+* For work in progress, read \`memory/plan.md\` and \`memory/features/index.md\`
+  first: they say what is being built and where each feature stands.
+* Before changing code, read the concepts whose \`files:\` anchors match the
+  files you are about to touch — \`decisions/\` first (new work must not
+  silently contradict one), then architecture, patterns, pitfalls, and setup.
+* A concept ID is the bundle-relative path without \`.md\`; feature IDs/slugs
+  are their filenames without \`.md\` and are the stable identity used by tools.
+* Non-reserved concept files require YAML frontmatter with a non-empty
+  \`type\`; preserve unknown keys and tolerate unknown concept types.
+* \`memory/format.md\` documents the metadata schema for every document type in
+  this bundle; read it before authoring or parsing frontmatter.
+
+# Writing
+
+* Safe writes create or update one concept file at a time, keep markdown
+  human-readable and diffable, update \`timestamp\`, regenerate affected
+  indexes, and append a newest-first \`memory/log.md\` entry for meaningful
+  changes.
+* Knowledge writes should go through the iterator writer (\`write.mjs\` ops
+  \`memorize\` / \`apply-review\`); plan/feature writes through its plan/feature ops.
+* These files are machine-owned — never hand-edit them: \`index.md\` and every
+  area \`index.md\`, \`features/*.md\` frontmatter, \`features/index.md\`,
+  \`log.md\`, \`state.md\`, \`usage.md\`, \`settings.md\`, and the plan's
+  \`# Features\` section. Prose in a feature body is yours to write.
+* Discover the writer's contract instead of guessing: \`write.mjs --schema\`
+  lists every op and \`write.mjs --schema <op>\` prints one op's payload. The
+  writer validates before writing and writes nothing on failure.
+* Derived state (a feature's readiness, what it is waiting on, the plan's
+  stage) comes from \`gather.mjs --step <step>\`. Render what it reports; do
+  not recompute it from raw statuses.
+`;
+
 /** Rebuild an area index's bullet list, preserving its heading and prose. */
 export function regenerateAreaIndex(memDir, area) {
 	const dir = join(memDir, area);

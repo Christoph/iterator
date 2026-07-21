@@ -41,6 +41,30 @@ never conclude "the knowledge base looks healthy, nothing to do" from the
 inventory alone. An all-`keep` payload is still a valid round — it shows the
 user the current state and lets them prune.
 
+## Check the bundle's self-description
+
+The bundle must stay usable by an agent with no iterator extension loaded, so
+repair its two self-describing documents before reviewing concepts. The same
+knowledge gather reports them:
+
+- `formatMissing` / `formatStale` — `memory/format.md` (the metadata schema)
+  is absent or has drifted from the current template.
+- `contractMissing` / `contractStale` — `memory/EXTENSIONS.md` (the read/write
+  contract: read order, machine-owned files, how to discover writer ops) is
+  absent or predates the current contract rules.
+
+Repair whichever is flagged — both writes are idempotent, and a stale copy is
+overwritten with the current text (a project-specific preamble must be passed
+again if the bundle had one):
+
+```bash
+echo '{"op":"refresh-format"}' | node <skill-dir>/../iterator/write.mjs
+echo '{"op":"extensions"}' | node <skill-dir>/../iterator/write.mjs
+```
+
+Report what was refreshed. When none of the four flags is set, say so and move
+on — this check never blocks the review round.
+
 ## Staleness and attachment scan
 
 Beyond the gathered `stale` flags (frontmatter `files:` vs `git ls-files`),

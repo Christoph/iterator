@@ -4,11 +4,11 @@ title: Runtime state
 description: Machine-owned iterator flow state — never hand-edited.
 mode: manual
 paused: false
-phase: done
+phase: idle
 active_feature: null
 strikes: "{}"
 escalation: null
-timestamp: 2026-07-21T14:12:11.624Z
+timestamp: 2026-07-21T19:41:10.265Z
 ---
 
 Runtime flow state; read via gather, written only by the state op.
