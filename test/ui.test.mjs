@@ -746,6 +746,53 @@ test("planning hero goal box persists an unsent draft and clears it on plan star
 	assert.match(html, /textarea\.goal\{[^}]*min-height:132px/);
 });
 
+test("Settings marks a model this session cannot use and never derives that verdict", async () => {
+	const { render: settings } = await import("../lib/views/settings.mjs");
+	const html = settings({
+		branch: "main",
+		plan: "P",
+		defined: true,
+		settings: { planner_model: "openai/gpt-5.6-sol" },
+		models: [
+			{ id: "openai-codex/gpt-5.6-sol", label: "openai-codex/gpt-5.6-sol" },
+			{
+				id: "openai/gpt-5.6-sol",
+				label: "openai/gpt-5.6-sol",
+				unusable: true,
+				note: "routes around the active provider",
+			},
+		],
+	});
+	// The supplied verdict is rendered; the client never recomputes it.
+	assert.match(html, /routes around the active provider/);
+	assert.match(html, /dataset\.unusable/);
+	assert.doesNotMatch(html, /classifyRoleModel/);
+	assert.match(html, /ctlwarn/);
+});
+
+test("Settings says so when no model registry rode along", async () => {
+	const { render: settings } = await import("../lib/views/settings.mjs");
+	const withRegistry = settings({
+		branch: "main",
+		plan: "P",
+		defined: true,
+		settings: {},
+		models: [{ id: "openai-codex/gpt-5.6-sol", label: "x" }],
+	});
+	const without = settings({
+		branch: "main",
+		plan: "P",
+		defined: true,
+		settings: {},
+	});
+	// A plain text box must not pass for a validated field.
+	assert.match(without, /model list unavailable/);
+	assert.match(withRegistry, /model list unavailable/);
+	// Both branches ship in one script; the fallback is chosen at render time
+	// by the Array.isArray guard, so assert the guard itself is intact.
+	assert.match(without, /Array\.isArray\(D\.models\)/);
+});
+
 test("Settings closes through the shell modal without a cancellation beacon", async () => {
 	const { render: settings } = await import("../lib/views/settings.mjs");
 	const html = settings({

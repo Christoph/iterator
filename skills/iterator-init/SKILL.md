@@ -38,9 +38,12 @@ writer seeds `last_memorized_commit`. React and finish per PROTOCOL.md.
 ## After approval: the extension contract
 
 One more deterministic write — the `extensions` op creates
-`memory/EXTENSIONS.md` (the extension-facing memory contract: progressive
-disclosure, concept IDs, safe-write rules, writer ops) and links it from the
-root index; it is idempotent:
+`memory/EXTENSIONS.md` (the agent-facing memory contract: read order,
+progressive disclosure, concept IDs, machine-owned files, safe-write rules,
+how to discover writer ops) and links it from the root index. It also seeds
+`memory/format.md` (the metadata schema) when the bundle has none, so a
+knowledge-only bundle still describes itself to an agent running without the
+iterator extension. It is idempotent:
 
 ```bash
 echo '{"op":"extensions"}' | node <skill-dir>/../iterator/write.mjs
@@ -53,7 +56,8 @@ contract notes beyond the standard boilerplate.
 
 Report created/accepted/rejected counts from `applied` (`applied.summary` is
 a ready-made line) and mention that `memory/EXTENSIONS.md` was created for
-other extensions.
+other extensions — naming `memory/format.md` too when the op's `written` list
+includes it.
 
 When the invocation carries the Planning hero's continuation instruction and
 saved goal (`when initialization finishes, continue into /skill:iterator-plan

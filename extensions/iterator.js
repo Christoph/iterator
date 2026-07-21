@@ -57,6 +57,7 @@ import {
 	autoCompleteMessage,
 	AUTO_PHASE_FOR_STEP,
 	bundleExists,
+	classifyRoleModel,
 	featuresDirEntries,
 	composeAmbientContext,
 	completeFeatureWaveAbort,
@@ -365,20 +366,57 @@ export default function iteratorExtension(pi) {
 	const modelOptions = async () => {
 		try {
 			const models = (await lastCtx?.modelRegistry?.getAvailable?.()) || [];
-			const out = models.map((m) => ({
-				id: `${m.provider}/${m.id}`,
-				label: `${m.provider}/${m.id}`,
-			}));
+			// Carry the same verdict the save gate applies, so the form can show
+			// an unusable choice instead of letting it fail at provider call time.
+			const out = models.map((m) => {
+				const id = `${m.provider}/${m.id}`;
+				const verdict = classifyRoleModel(id, lastCtx?.model, models);
+				return {
+					id,
+					label: id,
+					...(verdict.ok ? {} : { unusable: true, note: verdict.detail }),
+				};
+			});
 			return out.length ? out : null;
 		} catch {
 			return null;
 		}
 	};
 
+	/**
+	 * Refuse role models this session cannot route before anything is written —
+	 * an unusable choice is otherwise invisible until the provider rejects it
+	 * mid-turn, far from the settings form that caused it.
+	 */
+	const unusableRoleModels = async (values) => {
+		const keys = Object.keys(values || {}).filter((k) =>
+			k.endsWith("_model"),
+		);
+		if (!keys.length) return [];
+		const available = (await lastCtx?.modelRegistry?.getAvailable?.()) || [];
+		if (!available.length) return [];
+		return keys
+			.map((key) => ({
+				key,
+				verdict: classifyRoleModel(values[key], lastCtx?.model, available),
+			}))
+			.filter((r) => !r.verdict.ok)
+			.map(
+				({ key, verdict }) =>
+					`${key}: ${verdict.detail}` +
+					(verdict.suggestion ? ` — did you mean ${verdict.suggestion}?` : ""),
+			);
+	};
+
 	/** Deterministically write the settings op and refresh the dashboard. */
 	const saveSettings = async (values) => {
 		const cwd = ctxCwd();
 		try {
+			// Throw rather than return: the catch below is the one place that
+			// reports a failed save, so a headless caller cannot silently lose
+			// the write the way an early return would let it.
+			const unusable = await unusableRoleModels(values);
+			if (unusable.length) throw new Error(unusable.join("; "));
 			const result = await runJson(scriptPath("write"), [], {
 				cwd,
 				stdin: JSON.stringify({ op: "settings", values }),

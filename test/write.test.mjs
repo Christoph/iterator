@@ -2240,6 +2240,51 @@ test("extensions op writes the contract file and links it from the root index", 
 	}
 });
 
+test("extensions op seeds format.md for an init-only bundle, once", () => {
+	const root = makeRepo();
+	try {
+		// /iterator-init writes the knowledge side with no plan, so the plan
+		// op's format.md copy never ran — the contract still points at it.
+		mkdirSync(join(root, "memory"), { recursive: true });
+		writeFileSync(join(root, "memory", "index.md"), OKF_INDEX);
+		assert.ok(!existsSync(join(root, "memory", "format.md")));
+
+		const res = applyOp({ op: "extensions" }, root);
+		assert.deepEqual(res.written, [
+			"EXTENSIONS.md",
+			"format.md",
+			"index.md",
+			"log.md",
+		]);
+		assert.match(read(root, "format.md"), /iterator memory format/);
+
+		// Copied verbatim once: a hand-edited bundle copy is never clobbered.
+		writeFileSync(join(root, "memory", "format.md"), "# Local edits\n");
+		const again = applyOp({ op: "extensions" }, root);
+		assert.deepEqual(again.written, ["EXTENSIONS.md", "index.md", "log.md"]);
+		assert.equal(read(root, "format.md"), "# Local edits\n");
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("the extension contract tells a no-extension agent how to use the bundle", () => {
+	const root = makeRepo();
+	try {
+		applyOp(PLAN_OP, root);
+		applyOp({ op: "extensions" }, root);
+		const doc = read(root, "EXTENSIONS.md");
+		// The rules an agent cannot infer from the bundle's contents alone.
+		assert.match(doc, /plan\.md.*features\/index\.md|features\/index\.md/s);
+		assert.match(doc, /decisions\//);
+		assert.match(doc, /machine-owned/);
+		assert.match(doc, /--schema/);
+		assert.match(doc, /gather\.mjs/);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("features op warns about globs that match nothing in the repo", () => {
 	const root = makeWaveRepo();
 	try {

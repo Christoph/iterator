@@ -18,6 +18,7 @@ import {
 	modelMatchesSpec,
 	modelSwitchSucceeded,
 	parseModelSpec,
+	classifyRoleModel,
 	resolveRoleModel,
 	runJson,
 	scriptPath,
@@ -795,6 +796,58 @@ test("nextAutoAction escalates on conflicts, prior strikes, drafts, and stuck gr
 		ST(),
 	);
 	assert.match(a.reason, /cycle or missing/);
+});
+
+test("role model classification refuses the duplicate that routes around the host", () => {
+	// The real failure: one id listed under both the managed provider and the
+	// direct one, so the dropdown shows two identical-looking valid choices.
+	const available = [
+		{ provider: "openai-codex", id: "gpt-5.6-sol" },
+		{ provider: "openai", id: "gpt-5.6-sol" },
+	];
+	const active = { provider: "openai-codex", id: "gpt-5.6-sol" };
+
+	const bad = classifyRoleModel("openai/gpt-5.6-sol", active, available);
+	assert.equal(bad.ok, false);
+	assert.equal(bad.reason, "route");
+	assert.equal(bad.suggestion, "openai-codex/gpt-5.6-sol");
+
+	assert.equal(
+		classifyRoleModel("openai-codex/gpt-5.6-sol", active, available).ok,
+		true,
+	);
+});
+
+test("role model classification refuses unknown ids and passes legitimate providers", () => {
+	const available = [
+		{ provider: "openai-codex", id: "gpt-5.6-sol" },
+		{ provider: "anthropic", id: "claude-opus" },
+	];
+	const active = { provider: "openai-codex", id: "gpt-5.6-sol" };
+
+	const unknown = classifyRoleModel("openai/gpt-9", active, available);
+	assert.equal(unknown.ok, false);
+	assert.equal(unknown.reason, "unknown");
+	assert.equal(unknown.suggestion, null);
+
+	// Same id on a provider the registry does list -> name it as the fix.
+	assert.equal(
+		classifyRoleModel("openai/gpt-5.6-sol", active, available).suggestion,
+		"openai-codex/gpt-5.6-sol",
+	);
+
+	// A different provider with no same-id duplicate is genuinely usable and
+	// must stay settable — over-blocking would make valid models unreachable.
+	assert.equal(
+		classifyRoleModel("anthropic/claude-opus", active, available).ok,
+		true,
+	);
+
+	// 'active', blank, and an empty registry are never the classifier's call.
+	assert.equal(classifyRoleModel("active", active, available).ok, true);
+	assert.equal(classifyRoleModel("", active, available).ok, true);
+	assert.equal(classifyRoleModel("openai/gpt-9", active, []).ok, true);
+	assert.equal(classifyRoleModel("nonsense", active, available).reason, "malformed");
 });
 
 test("runtime role model resolution preserves managed model objects", () => {

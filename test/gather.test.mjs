@@ -25,6 +25,7 @@ import {
 	globToRegExp,
 	matchConcepts,
 } from "../lib/gather.mjs";
+import { EXTENSIONS_BODY } from "../lib/bundle.mjs";
 
 const git = (dir, ...args) =>
 	execFileSync("git", args, {
@@ -858,6 +859,34 @@ test("gather knowledge reports feature memory pressure and dangling references",
 		assert.deepEqual(auth0.matchedByFeatures, ["auth-middleware"]);
 		assert.match(payload.advice, /dangling feature reference/);
 		assert.match(payload.advice, /over-limit feature/);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("gather knowledge flags a missing or outdated extension contract", () => {
+	const root = makeKnowledgeFixture();
+	try {
+		// No EXTENSIONS.md yet — /iterator-init never ran on this bundle.
+		let payload = gatherKnowledge(root);
+		assert.equal(payload.contractMissing, true);
+		assert.equal(payload.contractStale, false);
+
+		// A copy predating the current contract rules must read as stale...
+		writeFileSync(
+			join(root, "memory", "EXTENSIONS.md"),
+			"---\ntype: Reference\n---\n\nOld contract text.\n",
+		);
+		payload = gatherKnowledge(root);
+		assert.equal(payload.contractMissing, false);
+		assert.equal(payload.contractStale, true);
+
+		// ...while the current body is clean, even under a project preamble.
+		writeFileSync(
+			join(root, "memory", "EXTENSIONS.md"),
+			`---\ntype: Reference\n---\n\nProject note.\n\n${EXTENSIONS_BODY}`,
+		);
+		assert.equal(gatherKnowledge(root).contractStale, false);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
