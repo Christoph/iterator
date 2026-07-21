@@ -31,6 +31,20 @@ test("role switching accepts modern void success and preserves runtime matches",
 	assert.match(extension, /else if \(target\.switchRequired\)/);
 });
 
+test("saving settings refuses unusable role models before the writer runs", () => {
+	const extension = readFileSync(
+		new URL("../extensions/iterator.js", import.meta.url),
+		"utf8",
+	);
+	assert.match(extension, /classifyRoleModel\(/);
+	// The guard must precede the write and return, never merely warn.
+	const save = extension.slice(extension.indexOf("const saveSettings"));
+	const guard = save.indexOf("unusableRoleModels");
+	const write = save.indexOf('op: "settings"');
+	assert.ok(guard !== -1 && guard < write, "validation must gate the write");
+	assert.match(save.slice(guard, write), /return;/);
+});
+
 test("the settings step awaits the model registry so fields stay dropdowns", () => {
 	const extension = readFileSync(
 		new URL("../extensions/iterator.js", import.meta.url),

@@ -57,6 +57,7 @@ import {
 	autoCompleteMessage,
 	AUTO_PHASE_FOR_STEP,
 	bundleExists,
+	classifyRoleModel,
 	featuresDirEntries,
 	composeAmbientContext,
 	completeFeatureWaveAbort,
@@ -375,10 +376,44 @@ export default function iteratorExtension(pi) {
 		}
 	};
 
+	/**
+	 * Refuse role models this session cannot route before anything is written —
+	 * an unusable choice is otherwise invisible until the provider rejects it
+	 * mid-turn, far from the settings form that caused it.
+	 */
+	const unusableRoleModels = async (values) => {
+		const keys = Object.keys(values || {}).filter((k) =>
+			k.endsWith("_model"),
+		);
+		if (!keys.length) return [];
+		const available = (await lastCtx?.modelRegistry?.getAvailable?.()) || [];
+		if (!available.length) return [];
+		return keys
+			.map((key) => ({
+				key,
+				verdict: classifyRoleModel(values[key], lastCtx?.model, available),
+			}))
+			.filter((r) => !r.verdict.ok)
+			.map(
+				({ key, verdict }) =>
+					`${key}: ${verdict.detail}` +
+					(verdict.suggestion ? ` — did you mean ${verdict.suggestion}?` : ""),
+			);
+	};
+
 	/** Deterministically write the settings op and refresh the dashboard. */
 	const saveSettings = async (values) => {
 		const cwd = ctxCwd();
 		try {
+			const unusable = await unusableRoleModels(values);
+			if (unusable.length) {
+				if (lastCtx?.hasUI)
+					lastCtx.ui.notify(
+						`iterator: settings not saved — ${unusable.join("; ")}`,
+						"error",
+					);
+				return;
+			}
 			const result = await runJson(scriptPath("write"), [], {
 				cwd,
 				stdin: JSON.stringify({ op: "settings", values }),
