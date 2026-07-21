@@ -405,15 +405,11 @@ export default function iteratorExtension(pi) {
 	const saveSettings = async (values) => {
 		const cwd = ctxCwd();
 		try {
+			// Throw rather than return: the catch below is the one place that
+			// reports a failed save, so a headless caller cannot silently lose
+			// the write the way an early return would let it.
 			const unusable = await unusableRoleModels(values);
-			if (unusable.length) {
-				if (lastCtx?.hasUI)
-					lastCtx.ui.notify(
-						`iterator: settings not saved — ${unusable.join("; ")}`,
-						"error",
-					);
-				return;
-			}
+			if (unusable.length) throw new Error(unusable.join("; "));
 			const result = await runJson(scriptPath("write"), [], {
 				cwd,
 				stdin: JSON.stringify({ op: "settings", values }),
