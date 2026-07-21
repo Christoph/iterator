@@ -7,13 +7,14 @@ size: small
 depends_on: [validate-role-model-on-save]
 files: ["lib/views/settings.mjs", "test/ui.test.mjs", "test/client-js-parse.test.mjs"]
 memories: [pitfalls/client-js-template-literal-escaping, decisions/code-exact-red-test-review-and-agent-wording, decisions/focus-feature-execution-and-dashboard-ownership, decisions/iterator-dashboard-feature-workflow, decisions/parallel-feature-waves-and-consolidated-review, decisions/polish-dashboard-and-multi-agent-workflows, decisions/review-navigation-and-work-context, decisions/settings-close-returns-to-work]
-timestamp: "2026-07-21T20:22:50.834Z"
+timestamp: "2026-07-21T20:23:06.785Z"
 tags: []
 commits:
   - sha: 68facc8941e6b7cab9d48023b5e2e4d26f645c94
     kind: implement
     date: 2026-07-21
 done: 2026-07-21
+reviewed: 2026-07-21
 ---
 
 # Implementation notes
@@ -34,3 +35,8 @@ const MODELS = Array.isArray(D.models) ? D.models : null;
 # Blast radius
 
 Settings view rendering only.
+
+# Review
+
+## 2026-07-21
+* **Approved** — Verdict supplied by classifyRoleModel rides the payload; client renders it without re-deriving; fallback text input labeled unvalidated; 409/409 tests green.
