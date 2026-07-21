@@ -7,10 +7,13 @@ size: small
 depends_on: []
 files: ["extensions/iterator.js", "test/extension-work-activation.test.mjs"]
 memories: [architecture/package-and-skill-layout, decisions/auto-plan-review-terminal-reset, decisions/backlog-planning-and-feature-waves, decisions/code-exact-red-test-review-and-agent-wording, decisions/focus-feature-execution-and-dashboard-ownership, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset, decisions/memory-relevance-usage-and-dashboard-recovery]
-timestamp: "2026-07-21T14:05:11.572Z"
+timestamp: "2026-07-21T14:05:11.641Z"
 tags: []
 commits:
   - sha: eadb89bf9ca7fc3e753bb78d11cc2f4fb114971b
+    kind: implement
+    date: 2026-07-21
+  - sha: 37a06f5a6c19c7114ce0ae72a10f5c9b401040cf
     kind: implement
     date: 2026-07-21
 reviewed: 2026-07-21
