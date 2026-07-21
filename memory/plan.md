@@ -1,25 +1,25 @@
 ---
 type: Plan
-title: Finish auto mode after plan review
-description: Return the dashboard to completed manual state after the last automatic plan review records its report.
+title: Focus plan starts and preserve managed model authentication
+description: Move active plan creation to Work immediately and preserve Pi runtime model routing when applying role settings.
 status: approved
 branch: iterator/safe-role-model-handoff
-created: 2026-07-20
-timestamp: "2026-07-20T18:20:18.871Z"
-plan_reviewed: 2026-07-20
+created: 2026-07-21
+timestamp: "2026-07-21T14:12:11.619Z"
+plan_reviewed: 2026-07-21
 ---
 
 # Goal
 
-Make the final automatic plan-review transition reliably finish the auto run: after the final feature and plan review complete, clear stale auto state, release the Work UI from “Auto: plan-review”, and refresh it to the completed/retirable plan state.
+Make Iterator plan creation visibly move from Planning to the Work progress surface as soon as the planner starts, and make configured role models use Pi’s active runtime model/authentication safely so skill calls do not fail with the managed credential sent to a direct OpenAI endpoint.
 
 # Architecture
 
-- Preserve `lib/status.mjs` as the source of derived plan lifecycle state; the fix only converges runtime state held in `memory/state.md` and the extension’s owned Work overlay.
-- Extend the deterministic terminal path around `record-plan-review` / auto dispatch so an agent-authored final review records `plan_reviewed` and resets auto mode to manual, unpaused, terminal state with no active feature, strikes, or escalation. The transition must be idempotent for retries and must not reset a human-initiated plan review.
-- Harden `extensions/iterator.js`’s auto completion driver to recognize the recorded terminal review even if the originating agent turn is ending or session refresh races it, restore any role model once, clear its owned overlay, and refresh the Work hub from gathered state.
-- Cover the full transition in writer, auto-state-machine, extension lifecycle, and UI/session tests; develop in root `lib/` and extension code, then run `npm run sync` for shipped copies.
-- Follow `architecture/workflow-state-ownership`, `decisions/manual-role-models-and-runtime-reset`, and `decisions/focus-feature-execution-and-dashboard-ownership`: state is server-derived and terminal auto runs reset deterministically without browser-local lifecycle inference.
+- Extend the persistent dashboard dispatch seam in `extensions/iterator.js`: a Planning `plan` action intentionally refreshes and activates Work before showing the owned working overlay and dispatching `/skill:iterator-plan`; the later plan-review round may still activate Planning, and approval continues to land on Work, consistent with `architecture/browser-server-contract` and `decisions/review-navigation-and-work-context`.
+- Harden role-model application in `extensions/iterator.js` around Pi’s current extension API: resolve a configured provider/id that matches `ctx.model` to that exact active runtime model object instead of replacing it with `modelRegistry.find(...)`, preserving host/proxy routing and credentials.
+- Treat a resolved `pi.setModel()` call as success even when the modern API returns `void`; only an explicit legacy `false` result or a thrown error is failure. Keep restoration armed only after a real switch, preserving the FIFO/manual/auto ownership rules from `decisions/manual-role-models-and-runtime-reset` and `decisions/safe-role-model-restoration`.
+- Keep pure model identity/resolution policy in `lib/pi-tools.mjs`, consume it from the extension, and run `npm run sync` so the shipped skill copy remains aligned with `architecture/package-and-skill-layout`.
+- Add focused extension routing and model-lifecycle regressions for immediate Work activation, active runtime model preservation, void-return success, failure isolation, and one-time restoration; retain the existing full suite and design parameters without redesigning dashboard UI.
 
 # Dependencies
 
@@ -27,23 +27,26 @@ Make the final automatic plan-review transition reliably finish the auto run: af
 
 # Key decisions
 
-- An agent’s successful `record-plan-review` is the durable terminal boundary for an auto run; it clears stale runtime ownership before the next driver tick, while manual reviews retain their existing state.
-- The extension’s later `kickAuto` completion remains an idempotent convergence and UI-refresh path, not a second lifecycle authority.
-- A completed plan remains retirable rather than being auto-retired; this change only removes the stale working state.
-- No new dependencies or workflow statuses are introduced.
+- Starting Plan from Planning is an intentional Work landing because the active agent overlay is Work-owned; ordinary dashboard refreshes still preserve the user’s selected tab.
+- An exact provider/id match must retain `ctx.model` as the authoritative runtime model object so proxy/base-URL/auth metadata supplied by Pi is not discarded by a registry re-lookup.
+- Follow Pi’s modern `setModel` contract: successful resolution may return `undefined`; failure is an exception, while explicit `false` remains supported for older runtimes.
+- Do not probe providers or hard-code the `proxy-managed` credential sentinel; prevent the invalid direct-provider path structurally and leave genuinely unavailable alternate models on the current active model with a warning.
+- No workflow statuses, settings keys, external dependencies, or visual redesign are introduced.
 
 # Features
 
-* [Finalize auto mode after plan review](/features/finalize-auto-plan-review.md) - Agent plan-review completion resets durable auto state and refreshes Work so the final Auto step cannot remain stuck.
+* [Activate Work when planning starts](/features/activate-work-on-plan-start.md) - Starting a plan from Planning immediately opens the Work progress surface while preserving the later plan review and approval landings.
+* [Preserve runtime role-model authentication](/features/preserve-runtime-role-model.md) - Configured Iterator roles retain Pi’s active runtime model routing and correctly recognize modern void-returning model switches.
 
 # Plan review
 
-## 2026-07-20 _(agent review: openai-codex/gpt-5.6-sol)_
+## 2026-07-21 _(agent review: openai-codex/gpt-5.6-sol)_
 
-## Finding
+## Clean bill
 
-- **Goal coverage / terminal-boundary decision:** `a0f4243` makes `recordPlanReview` reset runtime ownership only when `b.state.mode === "auto" && !b.state.paused` (`lib/write.mjs`). If the user pauses auto mode while the plan-review agent is already running, the successful agent review still records `plan_reviewed` but returns `autoCompleted: false`; the extension therefore skips model restoration, overlay clearing, and the completed Work refresh, leaving the runtime in paused auto/reviewing state. This contradicts the plan’s unconditional agent-review terminal boundary and its reliability goal. The terminal transition should distinguish a stale/unrelated agent review without excluding an in-flight final review merely because pause was toggled, with regression coverage for that race.
+- **Goal coverage:** `eadb89b` and `37a06f5` intentionally activate Work before plan dispatch and preserve the requested action through refresh/reporting failures. `dc8a42c` prevents an exact configured provider/id from replacing Pi’s active or restorable runtime model object with a direct registry object.
+- **Architecture and key decisions:** Dashboard activation remains an explicit extension-owned landing; ordinary refresh behavior and later plan-review/approval navigation are unchanged. Model identity/resolution is pure in `lib/pi-tools.mjs`, modern void `setModel()` success and legacy failure behavior are explicit, and no credential sentinel, provider probe, workflow status, setting, dependency, or visual redesign was introduced.
+- **Verification:** Focused behavioral tests cover refresh rejection, runtime model preservation, restoration-object reuse, registry fallback, void/boolean switch results, and thrown failures. The synchronized full suite passed with 400 tests and 6 environment-dependent skips.
+- **Scope and loose ends:** All two features are accepted as done; the three feature commits contain only the planned extension, helper, and regression-test changes, with no introduced TODO markers or unexplained scope drift.
 
-## Otherwise verified
-
-The normal unpaused path durably resets state, delayed driver ticks are inert, manual reviews retain runtime ownership, both completion paths honor `auto_retire_prompt`, synced writer copies match, and the full suite passes (392 passed, 4 skipped). The only scope drift is a formatting-only `writeUsage` line in `a0f4243`, with no behavior change.
+The completed work matches the approved plan with no findings.

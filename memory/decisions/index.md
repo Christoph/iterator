@@ -3,9 +3,11 @@
 Durable product and implementation choices agents should preserve.
 
 * [Apply role models to manual turns and reset stale runtime state](/decisions/manual-role-models-and-runtime-reset.md) - Manual Iterator role commands temporarily select configured models, while approved plans and terminal auto runs reset runtime state deterministically.
+* [Auto plan review resets runtime state](/decisions/auto-plan-review-terminal-reset.md) - The recorded terminal auto plan review is the durable boundary that returns auto mode and the Work surface to a completed manual state.
 * [Backlog planning and parallel feature waves](/decisions/backlog-planning-and-feature-waves.md) - Keep low-risk backlog editing available during active work while implementing a fixed ready-feature wave and reviewing its commit-backed results together.
 * [Consume selected backlog ideas on plan approval](/decisions/consume-accepted-backlog-ideas.md) - Selected idea or bug candidates leave the backlog only after deterministic plan approval.
 * [Focus feature execution and dashboard ownership](/decisions/focus-feature-execution-and-dashboard-ownership.md) - Implementation now starts in fresh feature sessions, Work owns active plans, Settings preserves context as a shell modal, and red tests are explicit handoffs.
+* [Keep dependency-free CI minimal](/decisions/minimal-dependency-free-ci.md) - For this dependency-free Node.js package, CI runs the repository test suite once without an unnecessary Node matrix or setup step.
 * [Memory relevance, usage costs, and dashboard recovery](/decisions/memory-relevance-usage-and-dashboard-recovery.md) - Iterator now bounds implementation context, keeps knowledge/retirement changes reviewed, prices usage only from project-owned rates, and maintains an authoritative active-work dashboard state.
 * [Parallel feature waves and consolidated review](/decisions/parallel-feature-waves-and-consolidated-review.md) - The dashboard supports fixed dependency-ready implementation waves and commit-backed multi-feature review without weakening explicit acceptance.
 * [Persist budget prices across plans](/decisions/persistent-budget-prices.md) - Project-owned Budget rates now persist across plans while active and archived cost reports remain reproducible.

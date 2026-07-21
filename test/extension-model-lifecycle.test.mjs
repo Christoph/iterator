@@ -21,6 +21,16 @@ test("dashboard dispatch identifies the active Agent", () => {
 	assert.doesNotMatch(extension, /Dispatched \$\{cmd\} — Claude is working…/);
 });
 
+test("role switching accepts modern void success and preserves runtime matches", () => {
+	const extension = readFileSync(
+		new URL("../extensions/iterator.js", import.meta.url),
+		"utf8",
+	);
+	assert.match(extension, /resolveRoleModel\(/);
+	assert.match(extension, /if \(modelSwitchSucceeded\(result\)\)/);
+	assert.match(extension, /else if \(target\.switchRequired\)/);
+});
+
 test("agent plan review completion converges the auto dashboard immediately", () => {
 	const extension = readFileSync(
 		new URL("../extensions/iterator.js", import.meta.url),
@@ -92,7 +102,12 @@ function mockPi() {
 		setThinkingLevel() {},
 		async setModel(model) {
 			setModels.push(model);
-			return model !== overrideModel || pi.overrideSucceeds;
+			if (model === overrideModel && pi.overrideError) {
+				throw new Error("model auth unavailable");
+			}
+			if (model === overrideModel && pi.overrideReturnsFalse) return false;
+			// Current Pi resolves void on success.
+			return undefined;
 		},
 	};
 	return { pi, handlers, setModels, currentModel, overrideModel };
@@ -116,6 +131,7 @@ test("failed tester override does not restore or alter the following active impl
 	const root = fixture({ tester_model: "openai/override" });
 	try {
 		const { pi, handlers, setModels, currentModel, overrideModel } = mockPi();
+		pi.overrideReturnsFalse = true;
 		await iteratorExtension(pi);
 		const registry = { find: () => overrideModel };
 
@@ -137,13 +153,12 @@ test("failed tester override does not restore or alter the following active impl
 	}
 });
 
-test("successful manual override restores once and a role input is consumed by one turn", {
+test("void-returning manual override restores once and a role input is consumed by one turn", {
 	skip: !extensionDependenciesAvailable,
 }, async () => {
 	const root = fixture({ tester_model: "openai/override" });
 	try {
 		const { pi, handlers, setModels, currentModel, overrideModel } = mockPi();
-		pi.overrideSucceeds = true;
 		await iteratorExtension(pi);
 		const registry = { find: () => overrideModel };
 
@@ -155,6 +170,62 @@ test("successful manual override restores once and a role input is consumed by o
 		await handlers.get("agent_end")({}, { cwd: root, hasUI: false });
 
 		assert.deepEqual(setModels, [overrideModel, currentModel]);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("configured active identity keeps the runtime proxy model object", {
+	skip: !extensionDependenciesAvailable,
+}, async () => {
+	const root = fixture({ tester_model: "proxy/managed" });
+	try {
+		const { pi, handlers, setModels, currentModel } = mockPi();
+		await iteratorExtension(pi);
+		const registryModel = {
+			provider: "proxy",
+			id: "managed",
+			baseUrl: "https://direct-provider.invalid",
+		};
+
+		await handlers.get("input")({
+			text: "/iterator-test preserve-runtime-role-model",
+		});
+		await startTurn(
+			handlers,
+			root,
+			{ find: () => registryModel },
+			{ ...currentModel, baseUrl: "https://managed-proxy.test" },
+		);
+		await handlers.get("agent_end")({}, { cwd: root, hasUI: false });
+
+		assert.deepEqual(setModels, []);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("thrown model switch failure never arms restoration", {
+	skip: !extensionDependenciesAvailable,
+}, async () => {
+	const root = fixture({ tester_model: "openai/override" });
+	try {
+		const { pi, handlers, setModels, currentModel, overrideModel } = mockPi();
+		pi.overrideError = true;
+		await iteratorExtension(pi);
+
+		await handlers.get("input")({
+			text: "/iterator-test preserve-runtime-role-model",
+		});
+		await startTurn(
+			handlers,
+			root,
+			{ find: () => overrideModel },
+			currentModel,
+		);
+		await handlers.get("agent_end")({}, { cwd: root, hasUI: false });
+
+		assert.deepEqual(setModels, [overrideModel]);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
