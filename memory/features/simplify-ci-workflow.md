@@ -2,16 +2,17 @@
 type: Feature
 title: Simplify CI workflow
 description: Run the repository test suite once in a minimal GitHub Actions job without redundant Node setup or version-matrix executions.
-status: implemented
+status: done
 size: small
 depends_on: []
 files: [".github/workflows/ci.yml"]
-timestamp: "2026-07-21T09:32:12.847Z"
+timestamp: "2026-07-21T09:32:48.120Z"
 tags: []
 commits:
   - sha: 818959c39f190815932ac3d7f9189c7d02e01272
     kind: implement
     date: 2026-07-21
+done: 2026-07-21
 ---
 
 # Implementation notes

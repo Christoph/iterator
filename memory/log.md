@@ -1,6 +1,7 @@
 # iterator update log
 
 ## 2026-07-21
+* **Review**: Accepted [Simplify CI workflow](/features/simplify-ci-workflow.md) (committed as feature(simplify-ci-workflow)).
 * **Implementation**: Committed feature(simplify-ci-workflow) on branch iterator/safe-role-model-handoff; awaiting review.
 * **Update**: Applied 1 feature adjustment(s).
 * **Creation**: 1 feature(s) written.
