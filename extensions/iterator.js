@@ -65,12 +65,14 @@ import {
 	implementationCommand,
 	implementationHandoffState,
 	mergePayload,
+	modelSwitchSucceeded,
 	nextAutoAction,
 	nextFeatureWaveAction,
 	pauseFeatureWave,
 	projectRoot,
 	roleFromInput,
 	roleModelSpec,
+	resolveRoleModel,
 	runJson,
 	shouldApplyRole,
 	scriptPath,
@@ -665,14 +667,23 @@ export default function iteratorExtension(pi) {
 		let switchedModel = false;
 		try {
 			if (spec.model) {
-				const slash = spec.model.indexOf("/");
-				const provider = spec.model.slice(0, slash);
-				const id = spec.model.slice(slash + 1);
-				const m = lastCtx?.modelRegistry?.find?.(provider, id);
-				if (m) {
+				const target = resolveRoleModel(
+					spec.model,
+					lastCtx?.model,
+					preAutoModel,
+					lastCtx?.modelRegistry,
+				);
+				if (!target) {
+					notifyUi(
+						`unknown model ${spec.model} for ${role} — staying on the active model`,
+						"warning",
+					);
+				} else if (target.switchRequired) {
 					const previousModel = preAutoModel || lastCtx?.model || null;
-					const ok = await pi.setModel(m);
-					if (ok) {
+					const result = await pi.setModel(target.model);
+					// Modern Pi resolves void on success and throws on missing auth;
+					// retain explicit false support for older extension runtimes.
+					if (modelSwitchSucceeded(result)) {
 						if (!preAutoModel) preAutoModel = previousModel;
 						switchedModel = true;
 					} else {
@@ -681,12 +692,9 @@ export default function iteratorExtension(pi) {
 							"warning",
 						);
 					}
-				} else {
-					notifyUi(
-						`unknown model ${spec.model} for ${role} — staying on the active model`,
-						"warning",
-					);
 				}
+				// Otherwise the configured identity is already active. Keeping that
+				// exact object preserves Pi's host proxy routing and credentials.
 			}
 			if (spec.thinking) pi.setThinkingLevel(spec.thinking);
 		} catch (e) {

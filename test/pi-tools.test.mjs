@@ -15,6 +15,10 @@ import {
 	extractPathsFromBash,
 	footerText,
 	mergePayload,
+	modelMatchesSpec,
+	modelSwitchSucceeded,
+	parseModelSpec,
+	resolveRoleModel,
 	runJson,
 	scriptPath,
 	shouldNudge,
@@ -791,6 +795,78 @@ test("nextAutoAction escalates on conflicts, prior strikes, drafts, and stuck gr
 		ST(),
 	);
 	assert.match(a.reason, /cycle or missing/);
+});
+
+test("runtime role model resolution preserves managed model objects", () => {
+	const active = {
+		provider: "openai-codex",
+		id: "gpt-5.6-sol",
+		baseUrl: "https://managed-proxy.test",
+	};
+	const direct = {
+		provider: "openai-codex",
+		id: "gpt-5.6-sol",
+		baseUrl: "https://api.openai.com",
+	};
+	let registryLookups = 0;
+	const target = resolveRoleModel(
+		"openai-codex/gpt-5.6-sol",
+		active,
+		null,
+		{
+			find() {
+				registryLookups += 1;
+				return direct;
+			},
+		},
+	);
+	assert.equal(target.model, active);
+	assert.equal(target.switchRequired, false);
+	assert.equal(registryLookups, 0);
+});
+
+test("runtime role model resolution reuses the restoration model before registry lookup", () => {
+	const active = { provider: "anthropic", id: "claude-sonnet" };
+	const restore = {
+		provider: "openai-codex",
+		id: "gpt-5.6-sol",
+		baseUrl: "https://managed-proxy.test",
+	};
+	const target = resolveRoleModel(
+		"openai-codex/gpt-5.6-sol",
+		active,
+		restore,
+		{ find: () => assert.fail("registry should not replace runtime model") },
+	);
+	assert.equal(target.model, restore);
+	assert.equal(target.switchRequired, true);
+});
+
+test("runtime role model resolution falls back to registry for another model", () => {
+	const registered = { provider: "anthropic", id: "claude-opus/4.8" };
+	const registry = {
+		find(provider, id) {
+			assert.equal(provider, "anthropic");
+			assert.equal(id, "claude-opus/4.8");
+			return registered;
+		},
+	};
+	assert.deepEqual(parseModelSpec("anthropic/claude-opus/4.8"), {
+		provider: "anthropic",
+		id: "claude-opus/4.8",
+	});
+	assert.equal(modelMatchesSpec(registered, "anthropic/claude-opus/4.8"), true);
+	assert.deepEqual(
+		resolveRoleModel("anthropic/claude-opus/4.8", null, null, registry),
+		{ model: registered, switchRequired: true },
+	);
+	assert.equal(resolveRoleModel("malformed", null, null, registry), null);
+});
+
+test("model switch success accepts modern void and legacy true only", () => {
+	assert.equal(modelSwitchSucceeded(undefined), true);
+	assert.equal(modelSwitchSucceeded(true), true);
+	assert.equal(modelSwitchSucceeded(false), false);
 });
 
 test("roleModelSpec resolves overrides and leaves active alone", () => {
