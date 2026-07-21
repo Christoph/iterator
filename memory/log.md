@@ -1,6 +1,16 @@
 # iterator update log
 
 ## 2026-07-21
+* **Implementation**: Committed feature(activate-work-on-plan-start) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Update**: Applied 2 feature adjustment(s).
+* **Creation**: 2 feature(s) written.
+* **Creation**: Plan "Focus plan starts and preserve managed model authentication" approved on branch iterator/safe-role-model-handoff. Consumed 2 selected backlog candidate(s).
+* **Backlog**: select when-setting-the-mdoel-sin-settings-i-get-an-error-when-using-iterator (selected).
+* **Backlog**: select on-plan-open-work-tab (selected).
+* **Backlog**: create when-setting-the-mdoel-sin-settings-i-get-an-error-when-using-iterator.
+* **Retirement**: Plan "Simplify the failing CI pipeline" condensed into [Keep dependency-free CI minimal](/decisions/minimal-dependency-free-ci.md).
+* **Plan review**: Whole-plan review recorded (agent).
+* **Review**: Reviewed [Simplify CI workflow](/features/simplify-ci-workflow.md); approved (agent).
 * **Review**: Accepted [Simplify CI workflow](/features/simplify-ci-workflow.md) (committed as feature(simplify-ci-workflow)).
 * **Implementation**: Committed feature(simplify-ci-workflow) on branch iterator/safe-role-model-handoff; awaiting review.
 * **Update**: Applied 1 feature adjustment(s).

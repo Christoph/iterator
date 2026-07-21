@@ -1158,6 +1158,15 @@ export default function iteratorExtension(pi) {
 					}
 					const cmd = actionToCommand(result);
 					if (!cmd) return;
+					if (result.action === "plan") {
+						// Planning creates active work: deliberately land on Work before
+						// showing its owned overlay and starting the planner.
+						void refreshHub(ctxCwd(), { activateWork: true }).then(() => {
+							session.showWorking(`Dispatched ${cmd} — Agent is working…`);
+							dispatch(cmd);
+						});
+						return;
+					}
 					session.showWorking(`Dispatched ${cmd} — Agent is working…`);
 					dispatch(cmd);
 				},

@@ -6,13 +6,14 @@ status: done
 size: small
 depends_on: []
 files: [".github/workflows/ci.yml"]
-timestamp: "2026-07-21T09:32:48.120Z"
+timestamp: "2026-07-21T09:32:53.217Z"
 tags: []
 commits:
   - sha: 818959c39f190815932ac3d7f9189c7d02e01272
     kind: implement
     date: 2026-07-21
 done: 2026-07-21
+reviewed: 2026-07-21
 ---
 
 # Implementation notes
@@ -33,3 +34,8 @@ jobs:
 # Blast radius
 
 GitHub Actions checks for pushes to main and all pull requests.
+
+# Review
+
+## 2026-07-21
+* **Approved** _(agent review: openai-codex/gpt-5.6-sol)_ — Approved: the commit removes only the redundant Node matrix and setup action while preserving triggers, checkout, and the unchanged npm test command.

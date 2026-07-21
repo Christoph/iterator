@@ -1,3 +1,4 @@
 # Features
 
-* [Simplify CI workflow](simplify-ci-workflow.md) - ✅ done · small · Run the repository test suite once in a minimal GitHub Actions job without redundant Node setup or version-matrix executions.
+* [Activate Work when planning starts](activate-work-on-plan-start.md) - ⬜ pending · small · Starting a plan from Planning immediately opens the Work progress surface while preserving the later plan review and approval landings.
+* [Preserve runtime role-model authentication](preserve-runtime-role-model.md) - ⬜ pending · medium · Configured Iterator roles retain Pi’s active runtime model routing and correctly recognize modern void-returning model switches.

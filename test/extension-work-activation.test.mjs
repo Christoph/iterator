@@ -27,6 +27,21 @@ test("accepted feature breakdown intentionally activates Work", () => {
 	);
 });
 
+test("starting a plan from Planning intentionally activates Work", () => {
+	const from = source.indexOf('const cmd = actionToCommand(result);');
+	assert.notEqual(from, -1);
+	const section = source.slice(from, from + 800);
+	assert.match(section, /if \(result\.action === "plan"\)/);
+	assert.match(
+		section,
+		/refreshHub\(ctxCwd\(\), \{ activateWork: true \}\)\.then\(\(\) => \{/,
+	);
+	assert.match(
+		section,
+		/session\.showWorking\(`Dispatched \$\{cmd\} — Agent is working…`\);\n\s*dispatch\(cmd\);/,
+	);
+});
+
 test("approved plan application intentionally activates Work", () => {
 	const section = sourceSection(
 		"// Apply-on-approve (mirrors lib/app.mjs)",
