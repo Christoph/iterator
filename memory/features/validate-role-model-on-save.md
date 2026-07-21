@@ -2,12 +2,12 @@
 type: Feature
 title: Reject unusable role models at save time
 description: Saving a role model that cannot work in the current session is refused with a named reason instead of failing later as a provider 401.
-status: implemented
+status: done
 size: medium
 depends_on: []
 files: ["lib/pi-tools.mjs", "extensions/iterator.js", "test/pi-tools.test.mjs", "test/extension-model-lifecycle.test.mjs"]
 memories: [architecture/package-and-skill-layout, decisions/auto-plan-review-terminal-reset, decisions/backlog-planning-and-feature-waves, decisions/code-exact-red-test-review-and-agent-wording, decisions/focus-feature-execution-and-dashboard-ownership, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset, decisions/memory-relevance-usage-and-dashboard-recovery]
-timestamp: "2026-07-21T20:14:13.764Z"
+timestamp: "2026-07-21T20:14:51.701Z"
 tags: []
 commits:
   - sha: 55864983c4afdd284d23f08d4027ddc4f10f88c7
@@ -16,6 +16,7 @@ commits:
   - sha: fca031b80aa87378faa82debe943ea53a92cee45
     kind: implement
     date: 2026-07-21
+done: 2026-07-21
 ---
 
 # Implementation notes

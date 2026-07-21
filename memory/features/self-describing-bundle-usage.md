@@ -2,17 +2,18 @@
 type: Feature
 title: Teach the bundle to explain its own use
 description: Every bundle carries agent-facing usage rules, written at init and drift-checked during consolidate without the dashboard.
-status: implemented
+status: done
 size: medium
 depends_on: []
 files: ["templates/format.md", "lib/write.mjs", "skills/iterator-init/SKILL.md", "skills/iterator-consolidate/SKILL.md", "test/write.test.mjs"]
 memories: [architecture/knowledge-lifecycle, architecture/workflow-state-ownership, patterns/agent-reviewed-memory-writes, decisions/auto-plan-review-terminal-reset, decisions/consume-accepted-backlog-ideas, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset, decisions/memory-relevance-usage-and-dashboard-recovery]
-timestamp: "2026-07-21T20:04:49.830Z"
+timestamp: "2026-07-21T20:14:51.682Z"
 tags: []
 commits:
   - sha: ddb22431072427c20ee522a5945c5b2849e6fc1c
     kind: implement
     date: 2026-07-21
+done: 2026-07-21
 ---
 
 # Implementation notes
