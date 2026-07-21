@@ -1627,7 +1627,7 @@ export default function iteratorExtension(pi) {
 				// The settings form upgrades its model fields to dropdowns when the
 				// registry rides along.
 				if (params.step === "settings") {
-					const models = modelOptions();
+					const models = await modelOptions();
 					if (models) gathered.models = models;
 				}
 				const payload = mergePayload(gathered, params.extra);

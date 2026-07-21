@@ -31,6 +31,18 @@ test("role switching accepts modern void success and preserves runtime matches",
 	assert.match(extension, /else if \(target\.switchRequired\)/);
 });
 
+test("the settings step awaits the model registry so fields stay dropdowns", () => {
+	const extension = readFileSync(
+		new URL("../extensions/iterator.js", import.meta.url),
+		"utf8",
+	);
+	// An unawaited modelOptions() assigns a Promise, which is truthy but fails
+	// the view's Array.isArray guard — the model fields silently degrade to a
+	// free-text box where a wrong provider prefix reaches the provider as a 401.
+	assert.match(extension, /const models = await modelOptions\(\);/);
+	assert.doesNotMatch(extension, /const models = modelOptions\(\);/);
+});
+
 test("agent plan review completion converges the auto dashboard immediately", () => {
 	const extension = readFileSync(
 		new URL("../extensions/iterator.js", import.meta.url),
