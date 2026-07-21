@@ -3,6 +3,7 @@
 Durable product and implementation choices agents should preserve.
 
 * [Apply role models to manual turns and reset stale runtime state](/decisions/manual-role-models-and-runtime-reset.md) - Manual Iterator role commands temporarily select configured models, while approved plans and terminal auto runs reset runtime state deterministically.
+* [Auto plan review resets runtime state](/decisions/auto-plan-review-terminal-reset.md) - The recorded terminal auto plan review is the durable boundary that returns auto mode and the Work surface to a completed manual state.
 * [Backlog planning and parallel feature waves](/decisions/backlog-planning-and-feature-waves.md) - Keep low-risk backlog editing available during active work while implementing a fixed ready-feature wave and reviewing its commit-backed results together.
 * [Consume selected backlog ideas on plan approval](/decisions/consume-accepted-backlog-ideas.md) - Selected idea or bug candidates leave the backlog only after deterministic plan approval.
 * [Focus feature execution and dashboard ownership](/decisions/focus-feature-execution-and-dashboard-ownership.md) - Implementation now starts in fresh feature sessions, Work owns active plans, Settings preserves context as a shell modal, and red tests are explicit handoffs.

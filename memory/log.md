@@ -1,5 +1,17 @@
 # iterator update log
 
+## 2026-07-21
+* **Implementation**: Committed feature(simplify-ci-workflow) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Update**: Applied 1 feature adjustment(s).
+* **Creation**: 1 feature(s) written.
+* **Creation**: Plan "Simplify the failing CI pipeline" approved on branch iterator/safe-role-model-handoff. Consumed 1 selected backlog candidate(s).
+* **Backlog**: delete on-plan-open-work-tab-2.
+* **Backlog**: create on-plan-open-work-tab-2.
+* **Backlog**: create on-plan-open-work-tab.
+* **Retirement**: Plan "Finish auto mode after plan review" condensed into [Auto plan review resets runtime state](/decisions/auto-plan-review-terminal-reset.md).
+* **Backlog**: select the-ci-pipeline-fails-remove-unnecessary-steps (selected).
+* **Backlog**: create the-ci-pipeline-fails-remove-unnecessary-steps.
+
 ## 2026-07-20
 * **Plan review**: Whole-plan review recorded (agent).
 * **Review**: Reviewed [Finalize auto mode after plan review](/features/finalize-auto-plan-review.md); approved (agent).
