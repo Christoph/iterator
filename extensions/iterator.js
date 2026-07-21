@@ -40,6 +40,7 @@ import { relative, resolve } from "node:path";
 import { Type } from "typebox";
 
 import { matchConcepts, OKF_AREA_NAMES } from "../lib/bundle.mjs";
+import { dispatchAfterRefresh } from "../lib/dashboard-dispatch.mjs";
 import { hydrateMemoryCards } from "../lib/gather.mjs";
 import {
 	checkBashCommit,
@@ -1160,11 +1161,20 @@ export default function iteratorExtension(pi) {
 					if (!cmd) return;
 					if (result.action === "plan") {
 						// Planning creates active work: deliberately land on Work before
-						// showing its owned overlay and starting the planner.
-						void refreshHub(ctxCwd(), { activateWork: true }).then(() => {
-							session.showWorking(`Dispatched ${cmd} — Agent is working…`);
-							dispatch(cmd);
-						});
+						// showing its owned overlay and starting the planner. A broken
+						// refresh is advisory; it must never swallow the requested action.
+						void dispatchAfterRefresh(
+							() => refreshHub(ctxCwd(), { activateWork: true }),
+							() => {
+								session.showWorking(`Dispatched ${cmd} — Agent is working…`);
+								dispatch(cmd);
+							},
+							(error) =>
+								notifyUi(
+									`could not activate Work before planning: ${error.message}`,
+									"warning",
+								),
+						);
 						return;
 					}
 					session.showWorking(`Dispatched ${cmd} — Agent is working…`);

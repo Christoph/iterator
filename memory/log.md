@@ -2,6 +2,9 @@
 
 ## 2026-07-21
 * **Implementation**: Committed feature(activate-work-on-plan-start) on branch iterator/safe-role-model-handoff; awaiting review.
+* **Backlog**: create after-initial-install-no-update-possible.
+* **Review**: Reviewed [Activate Work when planning starts](/features/activate-work-on-plan-start.md); changes (agent).
+* **Implementation**: Committed feature(activate-work-on-plan-start) on branch iterator/safe-role-model-handoff; awaiting review.
 * **Update**: Applied 2 feature adjustment(s).
 * **Creation**: 2 feature(s) written.
 * **Creation**: Plan "Focus plan starts and preserve managed model authentication" approved on branch iterator/safe-role-model-handoff. Consumed 2 selected backlog candidate(s).

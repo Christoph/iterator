@@ -7,12 +7,13 @@ size: small
 depends_on: []
 files: ["extensions/iterator.js", "test/extension-work-activation.test.mjs"]
 memories: [architecture/package-and-skill-layout, decisions/auto-plan-review-terminal-reset, decisions/backlog-planning-and-feature-waves, decisions/code-exact-red-test-review-and-agent-wording, decisions/focus-feature-execution-and-dashboard-ownership, decisions/iterator-dashboard-feature-workflow, decisions/manual-role-models-and-runtime-reset, decisions/memory-relevance-usage-and-dashboard-recovery]
-timestamp: "2026-07-21T14:02:20.366Z"
+timestamp: "2026-07-21T14:05:11.572Z"
 tags: []
 commits:
   - sha: eadb89bf9ca7fc3e753bb78d11cc2f4fb114971b
     kind: implement
     date: 2026-07-21
+reviewed: 2026-07-21
 ---
 
 # Implementation notes
@@ -35,3 +36,8 @@ await refreshHub(cwd, { activateWork: true });
 # Blast radius
 
 Planning-to-Work navigation and visibility of the agent working overlay when plan creation starts.
+
+# Review
+
+## 2026-07-21
+* **Needs changes** _(agent review: openai-codex/gpt-5.6-sol)_ — The new plan path chains dispatch only inside `refreshHub(...).then(...)`. If dashboard gathering/rendering rejects, the promise is unhandled and the requested plan never starts, whereas the prior generic path always dispatched. Wrap the activation in an async helper or catch/finally so refresh failure is reported but `showWorking`/`dispatch(cmd)` still occur exactly once; add a behavioral regression for the rejection path rather than only source-pattern assertions.
